@@ -1,0 +1,20 @@
+model Job {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobFamilyId     String   @db.Uuid
+  title           String   @db.VarChar(255)
+  normalizedName  String   @db.VarChar(255)
+  description     String?  @db.Text
+  createdAt       DateTime @default(now()) @db.Timestamp(0)
+  updatedAt       DateTime @default(now()) @updatedAt @db.Timestamp(0)
+  isActive        Boolean  @default(true)
+  popularity      Int      @default(0)
+  backgroundColor String   @default("#FFFFFFFF") @db.VarChar(9)
+  foregroundColor String   @default("#FFFFFFFF") @db.VarChar(9)
+  textColor       String   @default("#FFFFFFFF") @db.VarChar(9)
+  overlayColor    String   @default("#FFFFFFFF") @db.VarChar(9)
+  imageIndex      Int      @default(0)
+
+  // Relations
+  jobFamily    JobFamily    @relation(fields: [jobFamilyId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_jobs_job_family_id")
+  competencies Competency[] @relation("JobCompetencies")
+}

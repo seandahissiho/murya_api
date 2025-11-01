@@ -1,0 +1,45 @@
+enum permissions_action {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+}
+
+enum permissions_entity {
+  USER
+}
+
+enum NotificationCategory {
+  SYSTEM
+  USER
+  PAYMENT
+  PURCHASE
+  SALE
+  HR
+  MARKETING
+  FINANCE
+  ADMINISTRATION
+  LEGAL
+  SUPPORT
+  SECURITY
+  MAINTENANCE
+  REPORT
+  ALERT
+  EVENT
+  REMINDER
+  FEEDBACK
+  OTHER
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  ERROR
+  SUCCESS
+}
+
+enum Genre {
+  MALE
+  FEMALE
+  UNDEFINED
+}

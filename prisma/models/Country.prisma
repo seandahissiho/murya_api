@@ -1,0 +1,17 @@
+model Country {
+  // id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  isoCode     String    @id @unique // Code ISO du pays (optionnel)
+  iso3Code    String?   @unique // Code ISO3 du pays (optionnel)
+  phoneCode   String?   @unique // Indicatif téléphonique du pays (optionnel)
+  createdAt   DateTime  @default(now()) @db.Timestamp(0)
+  updatedAt   DateTime  @default(now()) @updatedAt @db.Timestamp(0)
+  // Relations
+  addresses   Address[] // Adresses associées à ce pays
+  createdById String?   @db.Uuid // ID de l'utilisateur qui a créé le pays
+  updatedById String?   @db.Uuid // ID de l'utilisateur qui a mis à jour le pays
+  createdBy   User?     @relation(name: "CountryCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_countries_created_by")
+  updatedBy   User?     @relation(name: "CountryUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_countries_updated_by")
+
+  @@index([name], map: "idx_countries_name")
+}
