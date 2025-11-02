@@ -21,9 +21,22 @@ export const getJobDetails = async (jobId: string) => {
         where: {id: jobId},
         include: {
             jobFamily: true,
+            competenciesFamilies: {
+                include: {
+                    competencies: true,
+                    parent: true,
+                    children: true
+                }
+            },
             competencies: {
                 include: {
-                    families: true,
+                    families: {
+                        include: {
+                            competencies: true,
+                            parent: true,
+                            children: true
+                        }
+                    },
                 }
             }
         }
@@ -40,7 +53,7 @@ export const getCompetencyFamilyDetailsForJob = async (jobId: string, cfId: stri
     }
 
     const family = await prisma.competenciesFamily.findUnique({
-        where: {id: cfId},
+        where: {id: cfId, parent: null},
     });
 
     if (!family) {

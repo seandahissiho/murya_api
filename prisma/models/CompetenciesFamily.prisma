@@ -9,4 +9,5 @@ model CompetenciesFamily {
   competencies   Competency[]         @relation("CompetencyFamilies")
   parent         CompetenciesFamily?  @relation("CompetenciesFamilyToParent", fields: [parentId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_competencies_family_parent_id")
   children       CompetenciesFamily[] @relation("CompetenciesFamilyToParent")
+  jobs           Job[]                @relation("JobCompetenciesFamilies")
 }
