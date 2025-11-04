@@ -13,9 +13,7 @@ fs.mkdirSync(baseDir, {recursive: true});
 // Multer storage to disk, bucketed by workspace
 const storage = multer.diskStorage({
     destination: async (req, file, cb) => {
-        const workspaceId = ((req as any).user.workspaceId).trim();
-        if (!workspaceId) return cb(new Error("workspaceId is required"), "");
-        const dir = path.join(baseDir, workspaceId);
+        const dir = path.join(baseDir);
         fs.mkdirSync(dir, {recursive: true});
         cb(null, dir);
     },

@@ -4,7 +4,6 @@ import {sendResponse} from "../utils/helpers";
 
 export const getAllFiles = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const workspaceId = (req as any).user.workspaceId;
         const uploads = await uploadService.getAllUploads();
         sendResponse(
             res,
@@ -27,7 +26,6 @@ export const getAllFiles = async (req: Request, res: Response, next: NextFunctio
 }
 
 export const getFileById = async (req: Request, res: Response, next: NextFunction) => {
-    const workspaceId = (req as any).user.workspaceId;
     const id = req.params.id;
     try {
         const upload = await uploadService.getUploadById(id);
@@ -56,10 +54,9 @@ export const getFileById = async (req: Request, res: Response, next: NextFunctio
 
 export const uploadFile = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const workspaceId = (req as any).user.workspaceId;
         const userId = (req as any).user.userId;
-        if (!workspaceId || !req.file) {
-            return res.status(400).json({error: "workspaceId and file are required"});
+        if (!req.file) {
+            return res.status(400).json({error: "file is required"});
         }
         // Assuming file is available in req.file (using multer or similar middleware)
         if (!req.file) {
@@ -67,7 +64,6 @@ export const uploadFile = async (req: Request, res: Response, next: NextFunction
         }
 
         const data = {
-            workspaceId,
             userId,
             file: req.file,
         }
@@ -94,18 +90,16 @@ export const uploadFile = async (req: Request, res: Response, next: NextFunction
 
 export const updateFile = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const workspaceId = (req as any).user.workspaceId;
         const userId = (req as any).user.userId;
         const id = req.params.id;
-        if (!workspaceId || !req.file) {
-            return res.status(400).json({error: "workspaceId and file are required"});
+        if (!req.file) {
+            return res.status(400).json({error: "file is required"});
         }
         // Assuming file is available in req.file (using multer or similar middleware)
         if (!req.file) {
             return res.status(400).json({message: 'No file uploaded'});
         }
         const data = {
-            workspaceId,
             userId,
             file: req.file,
         }
@@ -134,7 +128,6 @@ export const updateFile = async (req: Request, res: Response, next: NextFunction
 }
 
 export const deleteFile = async (req: Request, res: Response, next: NextFunction) => {
-    const workspaceId = (req as any).user.workspaceId;
     const id = req.params.id;
     try {
         const deletedUpload = await uploadService.deleteUpload(id);

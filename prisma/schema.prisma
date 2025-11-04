@@ -60,6 +60,13 @@ enum Genre {
   UNDEFINED
 }
 
+enum CompetencyType {
+  // savoir-faire
+  HARD_SKILL
+  // savoir-être
+  SOFT_SKILL
+}
+
 model Address {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   ref         String    @unique
@@ -87,7 +94,6 @@ model Address {
 }
 
 model Company {
-  workspaceId String   @db.Uuid
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String   @unique(map: "company_name") @db.VarChar(255)
   nameShort   String?  @db.VarChar(50) // nom court de l'entreprise
@@ -137,12 +143,25 @@ model Competency {
   advancedScore     Int                  @default(3) @map("advanced_score")
   expertScore       Int                  @default(4) @map("expert_score")
   maxScore          Int                  @default(5) @map("max_score")
+  type              CompetencyType
   createdAt         DateTime             @default(now()) @db.Timestamp(0)
   updatedAt         DateTime             @default(now()) @updatedAt @db.Timestamp(0)
   jobs              Job[]                @relation("JobCompetencies")
   families          CompetenciesFamily[] @relation("CompetencyFamilies")
+  i18n              CompetencyI18n[]
 
   @@index([name], map: "idx_competency_name")
+}
+
+model CompetencyI18n {
+  competencyId String     @db.Uuid
+  langCode     String     @db.VarChar(16)
+  name         String     @db.VarChar(255)
+  competency   Competency @relation(fields: [competencyId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  lang         Language   @relation(fields: [langCode], references: [code], onUpdate: Cascade, onDelete: Cascade)
+
+  @@id([competencyId, langCode])
+  @@index([langCode])
 }
 
 model Country {
@@ -182,6 +201,8 @@ model Job {
   jobFamily            JobFamily            @relation(fields: [jobFamilyId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_jobs_job_family_id")
   competencies         Competency[]         @relation("JobCompetencies")
   competenciesFamilies CompetenciesFamily[] @relation("JobCompetenciesFamilies")
+
+  @@index([jobFamilyId])
 }
 
 model JobFamily {
@@ -196,6 +217,30 @@ model JobFamily {
   children       JobFamily[] @relation("JobFamilyToParent")
 }
 
+model Language {
+  code           String           @id @db.VarChar(16) // ex: "en", "fr", "fr-FR"
+  name           String
+  isDefault      Boolean          @default(false)
+  competencyI18n CompetencyI18n[]
+  usersPreferred User[]           @relation("UserPreferredLanguage")
+}
+
+model Translation {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity    String   @db.VarChar(64) // "Job", "JobFamily", "Competency", etc.
+  entityId  String   @db.Uuid
+  field     String   @db.VarChar(64) // "title", "description", ...
+  langCode  String   @db.VarChar(16) // "fr", "en"
+  value     String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([entity, entityId, field, langCode], map: "unique_translation_row")
+  @@index([langCode], map: "idx_translation_lang")
+  @@index([entity, field], map: "idx_translation_entity_field")
+}
+
+/// The actual delivered notification is materialized text for audit & immutability.
 model Notification {
   id                     String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title                  String                  @db.VarChar(255)
@@ -203,9 +248,18 @@ model Notification {
   is_read                Boolean                 @default(false) @db.Boolean
   is_important           Boolean                 @default(false) @db.Boolean
   category               NotificationCategory    @default(OTHER)
-  createdAt              DateTime                @default(now()) @db.Timestamp(0)
-  updatedAt              DateTime                @default(now()) @db.Timestamp(0)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @default(now()) @updatedAt
   notificationRecipients NotificationRecipient[]
+}
+
+model NotificationTemplate {
+  id        String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key       String               @unique @db.VarChar(255) // e.g. "USER.WELCOME"
+  category  NotificationCategory @default(OTHER)
+  type      NotificationType     @default(INFO)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @default(now()) @updatedAt
 }
 
 model NotificationRecipient {
@@ -273,13 +327,14 @@ model User {
   avatarUrl              String?
   birthDate              DateTime?
   genre                  Genre?                  @default(UNDEFINED) // genre de l'utilisateur
-  workspaceId            String                  @db.Uuid // identifiant de l'espace de travail
   roleId                 String                  @db.Uuid // identifiant du rôle de l'utilisateur
   refreshToken           String? // token de rafraîchissement pour l'authentification
   addressId              String?                 @db.Uuid // ID de l'adresse associée
+  preferredLangCode      String?                 @db.VarChar(16)
   createdById            String?                 @db.Uuid // identifiant de l'utilisateur qui a créé ce compte
   updatedById            String?                 @db.Uuid // identifiant de l'utilisateur qui a mis à jour ce compte
   role                   Role                    @relation(fields: [roleId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_role_id")
+  preferredLang          Language?               @relation(name: "UserPreferredLanguage", fields: [preferredLangCode], references: [code], onUpdate: Cascade, onDelete: SetNull)
   // utilisateur qui a créé ou mis à jour ce compte
   createdBy              User?                   @relation(name: "UserCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_created_by")
   updatedBy              User?                   @relation(name: "UserUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_updated_by")
@@ -303,5 +358,6 @@ model User {
   clientCompaniesCreated Company[]               @relation(name: "ClientCompanyCreatedBy")
   clientCompaniesUpdated Company[]               @relation(name: "ClientCompanyUpdatedBy")
 
-  @@unique([workspaceId, phone])
+  @@unique([phone])
+  @@index([preferredLangCode])
 }

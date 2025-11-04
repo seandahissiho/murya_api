@@ -1,5 +1,4 @@
 model Company {
-  workspaceId String   @db.Uuid
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String   @unique(map: "company_name") @db.VarChar(255)
   nameShort   String?  @db.VarChar(50) // nom court de l'entreprise

@@ -1,25 +1,26 @@
 model User {
-  id           String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  firstname    String
-  lastname     String
-  email        String    @unique
-  phone        String
-  password     String // mot de passe haché
-  isActive     Boolean   @default(true) // utilisateur actif ou non
-  isAdmin      Boolean   @default(false) // utilisateur admin
-  createdAt    DateTime  @default(now())
-  lastLogin    DateTime? // date de dernière connexion
-  avatarUrl    String?
-  birthDate    DateTime?
-  genre        Genre?    @default(UNDEFINED) // genre de l'utilisateur
-  workspaceId  String    @db.Uuid // identifiant de l'espace de travail
-  roleId       String    @db.Uuid // identifiant du rôle de l'utilisateur
-  refreshToken String? // token de rafraîchissement pour l'authentification
-  addressId    String?   @db.Uuid // ID de l'adresse associée
-  createdById  String?   @db.Uuid // identifiant de l'utilisateur qui a créé ce compte
-  updatedById  String?   @db.Uuid // identifiant de l'utilisateur qui a mis à jour ce compte
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firstname         String
+  lastname          String
+  email             String    @unique
+  phone             String
+  password          String // mot de passe haché
+  isActive          Boolean   @default(true) // utilisateur actif ou non
+  isAdmin           Boolean   @default(false) // utilisateur admin
+  createdAt         DateTime  @default(now())
+  lastLogin         DateTime? // date de dernière connexion
+  avatarUrl         String?
+  birthDate         DateTime?
+  genre             Genre?    @default(UNDEFINED) // genre de l'utilisateur
+  roleId            String    @db.Uuid // identifiant du rôle de l'utilisateur
+  refreshToken      String? // token de rafraîchissement pour l'authentification
+  addressId         String?   @db.Uuid // ID de l'adresse associée
+  preferredLangCode String?   @db.VarChar(16)
+  createdById       String?   @db.Uuid // identifiant de l'utilisateur qui a créé ce compte
+  updatedById       String?   @db.Uuid // identifiant de l'utilisateur qui a mis à jour ce compte
 
   role                   Role                    @relation(fields: [roleId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_role_id")
+  preferredLang          Language?               @relation(name: "UserPreferredLanguage", fields: [preferredLangCode], references: [code], onUpdate: Cascade, onDelete: SetNull)
   // utilisateur qui a créé ou mis à jour ce compte
   createdBy              User?                   @relation(name: "UserCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_created_by")
   updatedBy              User?                   @relation(name: "UserUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_updated_by")
@@ -43,5 +44,6 @@ model User {
   clientCompaniesCreated Company[]               @relation(name: "ClientCompanyCreatedBy")
   clientCompaniesUpdated Company[]               @relation(name: "ClientCompanyUpdatedBy")
 
-  @@unique([workspaceId, phone])
+  @@unique([phone])
+  @@index([preferredLangCode])
 }

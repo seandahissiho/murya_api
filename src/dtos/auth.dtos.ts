@@ -1,6 +1,5 @@
 
 export interface RegisterDto {
-    workspaceId: string;
     email: string;
     password: string;
     firstname: string;

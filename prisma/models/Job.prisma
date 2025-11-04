@@ -18,4 +18,6 @@ model Job {
   jobFamily            JobFamily            @relation(fields: [jobFamilyId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_jobs_job_family_id")
   competencies         Competency[]         @relation("JobCompetencies")
   competenciesFamilies CompetenciesFamily[] @relation("JobCompetenciesFamilies")
+
+  @@index([jobFamilyId])
 }

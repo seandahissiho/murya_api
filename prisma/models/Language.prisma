@@ -1,0 +1,23 @@
+model Language {
+  code      String  @id @db.VarChar(16) // ex: "en", "fr", "fr-FR"
+  name      String
+  isDefault Boolean @default(false)
+
+  competencyI18n CompetencyI18n[]
+  usersPreferred User[]           @relation("UserPreferredLanguage")
+}
+
+model Translation {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity    String   @db.VarChar(64) // "Job", "JobFamily", "Competency", etc.
+  entityId  String   @db.Uuid
+  field     String   @db.VarChar(64) // "title", "description", ...
+  langCode  String   @db.VarChar(16) // "fr", "en"
+  value     String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([entity, entityId, field, langCode], map: "unique_translation_row")
+  @@index([langCode], map: "idx_translation_lang")
+  @@index([entity, field], map: "idx_translation_entity_field")
+}

@@ -63,10 +63,9 @@ export const getUploadById = async (id: string) => {
 }
 
 export const createUpload = async (data: any) => {
-    const workspaceId = data.workspaceId;
     const userId = data.userId;
     const file = data.file;
-    const relPath = `/uploads/${workspaceId}/${file.filename}`; // URL you can serve
+    const relPath = `/uploads/${file.filename}`; // URL you can serve
     const mimeType = file.mimetype || "application/octet-stream";
     const size = file.size;
     const buffer: any = file.buffer;
@@ -84,10 +83,9 @@ export const createUpload = async (data: any) => {
 }
 
 export const updateUpload = async (id: string, data: any) => {
-    const workspaceId = data.workspaceId;
     const userId = data.userId;
     const file = data.file;
-    const relPath = `/uploads/${workspaceId}/${file.filename}`; // URL you can serve
+    const relPath = `/uploads/${file.filename}`; // URL you can serve
     const mimeType = file.mimetype || "application/octet-stream";
     const size = file.size;
     const buffer: any = file.buffer;

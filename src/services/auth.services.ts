@@ -22,7 +22,6 @@ async function getDefaultRole() {
 
 // Inscription : création de l'utilisateur avec hachage du mot de passe
 export const register = async (
-    workspaceId: string,
     email: string,
     rawPassword: string,
     firstname: string,
@@ -33,7 +32,6 @@ export const register = async (
     const hash = await bcrypt.hash(rawPassword, SALT_ROUNDS);
     return prisma.user.create({
         data: {
-            workspaceId,
             firstname,
             lastname,
             email,
@@ -66,7 +64,7 @@ export const login = async (
 
     // Generate Access Token
     const access_token = jwt.sign(
-        {userId: user.id, userRole: user.roleId, isAdmin: user.isAdmin, workspaceId: user.workspaceId},
+        {userId: user.id, userRole: user.roleId, isAdmin: user.isAdmin},
         process.env.JWT_SECRET as string,
         {
             expiresIn: ACCESS_TOKEN_EXPIRY,
@@ -79,7 +77,7 @@ export const login = async (
 
     // Generate Refresh Token
     const refresh_token = jwt.sign(
-        {userId: user.id, userRole: user.roleId, isAdmin: user.isAdmin, workspaceId: user.workspaceId},
+        {userId: user.id, userRole: user.roleId, isAdmin: user.isAdmin},
         process.env.JWT_REFRESH_SECRET as string,
         {
             expiresIn: REFRESH_TOKEN_EXPIRY,
@@ -104,9 +102,9 @@ export const login = async (
 };
 
 // Récupération des informations de l'utilisateur
-export const retrieve = async (userId: string, workspaceId: string): Promise<User | null> => {
+export const retrieve = async (userId: string): Promise<User | null> => {
     const user = await prisma.user.findUnique({
-        where: {id: userId, workspaceId: workspaceId},
+        where: {id: userId},
         include: {
             role: true,
         },
@@ -147,7 +145,7 @@ export const refresh = async (refreshToken: string): Promise<{ access_token: str
 
     // Generate a new Access Token
     const newAccessToken = jwt.sign(
-        {userId: user.id, userRole: user.role.id, isAdmin: user.isAdmin, workspaceId: user.workspaceId},
+        {userId: user.id, userRole: user.role.id, isAdmin: user.isAdmin},
         process.env.JWT_SECRET as string,
         {
             expiresIn: ACCESS_TOKEN_EXPIRY,

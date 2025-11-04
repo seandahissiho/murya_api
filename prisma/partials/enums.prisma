@@ -43,3 +43,10 @@ enum Genre {
   FEMALE
   UNDEFINED
 }
+
+enum CompetencyType {
+  // savoir-faire
+  HARD_SKILL
+  // savoir-être
+  SOFT_SKILL
+}

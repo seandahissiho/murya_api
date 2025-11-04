@@ -8,7 +8,6 @@ export const register = async (req: Request<any, any, RegisterDto>, res: Respons
     try {
         const dto = req.body;
         const user = await authService.register(
-            dto.workspaceId,
             dto.email,
             dto.password,
             dto.firstname,
@@ -66,9 +65,8 @@ export const login = async (req: Request<any, any, LoginDto>, res: Response, nex
 export const retrieve = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = (req as any).user.userId;
-        const workspaceId = (req as any).user.workspaceId;
 
-        const user = await authService.retrieve(userId, workspaceId);
+        const user = await authService.retrieve(userId);
 
         return sendResponse(
             res,

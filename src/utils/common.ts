@@ -25,17 +25,16 @@ export const authenticateToken = async (
 
             // Check if the user exists in the database
             const userId = (req as any).user.userId;
-            const workspaceId = (req as any).user.workspaceId;
             const userRoleId = (req as any).user.userRole;
 
-            if (!userId || !workspaceId || !userRoleId) {
+            if (!userId || !userRoleId) {
                 return sendResponse(res, 401, {
                     error: "Veuillez vous connecter pour accéder à cette ressource",
                 });
             }
 
             const user = await prisma.user.findUnique({
-                where: {id: userId, workspaceId: workspaceId},
+                where: {id: userId},
                 include: {
                     role: {
                         include: {
@@ -89,7 +88,6 @@ export const checkPermissions = (
 ) => {
     return async (req: Request, res: Response, next: NextFunction) => {
         const userId = (req as any)?.user?.userId;
-        const workspaceId = (req as any)?.user?.workspaceId;
 
         if (!userId)
             return sendResponse(res, 401, {
