@@ -8,6 +8,7 @@ model Competency {
   expertScore       Int            @default(4) @map("expert_score")
   maxScore          Int            @default(5) @map("max_score")
   type              CompetencyType
+  level             Level          @default(EASY)
   createdAt         DateTime       @default(now()) @db.Timestamp(0)
   updatedAt         DateTime       @default(now()) @updatedAt @db.Timestamp(0)
 

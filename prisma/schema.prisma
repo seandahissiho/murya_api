@@ -67,6 +67,13 @@ enum CompetencyType {
   SOFT_SKILL
 }
 
+enum Level {
+  EASY
+  MEDIUM
+  HARD
+  EXPERT
+}
+
 model Address {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   ref         String    @unique
@@ -124,7 +131,7 @@ model CompetenciesFamily {
   id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name           String               @unique(map: "competencies_family_name") @db.VarChar(255)
   normalizedName String               @db.VarChar(255)
-  description    String?              @db.Text
+  description    String               @default(" ") @db.Text
   parentId       String?              @db.Uuid
   createdAt      DateTime             @default(now()) @db.Timestamp(0)
   updatedAt      DateTime             @default(now()) @updatedAt @db.Timestamp(0)
@@ -144,6 +151,7 @@ model Competency {
   expertScore       Int                  @default(4) @map("expert_score")
   maxScore          Int                  @default(5) @map("max_score")
   type              CompetencyType
+  level             Level                @default(EASY)
   createdAt         DateTime             @default(now()) @db.Timestamp(0)
   updatedAt         DateTime             @default(now()) @updatedAt @db.Timestamp(0)
   jobs              Job[]                @relation("JobCompetencies")

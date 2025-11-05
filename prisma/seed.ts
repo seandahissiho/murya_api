@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import { CompetencyType, PrismaClient } from '@prisma/client';
+import {CompetencyType, Level, PrismaClient} from '@prisma/client';
 
 const prisma = new PrismaClient();
 
@@ -16,7 +16,7 @@ function slugify(input: string): string {
 }
 
 type Kind = 'Savoir-faire' | 'Savoir-être';
-type Level = 'Facile' | 'Moyen' | 'Difficile' | 'Expert';
+// type Level = Level.EASY | Level.MEDIUM | Level.HARD | 'Expert';
 
 type Scores = {
     beginner: number;
@@ -195,10 +195,14 @@ const JOB_TITLE_FR: Record<string, string> = {
 // -----------------------------------------------------------------------------
 function defaultScoresForLevel(level: Level): Scores {
     switch (level) {
-        case 'Facile':     return { beginner: 1, intermediate: 1, advanced: 2, expert: 3, max: 4 };
-        case 'Moyen':      return { beginner: 1, intermediate: 2, advanced: 3, expert: 4, max: 5 };
-        case 'Difficile':  return { beginner: 2, intermediate: 3, advanced: 4, expert: 4, max: 5 };
-        case 'Expert':     return { beginner: 2, intermediate: 3, advanced: 4, expert: 5, max: 5 };
+        case Level.EASY:
+            return {beginner: 1, intermediate: 1, advanced: 2, expert: 3, max: 4};
+        case Level.MEDIUM:
+            return {beginner: 1, intermediate: 2, advanced: 3, expert: 4, max: 5};
+        case Level.HARD:
+            return {beginner: 2, intermediate: 3, advanced: 4, expert: 4, max: 5};
+        case Level.EXPERT:
+            return {beginner: 2, intermediate: 3, advanced: 4, expert: 5, max: 5};
     }
 }
 
@@ -236,107 +240,107 @@ const ROLE_PM: RoleBlock = {
                 {
                     name: 'Vision',
                     kind: 'Savoir-être',
-                    level: 'Difficile',
+                    level: Level.HARD,
                     subfamily: 'Vision',
-                    scores: { beginner: 2, intermediate: 3, advanced: 3, expert: 4, max: 4 },
+                    scores: {beginner: 2, intermediate: 3, advanced: 3, expert: 4, max: 4},
                 },
-                { name: 'Priorisation',   kind: 'Savoir-faire', level: 'Difficile', subfamily: 'Vision' },
-                { name: 'Alignement',     kind: 'Savoir-être',  level: 'Moyen',     subfamily: 'Vision' },
-                { name: 'Objectifs',      kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Vision' },
-                { name: 'Positionnement', kind: 'Savoir-faire', level: 'Difficile', subfamily: 'Vision' },
-                { name: 'Segmentation',   kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Marché' },
-                { name: 'Concurrence',    kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Marché' },
+                {name: 'Priorisation', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Vision'},
+                {name: 'Alignement', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Vision'},
+                {name: 'Objectifs', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Vision'},
+                {name: 'Positionnement', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Vision'},
+                {name: 'Segmentation', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Marché'},
+                {name: 'Concurrence', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Marché'},
                 {
                     name: 'Pricing',
                     kind: 'Savoir-faire',
-                    level: 'Difficile',
+                    level: Level.HARD,
                     subfamily: 'Marché',
-                    scores: { beginner: 2, intermediate: 3, advanced: 4, expert: 4, max: 5 },
+                    scores: {beginner: 2, intermediate: 3, advanced: 4, expert: 4, max: 5},
                 },
-                { name: 'Partenariats',   kind: 'Savoir-être',  level: 'Difficile', subfamily: 'Marché' },
-                { name: 'GoToMarket',     kind: 'Savoir-faire', level: 'Difficile', subfamily: 'Marché' },
+                {name: 'Partenariats', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Marché'},
+                {name: 'GoToMarket', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Marché'},
             ],
         },
         {
             family: 'Produit',
             subfamilies: ['Roadmap', 'Découverte'],
             items: [
-                { name: 'Planification',  kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Roadmap' },
-                { name: 'Dépendances',    kind: 'Savoir-faire', level: 'Difficile', subfamily: 'Roadmap' },
+                {name: 'Planification', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Roadmap'},
+                {name: 'Dépendances', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Roadmap'},
                 {
                     name: 'Release',
                     kind: 'Savoir-faire',
-                    level: 'Moyen',
+                    level: Level.MEDIUM,
                     subfamily: 'Roadmap',
-                    scores: { beginner: 1, intermediate: 2, advanced: 3, expert: 3, max: 4 },
+                    scores: {beginner: 1, intermediate: 2, advanced: 3, expert: 3, max: 4},
                 },
-                { name: 'Estimation',     kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Roadmap' },
-                { name: 'Backlog',        kind: 'Savoir-faire', level: 'Facile',    subfamily: 'Roadmap' },
-                { name: 'Hypothèses',     kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Découverte' },
-                { name: 'Entretiens',     kind: 'Savoir-être',  level: 'Moyen',     subfamily: 'Découverte' },
-                { name: 'Personas',       kind: 'Savoir-faire', level: 'Facile',    subfamily: 'Découverte' },
-                { name: 'Prototypage',    kind: 'Savoir-faire', level: 'Facile',    subfamily: 'Découverte' },
-                { name: 'Tests',          kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Découverte' },
+                {name: 'Estimation', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Roadmap'},
+                {name: 'Backlog', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Roadmap'},
+                {name: 'Hypothèses', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Découverte'},
+                {name: 'Entretiens', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Découverte'},
+                {name: 'Personas', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Découverte'},
+                {name: 'Prototypage', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Découverte'},
+                {name: 'Tests', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Découverte'},
             ],
         },
         {
             family: 'Données',
             subfamilies: ['Analyse', 'Mesure'],
             items: [
-                { name: 'SQL',             kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Analyse' },
-                { name: 'Tableaux',        kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Analyse' },
-                { name: 'Cohortes',        kind: 'Savoir-faire', level: 'Difficile', subfamily: 'Analyse' },
-                { name: 'A/B',             kind: 'Savoir-faire', level: 'Difficile', subfamily: 'Analyse' },
+                {name: 'SQL', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Analyse'},
+                {name: 'Tableaux', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Analyse'},
+                {name: 'Cohortes', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Analyse'},
+                {name: 'A/B', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Analyse'},
                 {
                     name: 'Modélisation',
                     kind: 'Savoir-faire',
-                    level: 'Difficile',
+                    level: Level.HARD,
                     subfamily: 'Analyse',
-                    scores: { beginner: 2, intermediate: 3, advanced: 4, expert: 5, max: 5 },
+                    scores: {beginner: 2, intermediate: 3, advanced: 4, expert: 5, max: 5},
                 },
-                { name: 'KPI',             kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Mesure' },
-                { name: 'Instrumentation', kind: 'Savoir-faire', level: 'Difficile', subfamily: 'Mesure' },
-                { name: 'Attribution',     kind: 'Savoir-faire', level: 'Difficile', subfamily: 'Mesure' },
-                { name: 'Rétention',       kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Mesure' },
-                { name: 'Monétisation',    kind: 'Savoir-être',  level: 'Difficile', subfamily: 'Mesure' },
+                {name: 'KPI', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Mesure'},
+                {name: 'Instrumentation', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Mesure'},
+                {name: 'Attribution', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Mesure'},
+                {name: 'Rétention', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Mesure'},
+                {name: 'Monétisation', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Mesure'},
             ],
         },
         {
             family: 'Design',
             subfamilies: ['UX', 'Recherche'],
             items: [
-                { name: 'Parcours',       kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'UX' },
-                { name: 'Accessibilité',  kind: 'Savoir-faire', level: 'Difficile', subfamily: 'UX' },
-                { name: 'Microcopies',    kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'UX' },
-                { name: 'Information',    kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'UX' },
-                { name: 'Interaction',    kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'UX' },
-                { name: 'Méthodes',       kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Recherche' },
-                { name: 'Guides',         kind: 'Savoir-faire', level: 'Facile',    subfamily: 'Recherche' },
-                { name: 'Synthèse',       kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Recherche' },
-                { name: 'Insight',        kind: 'Savoir-être',  level: 'Difficile', subfamily: 'Recherche' },
-                { name: 'Journaux',       kind: 'Savoir-faire', level: 'Facile',    subfamily: 'Recherche' },
+                {name: 'Parcours', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'UX'},
+                {name: 'Accessibilité', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'UX'},
+                {name: 'Microcopies', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'UX'},
+                {name: 'Information', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'UX'},
+                {name: 'Interaction', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'UX'},
+                {name: 'Méthodes', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Recherche'},
+                {name: 'Guides', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Recherche'},
+                {name: 'Synthèse', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Recherche'},
+                {name: 'Insight', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Recherche'},
+                {name: 'Journaux', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Recherche'},
             ],
         },
         {
             family: 'Leadership',
             subfamilies: ['Communication', 'Équipe'],
             items: [
-                { name: 'Storytelling',  kind: 'Savoir-être',  level: 'Difficile', subfamily: 'Communication' },
-                { name: 'Négociation',   kind: 'Savoir-être',  level: 'Difficile', subfamily: 'Communication' },
+                {name: 'Storytelling', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Communication'},
+                {name: 'Négociation', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Communication'},
                 {
                     name: 'Feedback',
                     kind: 'Savoir-être',
-                    level: 'Moyen',
+                    level: Level.MEDIUM,
                     subfamily: 'Communication',
-                    scores: { beginner: 1, intermediate: 2, advanced: 2, expert: 3, max: 4 },
+                    scores: {beginner: 1, intermediate: 2, advanced: 2, expert: 3, max: 4},
                 },
-                { name: 'Conflits',      kind: 'Savoir-être',  level: 'Difficile', subfamily: 'Communication' },
-                { name: 'Influence',     kind: 'Savoir-être',  level: 'Difficile', subfamily: 'Communication' },
-                { name: 'Mentorat',      kind: 'Savoir-être',  level: 'Moyen',     subfamily: 'Équipe' },
-                { name: 'Recrutement',   kind: 'Savoir-faire', level: 'Difficile', subfamily: 'Équipe' },
-                { name: 'Culture',       kind: 'Savoir-être',  level: 'Moyen',     subfamily: 'Équipe' },
-                { name: 'Délégation',    kind: 'Savoir-être',  level: 'Moyen',     subfamily: 'Équipe' },
-                { name: 'Priorités',     kind: 'Savoir-être',  level: 'Difficile', subfamily: 'Équipe' },
+                {name: 'Conflits', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Communication'},
+                {name: 'Influence', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Communication'},
+                {name: 'Mentorat', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Équipe'},
+                {name: 'Recrutement', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Équipe'},
+                {name: 'Culture', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Équipe'},
+                {name: 'Délégation', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Équipe'},
+                {name: 'Priorités', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Équipe'},
             ],
         },
     ],
@@ -353,27 +357,27 @@ const ROLE_UI: RoleBlock = {
             family: 'Interface',
             subfamilies: ['Layout', 'Composants'],
             items: [
-                { name: 'Grille',        kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Layout' },
-                { name: 'Hiérarchie',    kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Layout' },
+                {name: 'Grille', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Layout'},
+                {name: 'Hiérarchie', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Layout'},
                 {
                     name: 'Espacement',
                     kind: 'Savoir-faire',
-                    level: 'Moyen',
+                    level: Level.MEDIUM,
                     subfamily: 'Layout',
-                    scores: { beginner: 1, intermediate: 2, advanced: 3, expert: 3, max: 4 },
+                    scores: {beginner: 1, intermediate: 2, advanced: 3, expert: 3, max: 4},
                 },
-                { name: 'Réactivité',    kind: 'Savoir-faire', level: 'Difficile', subfamily: 'Layout' },
-                { name: 'Empathie',      kind: 'Savoir-être',  level: 'Moyen',     subfamily: 'Layout' },
-                { name: 'Composants',    kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Composants' },
-                { name: 'États',         kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Composants' },
-                { name: 'Variants',      kind: 'Savoir-faire', level: 'Difficile', subfamily: 'Composants' },
-                { name: 'Navigation',    kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Composants' },
+                {name: 'Réactivité', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Layout'},
+                {name: 'Empathie', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Layout'},
+                {name: 'Composants', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Composants'},
+                {name: 'États', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Composants'},
+                {name: 'Variants', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Composants'},
+                {name: 'Navigation', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Composants'},
                 {
                     name: 'Rigueur',
                     kind: 'Savoir-être',
-                    level: 'Difficile',
+                    level: Level.HARD,
                     subfamily: 'Composants',
-                    scores: { beginner: 2, intermediate: 3, advanced: 4, expert: 4, max: 5 },
+                    scores: {beginner: 2, intermediate: 3, advanced: 4, expert: 4, max: 5},
                 },
             ],
         },
@@ -381,81 +385,81 @@ const ROLE_UI: RoleBlock = {
             family: 'Visuel',
             subfamilies: ['Couleurs', 'Typo'],
             items: [
-                { name: 'Palette',       kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Couleurs' },
-                { name: 'Contraste',     kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Couleurs' },
-                { name: 'Harmonie',      kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Couleurs' },
-                { name: 'Marque',        kind: 'Savoir-faire', level: 'Difficile', subfamily: 'Couleurs' },
-                { name: 'Sensibilité',   kind: 'Savoir-être',  level: 'Moyen',     subfamily: 'Couleurs' },
-                { name: 'Échelle',       kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Typo' },
+                {name: 'Palette', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Couleurs'},
+                {name: 'Contraste', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Couleurs'},
+                {name: 'Harmonie', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Couleurs'},
+                {name: 'Marque', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Couleurs'},
+                {name: 'Sensibilité', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Couleurs'},
+                {name: 'Échelle', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Typo'},
                 {
                     name: 'Lisibilité',
                     kind: 'Savoir-faire',
-                    level: 'Moyen',
+                    level: Level.MEDIUM,
                     subfamily: 'Typo',
-                    scores: { beginner: 1, intermediate: 2, advanced: 3, expert: 4, max: 5 },
+                    scores: {beginner: 1, intermediate: 2, advanced: 3, expert: 4, max: 5},
                 },
-                { name: 'Interlignage',  kind: 'Savoir-faire', level: 'Facile',    subfamily: 'Typo' },
-                { name: 'Glyphes',       kind: 'Savoir-faire', level: 'Facile',    subfamily: 'Typo' },
-                { name: 'Esthétique',    kind: 'Savoir-être',  level: 'Difficile', subfamily: 'Typo' },
+                {name: 'Interlignage', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Typo'},
+                {name: 'Glyphes', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Typo'},
+                {name: 'Esthétique', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Typo'},
             ],
         },
         {
             family: 'Système',
             subfamilies: ['Designkit', 'Tokens'],
             items: [
-                { name: 'Bibliothèque',  kind: 'Savoir-faire', level: 'Difficile', subfamily: 'Designkit' },
-                { name: 'Nomenclature',  kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Designkit' },
-                { name: 'Versioning',    kind: 'Savoir-faire', level: 'Difficile', subfamily: 'Designkit' },
-                { name: 'Documentation', kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Designkit' },
-                { name: 'Exigence',      kind: 'Savoir-être',  level: 'Difficile', subfamily: 'Designkit' },
-                { name: 'Couleurs',      kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Tokens' },
-                { name: 'Typo',          kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Tokens' },
-                { name: 'Espaces',       kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Tokens' },
-                { name: 'Rayons',        kind: 'Savoir-faire', level: 'Facile',    subfamily: 'Tokens' },
-                { name: 'Discipline',    kind: 'Savoir-être',  level: 'Difficile', subfamily: 'Tokens' },
+                {name: 'Bibliothèque', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Designkit'},
+                {name: 'Nomenclature', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Designkit'},
+                {name: 'Versioning', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Designkit'},
+                {name: 'Documentation', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Designkit'},
+                {name: 'Exigence', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Designkit'},
+                {name: 'Couleurs', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tokens'},
+                {name: 'Typo', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tokens'},
+                {name: 'Espaces', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tokens'},
+                {name: 'Rayons', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Tokens'},
+                {name: 'Discipline', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Tokens'},
             ],
         },
         {
             family: 'Prototypage',
             subfamilies: ['Figma', 'Tests'],
             items: [
-                { name: 'AutoLayout',    kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Figma' },
-                { name: 'Interactions',  kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Figma' },
-                { name: 'Composants',    kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Figma' },
-                { name: 'Variants',      kind: 'Savoir-faire', level: 'Difficile', subfamily: 'Figma' },
+                {name: 'AutoLayout', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Figma'},
+                {name: 'Interactions', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Figma'},
+                {name: 'Composants', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Figma'},
+                {name: 'Variants', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Figma'},
                 {
                     name: 'Curiosité',
                     kind: 'Savoir-être',
-                    level: 'Moyen',
+                    level: Level.MEDIUM,
                     subfamily: 'Figma',
-                    scores: { beginner: 1, intermediate: 2, advanced: 2, expert: 3, max: 4 },
+                    scores: {beginner: 1, intermediate: 2, advanced: 2, expert: 3, max: 4},
                 },
-                { name: 'Usabilité',     kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Tests' },
-                { name: 'Scénarios',     kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Tests' },
-                { name: 'Parcours',      kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Tests' },
-                { name: 'Itérations',    kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Tests' },
-                { name: 'Patience',      kind: 'Savoir-être',  level: 'Moyen',     subfamily: 'Tests' },
+                {name: 'Usabilité', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tests'},
+                {name: 'Scénarios', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tests'},
+                {name: 'Parcours', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tests'},
+                {name: 'Itérations', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tests'},
+                {name: 'Patience', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Tests'},
             ],
         },
         {
             family: 'Collaboration',
             subfamilies: ['Handoff', 'Gestion'],
             items: [
-                { name: 'Specs',         kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Handoff' },
-                { name: 'Redlines',      kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Handoff' },
-                { name: 'Assets',        kind: 'Savoir-faire', level: 'Facile',    subfamily: 'Handoff' },
-                { name: 'Export',        kind: 'Savoir-faire', level: 'Facile',    subfamily: 'Handoff' },
-                { name: 'Clarté',        kind: 'Savoir-être',  level: 'Moyen',     subfamily: 'Handoff' },
-                { name: 'Feedback',      kind: 'Savoir-être',  level: 'Moyen',     subfamily: 'Gestion' },
-                { name: 'Planning',      kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Gestion' },
-                { name: 'Priorités',     kind: 'Savoir-être',  level: 'Moyen',     subfamily: 'Gestion' },
-                { name: 'Ateliers',      kind: 'Savoir-faire', level: 'Moyen',     subfamily: 'Gestion' },
+                {name: 'Specs', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Handoff'},
+                {name: 'Redlines', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Handoff'},
+                {name: 'Assets', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Handoff'},
+                {name: 'Export', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Handoff'},
+                {name: 'Clarté', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Handoff'},
+                {name: 'Feedback', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Gestion'},
+                {name: 'Planning', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Gestion'},
+                {name: 'Priorités', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Gestion'},
+                {name: 'Ateliers', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Gestion'},
                 {
                     name: 'Alignement',
                     kind: 'Savoir-être',
-                    level: 'Difficile',
+                    level: Level.HARD,
                     subfamily: 'Gestion',
-                    scores: { beginner: 2, intermediate: 3, advanced: 4, expert: 4, max: 5 },
+                    scores: {beginner: 2, intermediate: 3, advanced: 4, expert: 4, max: 5},
                 },
             ],
         },
@@ -513,14 +517,14 @@ async function upsertFamily(nameFr: string, parentId?: string | null) {
     const base = {
         name: nameFr,
         normalizedName,
-        description: null as string | null,
+        description: "",
         parentId: parentId ?? null,
         updatedAt: new Date(),
     };
     const family = await prisma.competenciesFamily.upsert({
-        where: { name: nameFr },
+        where: {name: nameFr},
         update: base,
-        create: { ...base, createdAt: new Date() },
+        create: {...base, createdAt: new Date()},
     });
 
     const nameEn = toEn(nameFr);
@@ -529,10 +533,10 @@ async function upsertFamily(nameFr: string, parentId?: string | null) {
     return family;
 }
 
-async function upsertCompetencyWithScores(nameFr: string, s: Scores, kind: string) {
+async function upsertCompetencyWithScores(nameFr: string, s: Scores, kind: string, level: Level) {
     const normalizedName = slugify(nameFr);
     const competency = await prisma.competency.upsert({
-        where: { name: nameFr },
+        where: {name: nameFr},
         update: {
             normalizedName,
             beginnerScore: s.beginner,
@@ -542,6 +546,7 @@ async function upsertCompetencyWithScores(nameFr: string, s: Scores, kind: strin
             maxScore: s.max,
             updatedAt: new Date(),
             type: kind === 'Savoir-faire' ? CompetencyType.HARD_SKILL : CompetencyType.SOFT_SKILL,
+            level: level,
         },
         create: {
             name: nameFr,
@@ -554,6 +559,7 @@ async function upsertCompetencyWithScores(nameFr: string, s: Scores, kind: strin
             type: kind === 'Savoir-faire' ? CompetencyType.HARD_SKILL : CompetencyType.SOFT_SKILL,
             createdAt: new Date(),
             updatedAt: new Date(),
+            level: level,
         },
     });
 
@@ -565,8 +571,8 @@ async function upsertCompetencyWithScores(nameFr: string, s: Scores, kind: strin
 
 async function upsertJobFamily(nameFr: string) {
     const jf = await prisma.jobFamily.upsert({
-        where: { name: nameFr },
-        update: { normalizedName: slugify(nameFr), updatedAt: new Date() },
+        where: {name: nameFr},
+        update: {normalizedName: slugify(nameFr), updatedAt: new Date()},
         create: {
             name: nameFr,
             normalizedName: slugify(nameFr),
@@ -582,10 +588,10 @@ async function upsertJobFamily(nameFr: string) {
 }
 
 async function upsertJob(jobFamilyId: string, titleEn: string, descriptionFr?: string | null) {
-    const existing = await prisma.job.findFirst({ where: { title: titleEn, jobFamilyId } });
+    const existing = await prisma.job.findFirst({where: {title: titleEn, jobFamilyId}});
     if (existing) {
         return prisma.job.update({
-            where: { id: existing.id },
+            where: {id: existing.id},
             data: {
                 normalizedName: slugify(titleEn),
                 description: descriptionFr ?? existing.description,
@@ -644,16 +650,16 @@ async function seedRole(role: RoleBlock) {
 
         for (const item of block.items) {
             const scores = mergeAndValidateScores(item);
-            const comp = await upsertCompetencyWithScores(item.name, scores, item.kind);
+            const comp = await upsertCompetencyWithScores(item.name, scores, item.kind, item.level);
             competencyIds.push(comp.id);
 
             const subId = subfamilyMap.get(`${block.family}:${item.subfamily}`)!;
 
             await prisma.competency.update({
-                where: { id: comp.id },
+                where: {id: comp.id},
                 data: {
                     families: {
-                        connect: [{ id: famId }, { id: subId }],
+                        connect: [{id: famId}, {id: subId}],
                     },
                 },
             });
@@ -729,13 +735,13 @@ async function seedRole(role: RoleBlock) {
 
     // Relier Job -> Competencies & Families
     await prisma.job.update({
-        where: { id: job.id },
+        where: {id: job.id},
         data: {
             competencies: {
-                connect: competencyIds.map((id) => ({ id })),
+                connect: competencyIds.map((id) => ({id})),
             },
             competenciesFamilies: {
-                connect: Array.from(familyIds).map((id) => ({ id })),
+                connect: Array.from(familyIds).map((id) => ({id})),
             },
         },
     });
@@ -749,15 +755,15 @@ async function seedRole(role: RoleBlock) {
 async function main() {
     // Langues (anglais par défaut)
     await prisma.language.upsert({
-        where: { code: 'en' },
-        update: { isDefault: true, name: 'English' },
-        create: { code: 'en', name: 'English', isDefault: true },
+        where: {code: 'en'},
+        update: {isDefault: true, name: 'English'},
+        create: {code: 'en', name: 'English', isDefault: true},
     });
 
     await prisma.language.upsert({
-        where: { code: 'fr' },
-        update: { name: 'Français' },
-        create: { code: 'fr', name: 'Français' },
+        where: {code: 'fr'},
+        update: {name: 'Français'},
+        create: {code: 'fr', name: 'Français'},
     });
 
     await seedRole(ROLE_PM);

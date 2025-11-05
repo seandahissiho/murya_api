@@ -50,3 +50,10 @@ enum CompetencyType {
   // savoir-être
   SOFT_SKILL
 }
+
+enum Level {
+  EASY
+  MEDIUM
+  HARD
+  EXPERT
+}
