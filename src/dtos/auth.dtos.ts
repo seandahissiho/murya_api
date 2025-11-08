@@ -1,14 +1,14 @@
 
 export interface RegisterDto {
-    email: string;
-    password: string;
-    firstname: string;
-    lastname: string;
-    phone: string;
-    birthDate?: Date | null;
+    email?: string;
+    phone?: string;
+    deviceId?: string;
+    password?: string;
 }
 
 export interface LoginDto {
-    email: string;
-    password: string;
+    email?: string;
+    phone?: string;
+    deviceId?: string;
+    password?: string;
 }

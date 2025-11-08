@@ -14,10 +14,15 @@ model Job {
   overlayColor    String   @default("#FFFFFFFF") @db.VarChar(9)
   imageIndex      Int      @default(0)
 
+  // NEW: special positioning quiz template attached to the job
+  positioningQuizId String? // references Quiz.id (String)
+  positioningQuiz   Quiz?   @relation("JobPositioningQuiz", fields: [positioningQuizId], references: [id], onUpdate: Cascade, onDelete: SetNull)
+
   // Relations
   jobFamily            JobFamily            @relation(fields: [jobFamilyId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_jobs_job_family_id")
   competencies         Competency[]         @relation("JobCompetencies")
   competenciesFamilies CompetenciesFamily[] @relation("JobCompetenciesFamilies")
+  userJobs             UserJob[]
 
   @@index([jobFamilyId])
 }

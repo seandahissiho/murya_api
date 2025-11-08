@@ -1,5 +1,5 @@
-import {Request, Response, NextFunction} from 'express';
-import type {RegisterDto, LoginDto} from '../dtos/auth.dtos';
+import {NextFunction, Request, Response} from 'express';
+import type {LoginDto, RegisterDto} from '../dtos/auth.dtos';
 import * as authService from '../services/auth.services';
 import {sendResponse} from "../utils/helpers";
 
@@ -7,21 +7,24 @@ import {sendResponse} from "../utils/helpers";
 export const register = async (req: Request<any, any, RegisterDto>, res: Response, next: NextFunction) => {
     try {
         const dto = req.body;
-        const user = await authService.register(
-            dto.email,
-            dto.password,
-            dto.firstname,
-            dto.lastname,
-            dto.phone,
-            dto.birthDate
-        );
+        try {
+            await authService.register(
+                dto.email,
+                dto.phone,
+                dto.deviceId,
+                dto.password,
+            );
+        } catch (err) {
+            console.log(err);
+        }
+        const {access_token, refresh_token} = await authService.login(dto.email, dto.phone, dto.deviceId, dto.password);
 
         sendResponse(
             res,
             201,
             {
                 message: "Utilisateur enregistré avec succès",
-                data: {id: user.id}
+                data: {access_token, refresh_token}
             }
         );
     } catch (err) {
@@ -39,8 +42,8 @@ export const register = async (req: Request<any, any, RegisterDto>, res: Respons
 // POST /auth/login
 export const login = async (req: Request<any, any, LoginDto>, res: Response, next: NextFunction) => {
     try {
-        const {email, password} = req.body;
-        const {access_token, refresh_token} = await authService.login(email, password);
+        const {email, password, phone, deviceId} = req.body;
+        const {access_token, refresh_token} = await authService.login(email, phone, deviceId, password);
 
         return sendResponse(
             res,

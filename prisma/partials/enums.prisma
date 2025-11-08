@@ -57,3 +57,29 @@ enum Level {
   HARD
   EXPERT
 }
+
+enum UserJobStatus {
+  TARGET // a job the user is preparing for
+  CURRENT // job they currently have
+  PAST // job they had in the past
+}
+
+enum QuizQuestionType {
+  single_choice
+  multiple_choice
+  true_false
+  short_answer
+  fill_in_the_blank
+}
+
+enum UserQuizStatus {
+  ASSIGNED
+  STARTED
+  COMPLETED
+  EXPIRED
+}
+
+enum UserQuizKind {
+  POSITIONING
+  DAILY
+}

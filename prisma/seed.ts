@@ -40,7 +40,7 @@ type FamilyBlock = {
     items: CompetencyItem[];        // 10
 };
 
-type RoleBlock = {
+type JobBlock = {
     jobFamilyName: string;          // FR ("Produit", "Design")
     jobTitle: string;               // EN ("Product Manager", "UI Designer")
     blocks: FamilyBlock[];          // 5 familles * 10
@@ -54,7 +54,7 @@ const LABEL_FR_EN: Record<string, string> = {
     'Produit': 'Product',
     'Design': 'Design',
 
-    // Families & subfamilies ROLE_PM
+    // Families & subfamilies JOB_PM
     'Stratégie': 'Strategy',
     'Vision': 'Vision',
     'Marché': 'Market',
@@ -71,7 +71,7 @@ const LABEL_FR_EN: Record<string, string> = {
     'Communication': 'Communication',
     'Équipe': 'Team',
 
-    // Families & subfamilies ROLE_UI
+    // Families & subfamilies JOB_UI
     'Interface': 'Interface',
     'Composants': 'Components',
     'Visuel': 'Visual design',
@@ -87,7 +87,7 @@ const LABEL_FR_EN: Record<string, string> = {
     'Handoff': 'Handoff',
     'Gestion': 'Management',
 
-    // Competencies ROLE_PM
+    // Competencies JOB_PM
     // 'Vision': 'Vision',
     'Priorisation': 'Prioritization',
     'Alignement': 'Alignment',
@@ -139,7 +139,7 @@ const LABEL_FR_EN: Record<string, string> = {
     'Délégation': 'Delegation',
     'Priorités': 'Priorities',
 
-    // Competencies ROLE_UI
+    // Competencies JOB_UI
     'Grille': 'Grid',
     'Hiérarchie': 'Hierarchy',
     'Espacement': 'Spacing',
@@ -229,7 +229,7 @@ function mergeAndValidateScores(item: CompetencyItem): Scores {
 // -----------------------------------------------------------------------------
 // Données Product Manager
 // -----------------------------------------------------------------------------
-const ROLE_PM: RoleBlock = {
+const JOB_PM: JobBlock = {
     jobFamilyName: 'Produit',
     jobTitle: 'Product Manager',
     blocks: [
@@ -349,7 +349,7 @@ const ROLE_PM: RoleBlock = {
 // -----------------------------------------------------------------------------
 // Données UI Designer
 // -----------------------------------------------------------------------------
-const ROLE_UI: RoleBlock = {
+const JOB_UI: JobBlock = {
     jobFamilyName: 'Design',
     jobTitle: 'UI Designer',
     blocks: [
@@ -622,15 +622,15 @@ async function upsertJob(jobFamilyId: string, titleEn: string, descriptionFr?: s
 // -----------------------------------------------------------------------------
 // Seeding d’un rôle
 // -----------------------------------------------------------------------------
-async function seedRole(role: RoleBlock) {
-    console.log(`\n=== Seeding role: ${role.jobTitle} ===`);
+async function seedJob(job: JobBlock) {
+    console.log(`\n=== Seeding job: ${job.jobTitle} ===`);
 
     // Families + subfamilies
     const familyIds = new Set<string>();
     const familyMap = new Map<string, string>();
     const subfamilyMap = new Map<string, string>();
 
-    for (const block of role.blocks) {
+    for (const block of job.blocks) {
         const fam = await upsertFamily(block.family);
         familyMap.set(block.family, fam.id);
         familyIds.add(fam.id);
@@ -645,7 +645,7 @@ async function seedRole(role: RoleBlock) {
     // Competencies
     const competencyIds: string[] = [];
 
-    for (const block of role.blocks) {
+    for (const block of job.blocks) {
         const famId = familyMap.get(block.family)!;
 
         for (const item of block.items) {
@@ -667,15 +667,15 @@ async function seedRole(role: RoleBlock) {
     }
 
     // JobFamily + Job
-    const jf = await upsertJobFamily(role.jobFamilyName);
+    const jf = await upsertJobFamily(job.jobFamilyName);
 
-    const titleEn = role.jobTitle;
-    const titleFr = JOB_TITLE_FR[role.jobTitle] ?? role.jobTitle;
+    const titleEn = job.jobTitle;
+    const titleFr = JOB_TITLE_FR[job.jobTitle] ?? job.jobTitle;
 
     let descriptionFr: string;
     let descriptionEn: string;
 
-    if (role.jobTitle === 'Product Manager') {
+    if (job.jobTitle === 'Product Manager') {
         descriptionFr = "Le Product Manager est responsable de la vision, de la stratégie et de la réussite du produit.\n" +
             "Il travaille à l’intersection du business, de la technologie et du design pour créer une solution qui apporte une réelle valeur aux utilisateurs.\n" +
             "Son rôle consiste à comprendre les besoins du marché et à les transformer en objectifs clairs et réalisables.\n" +
@@ -727,15 +727,15 @@ async function seedRole(role: RoleBlock) {
             "Their goal is to make the product both beautiful, functional, and memorable.";
     }
 
-    const job = await upsertJob(jf.id, titleEn, descriptionFr);
+    let job2 = await upsertJob(jf.id, titleEn, descriptionFr);
 
     // Traductions Job (title + description)
-    await createBiLangTranslation('Job', job.id, 'title', titleEn, titleFr);
-    await createBiLangTranslation('Job', job.id, 'description', descriptionEn, descriptionFr);
+    await createBiLangTranslation('Job', job2.id, 'title', titleEn, titleFr);
+    await createBiLangTranslation('Job', job2.id, 'description', descriptionEn, descriptionFr);
 
     // Relier Job -> Competencies & Families
     await prisma.job.update({
-        where: {id: job.id},
+        where: {id: job2.id},
         data: {
             competencies: {
                 connect: competencyIds.map((id) => ({id})),
@@ -746,7 +746,30 @@ async function seedRole(role: RoleBlock) {
         },
     });
 
-    console.log(`✓ ${role.jobTitle}: ${competencyIds.length} compétences, ${familyIds.size} familles liées`);
+    console.log(`✓ ${job.jobTitle}: ${competencyIds.length} compétences, ${familyIds.size} familles liées`);
+}
+
+// model Role {
+//     id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+//     name        String        @unique(map: "role_name") @db.VarChar(255)
+//     createdAt   DateTime      @default(now()) @db.Timestamp(0)
+//     updatedAt   DateTime      @default(now()) @db.Timestamp(0)
+//     permissions Permissions[]
+//     users       User[]
+// }
+
+async function seedRole(name: string) {
+    console.log(`\n=== Seeding role: ${name} ===`);
+    const role = await prisma.role.upsert({
+        where: {name},
+        update: {updatedAt: new Date()},
+        create: {
+            name,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        },
+    });
+    console.log(`✓ Role "${name}" upserted with ID: ${role.id}`);
 }
 
 // -----------------------------------------------------------------------------
@@ -766,8 +789,12 @@ async function main() {
         create: {code: 'fr', name: 'Français'},
     });
 
-    await seedRole(ROLE_PM);
-    await seedRole(ROLE_UI);
+    await seedRole('UNIDENTIFIED');
+    await seedRole('BASIC');
+    await seedRole('PREMIUM');
+    await seedRole('PROFESSIONAL');
+    await seedJob(JOB_PM);
+    await seedJob(JOB_UI);
 
     console.log('\nSeed completed ✅');
 }

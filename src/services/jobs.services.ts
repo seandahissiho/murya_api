@@ -1,5 +1,5 @@
-import { PrismaClient } from '@prisma/client';
-import { resolveFields } from '../i18n/translate';
+import {PrismaClient} from '@prisma/client';
+import {resolveFields} from '../i18n/translate';
 
 const prisma = new PrismaClient();
 
@@ -21,7 +21,7 @@ export const searchJobs = async (
 ) => {
     const skip = (page - 1) * perPage;
 
-    const where = {
+    const where: any = {
         OR: [
             { title: { contains: query, mode: 'insensitive' } },
             { normalizedName: { contains: query, mode: 'insensitive' } },
@@ -154,14 +154,13 @@ export const getJobDetails = async (jobId: string, lang: string = 'en') => {
     // Localiser les compétences
     const localizedCompetencies = await Promise.all(
         job.competencies.map(async (comp) => {
-            const locComp = await resolveFields({
+            return await resolveFields({
                 entity: 'Competency',
                 entityId: comp.id,
                 fields: ['name'],
                 lang,
                 base: comp,
             });
-            return locComp;
         }),
     );
 

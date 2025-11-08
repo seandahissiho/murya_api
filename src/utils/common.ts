@@ -64,7 +64,8 @@ export const authenticateToken = async (
                 });
             }
 
-            if (!user.role.permissions || user.role.permissions.length === 0) {
+            //  || user.role.permissions.length === 0
+            if (!user.role.permissions) {
                 return sendResponse(res, 403, {
                     error: "Vous n'avez pas les permissions nécessaires pour accéder à cette ressource",
                 });

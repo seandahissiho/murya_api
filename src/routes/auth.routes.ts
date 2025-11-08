@@ -5,7 +5,7 @@ import * as authControllers from "../controllers/auth.controllers";
 
 const router = require("express").Router();
 
-router.post('/signup',
+router.post('/register',
     // validateRegister,
     // checkValidationResult,
     authControllers.register

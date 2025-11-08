@@ -2,7 +2,9 @@ import {User} from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import {prisma} from "../config/db";
+import { DailyQuizService } from './dailyQuizService';
 
+const dailyQuizService = new DailyQuizService(prisma as any);
 
 const SALT_ROUNDS = 10;
 
@@ -11,7 +13,7 @@ const REFRESH_TOKEN_EXPIRY = "14d";
 
 async function getDefaultRole() {
     const role = await prisma.role.findFirst({
-        where: {name: "UNKNOWN"},
+        where: {name: "UNIDENTIFIED"},
     });
     if (role) {
         return role.id;
@@ -22,24 +24,23 @@ async function getDefaultRole() {
 
 // Inscription : création de l'utilisateur avec hachage du mot de passe
 export const register = async (
-    email: string,
-    rawPassword: string,
-    firstname: string,
-    lastname: string,
-    phone: string,
-    birthDate: Date | null | undefined
+    email?: string,
+    phone?: string,
+    deviceId?: string,
+    rawPassword?: string,
 ): Promise<User> => {
-    const hash = await bcrypt.hash(rawPassword, SALT_ROUNDS);
+    const hash = rawPassword ? await bcrypt.hash(rawPassword, SALT_ROUNDS) : null;
     return prisma.user.create({
         data: {
-            firstname,
-            lastname,
+            // firstname,
+            // lastname,
             email,
             phone,
+            deviceId,
             password: hash,
-            birthDate,
+            // birthDate,
             isAdmin: false, // Par défaut, l'utilisateur n'est pas admin
-            isActive: false, // Par défaut, l'utilisateur n'est pas actif
+            isActive: true, // Par défaut, l'utilisateur n'est pas actif
             lastLogin: null, // Pas de date de dernier login à l'inscription
             avatarUrl: null, // Pas d'avatar par défaut
             roleId: await getDefaultRole(), // Récupérer le rôle par défaut
@@ -49,17 +50,26 @@ export const register = async (
 
 // Connexion : validation, update lastLogin et émission d'un JWT
 export const login = async (
-    email: string,
-    rawPassword: string,
+    email?: string,
+    phone?: string,
+    deviceId?: string,
+    rawPassword?: string,
 ): Promise<{ access_token: string; refresh_token: string }> => {
+    if (!email && !phone && !deviceId) {
+        throw new Error('Email, téléphone ou deviceId requis pour la connexion');
+    }
+    let whereClause: any = {};
+    if (email) whereClause.email = email;
+    if (phone) whereClause.phone = phone;
+    if (deviceId) whereClause.deviceId = deviceId;
+
     let user = await prisma.user.findUnique({
-        where: {
-            email
-        }
+        where: whereClause
     });
+
     if (!user) throw new Error('Identifiants invalides');
-    const valid = await bcrypt.compare(rawPassword, user.password);
-    if (!valid) throw new Error('Identifiants invalides');
+    const valid = await bcrypt.compare(rawPassword ?? '', user.password ?? '?$Sm@S@M6QQ$xDp?hdYSC!!?sh633o7SgHEz9oG');
+    if (!valid && rawPassword) throw new Error('Identifiants invalides');
 
 
     // Generate Access Token
@@ -97,6 +107,10 @@ export const login = async (
             lastLogin: new Date() // Mettre à jour la date du dernier login
         },
     });
+
+    // 2) Once login is successful, trigger daily quiz creation
+    await dailyQuizService.ensureDailyQuizzesForUser(user.id);
+
 
     return {access_token, refresh_token}
 };
