@@ -2,9 +2,9 @@ import {User} from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import {prisma} from "../config/db";
-import { DailyQuizService } from './dailyQuizService';
+import {QuizAssignmentService} from './dailyQuizService';
 
-const dailyQuizService = new DailyQuizService(prisma as any);
+const quizAssignmentService = new QuizAssignmentService(prisma as any);
 
 const SALT_ROUNDS = 10;
 
@@ -109,8 +109,10 @@ export const login = async (
     });
 
     // 2) Once login is successful, trigger daily quiz creation
-    await dailyQuizService.ensureDailyQuizzesForUser(user.id);
-
+    quizAssignmentService.assignQuizzesForUserOnLogin(user.id).then(r => {
+        // Quizzes assigned
+        console.log(`Daily quizzes assigned for user ${user.id} on login.`);
+    });
 
     return {access_token, refresh_token}
 };

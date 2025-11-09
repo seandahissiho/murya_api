@@ -1,9 +1,0 @@
-model NotificationRecipient {
-  notificationId String       @db.Uuid
-  userId         String       @db.Uuid
-  notification   Notification @relation(fields: [notificationId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "notifications_recipients_ibfk_1")
-  user           User         @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "notifications_recipients_ibfk_2")
-
-  @@id([notificationId, userId])
-  @@index([userId], map: "userId")
-}

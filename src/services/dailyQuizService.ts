@@ -1,37 +1,28 @@
-// src/services/dailyQuizService.ts
+// src/services/quizAssignmentService.ts
 
 import {
     PrismaClient,
     UserJobStatus,
     UserQuizStatus,
+    UserQuizKind,
     QuizQuestionType,
 } from '@prisma/client';
 
-import type {
-    User,
-    Job,
-    UserQuiz,
-    UserJob,
-} from '@prisma/client';
+import type { User, Job, UserQuiz } from '@prisma/client';
 
-const prisma = new PrismaClient();
-
-/**
- * Shape of a question produced by your AI.
- * You will adapt generateQuizForUserJob() to actually call OpenAI or whatever.
- */
+// Types coming from AI
 type GeneratedQuizResponse = {
     text: string;
     isCorrect: boolean;
-    points?: number; // optional, fallback handled in code
+    points?: number;
 };
 
 type GeneratedQuizQuestion = {
     text: string;
-    type?: QuizQuestionType;      // default: single_choice
-    timeLimitInSeconds?: number;  // default: 30
-    points?: number;              // default: 1
-    mediaUrl?: string;            // default: ""
+    type?: QuizQuestionType;
+    timeLimitInSeconds?: number;
+    points?: number;
+    mediaUrl?: string;
     responses: GeneratedQuizResponse[];
 };
 
@@ -39,32 +30,36 @@ type GeneratedQuiz = {
     questions: GeneratedQuizQuestion[];
 };
 
-type EnsureDailyQuizzesOptions = {
-    date?: Date;        // for tests; in prod, just let default new Date()
-    timezone?: string;  // if you want to handle timezone explicitly later
+type AssignQuizzesOptions = {
+    date?: Date;       // for tests
+    timezone?: string; // if you later want strict timezone handling
 };
 
-export class DailyQuizService {
+export class QuizAssignmentService {
     constructor(private prisma: PrismaClient) {}
 
     /**
-     * Main entry point.
-     * Call this after a successful login.
+     * Call this right after a successful login.
      *
-     * - It looks at all UserJob with status TARGET or CURRENT.
-     * - For each, it checks whether a UserQuiz already exists for "today".
-     * - If not, it generates and persists a new Quiz + UserQuiz.
+     * For each active UserJob:
+     *  1) If the job has a positioningQuizId:
+     *     - If no COMPLETED positioning UserQuiz exists yet:
+     *         -> ensure there is one ASSIGNED attempt and return it
+     *         -> do NOT create daily quiz for this job
+     *     - If COMPLETED:
+     *         -> allowed to create DAILY quiz for today (if not already created)
      *
-     * Returns the list of newly created UserQuiz rows.
+     *  2) If the job has no positioningQuizId:
+     *     - direct DAILY logic (optional, you can also forbid that if you want).
      */
-    async ensureDailyQuizzesForUser(
+    async assignQuizzesForUserOnLogin(
         userId: string,
-        options: EnsureDailyQuizzesOptions = {},
+        options: AssignQuizzesOptions = {},
     ): Promise<UserQuiz[]> {
         const now = options.date ?? new Date();
         const { startOfDay, endOfDay } = this.getDayBounds(now);
 
-        // 1) Fetch active jobs for this user
+        // 1. Fetch active UserJobs with their Job + positioningQuizId
         const userJobs = await this.prisma.userJob.findMany({
             where: {
                 userId,
@@ -76,75 +71,122 @@ export class DailyQuizService {
         });
 
         if (userJobs.length === 0) {
-            // User has no target/current jobs → no quiz to generate
             return [];
         }
 
-        const userJobIds = userJobs.map((uj) => uj.id);
+        const user = await this.prisma.user.findUnique({ where: { id: userId } });
+        if (!user) {
+            return [];
+        }
 
-        // 2) Find which UserJobs already have a quiz for today
-        const existingToday = await this.prisma.userQuiz.findMany({
-            where: {
-                userJobId: { in: userJobIds },
-                assignedAt: {
-                    gte: startOfDay,
-                    lt: endOfDay,
-                },
-            },
-            select: {
-                userJobId: true,
-            },
-        });
-
-        const alreadyGeneratedFor = new Set(
-            existingToday.map((uq) => uq.userJobId),
-        );
-
-        // 3) For each UserJob without a quiz today, generate one
         const createdUserQuizzes: UserQuiz[] = [];
 
         for (const userJob of userJobs) {
-            if (alreadyGeneratedFor.has(userJob.id)) {
-                // Quiz already exists for this job today → skip
-                continue;
+            const job = userJob.job;
+
+            // -------------------- 1) POSITIONING LOGIC --------------------
+
+            if (job.positioningQuizId) {
+                // 1.a. Check if there is a COMPLETED positioning quiz for this job
+                const completedPositioning = await this.prisma.userQuiz.findFirst({
+                    where: {
+                        userJobId: userJob.id,
+                        kind: UserQuizKind.POSITIONING,
+                        quizId: job.positioningQuizId,
+                        status: UserQuizStatus.COMPLETED,
+                    },
+                });
+
+                if (!completedPositioning) {
+                    // No completed positioning yet -> ensure there is one ASSIGNED attempt
+
+                    const existingPositioningAttempt =
+                        await this.prisma.userQuiz.findFirst({
+                            where: {
+                                userJobId: userJob.id,
+                                kind: UserQuizKind.POSITIONING,
+                                quizId: job.positioningQuizId,
+                            },
+                            orderBy: {
+                                assignedAt: 'desc',
+                            },
+                        });
+
+                    if (!existingPositioningAttempt) {
+                        // Create the first attempt for this positioning quiz
+                        const newPositioningUserQuiz = await this.prisma.userQuiz.create({
+                            data: {
+                                userJobId: userJob.id,
+                                quizId: job.positioningQuizId,
+                                kind: UserQuizKind.POSITIONING,
+                                status: UserQuizStatus.ASSIGNED,
+                                assignedAt: now,
+                            },
+                        });
+
+                        createdUserQuizzes.push(newPositioningUserQuiz);
+                    }
+
+                    // In all cases, positioning not completed -> no daily quiz yet
+                    continue;
+                }
+
+                // If we reach here, positioning is completed for this user + job
+                // -> proceed to DAILY logic below
+            } else {
+                // Job has no positioning quiz configured.
+                // You can decide to:
+                // - skip daily quizzes,
+                // - or allow daily quizzes anyway.
+                // Here we ALLOW daily quizzes even if no positioning quiz exists.
             }
 
-            // Fetch user and job if you want more context for AI
-            const user = await this.prisma.user.findUnique({
-                where: { id: userId },
+            // -------------------- 2) DAILY QUIZ LOGIC --------------------
+
+            const existingDailyToday = await this.prisma.userQuiz.findFirst({
+                where: {
+                    userJobId: userJob.id,
+                    kind: UserQuizKind.DAILY,
+                    assignedAt: {
+                        gte: startOfDay,
+                        lt: endOfDay,
+                    },
+                },
             });
-            if (!user) {
-                // Shouldn't happen, but be defensive
+
+            if (existingDailyToday) {
+                // Already created for today
                 continue;
             }
 
-            // 3.a) Generate quiz content with AI (currently just a placeholder)
-            const generatedQuiz = await this.generateQuizForUserJob(user, userJob.job);
+            // Generate the daily quiz content with AI
+            const generatedDailyQuiz =
+                await this.generateDailyQuizForUserJob(user, job);
 
-            // 3.b) Persist Quiz + Questions + Responses
-            const quiz = await this.createQuizFromGenerated(generatedQuiz);
+            // Persist the quiz template
+            const dailyQuizTemplate = await this.createQuizFromGenerated(
+                generatedDailyQuiz,
+            );
 
-            // 3.c) Create UserQuiz row linking userJob + quiz
-            const userQuiz = await this.prisma.userQuiz.create({
+            // Create the UserQuiz instance
+            const dailyUserQuiz = await this.prisma.userQuiz.create({
                 data: {
                     userJobId: userJob.id,
-                    quizId: quiz.id,
+                    quizId: dailyQuizTemplate.id,
+                    kind: UserQuizKind.DAILY,
                     status: UserQuizStatus.ASSIGNED,
                     assignedAt: now,
                 },
             });
 
-            createdUserQuizzes.push(userQuiz);
+            createdUserQuizzes.push(dailyUserQuiz);
         }
 
         return createdUserQuizzes;
     }
 
-    /**
-     * Helper to compute today's bounds.
-     * Here we do it in server local time; if you care about the user's timezone,
-     * you can adapt this to use e.g. date-fns-tz.
-     */
+    // -------------------- Helpers --------------------
+
     private getDayBounds(date: Date): { startOfDay: Date; endOfDay: Date } {
         const startOfDay = new Date(
             date.getFullYear(),
@@ -167,41 +209,31 @@ export class DailyQuizService {
         return { startOfDay, endOfDay };
     }
 
+    // -------------------- AI DAILY QUIZ (ONLY) --------------------
+
     /**
-     * Placeholder for your AI logic.
-     * Right now it returns a dumb static quiz so you can test the flow.
-     *
-     * Replace this with a call to OpenAI (or other provider) based on:
-     * - user profile
-     * - job title / competencies
-     * - previous quizzes results, etc.
+     * Daily quiz generation for a given user + job.
+     * Adapt this to your real AI logic (OpenAI, Anthropic, etc.).
      */
-    private async generateQuizForUserJob(
+    private async generateDailyQuizForUserJob(
         user: User,
         job: Job,
     ): Promise<GeneratedQuiz> {
-        // TODO: replace with real AI generation.
-        // This is only an example structure.
+        // TODO: replace with real AI generation using
+        // - job title
+        // - competencies
+        // - past quizzes, etc.
+
         return {
             questions: [
                 {
-                    text: `Basic question for job "${job.title}"`,
+                    text: `Question quotidienne pour le poste "${job.title}".`,
                     type: QuizQuestionType.single_choice,
                     timeLimitInSeconds: 30,
                     points: 1,
                     responses: [
-                        { text: 'Correct answer', isCorrect: true, points: 1 },
-                        { text: 'Wrong answer', isCorrect: false, points: 0 },
-                    ],
-                },
-                {
-                    text: `Another question for "${job.title}"`,
-                    type: QuizQuestionType.true_false,
-                    timeLimitInSeconds: 20,
-                    points: 1,
-                    responses: [
-                        { text: 'True', isCorrect: true, points: 1 },
-                        { text: 'False', isCorrect: false, points: 0 },
+                        { text: 'Bonne réponse', isCorrect: true, points: 1 },
+                        { text: 'Mauvaise réponse', isCorrect: false, points: 0 },
                     ],
                 },
             ],
@@ -209,8 +241,8 @@ export class DailyQuizService {
     }
 
     /**
-     * Takes a GeneratedQuiz (from AI) and saves it into the DB
-     * using your Quiz / QuizQuestion / QuizResponse models.
+     * Persist a GeneratedQuiz into Quiz / QuizQuestion / QuizResponse.
+     * Returns the created Quiz template.
      */
     private async createQuizFromGenerated(
         generatedQuiz: GeneratedQuiz,
@@ -229,8 +261,6 @@ export class DailyQuizService {
                             create: q.responses.map((r, responseIndex) => ({
                                 text: r.text,
                                 isCorrect: r.isCorrect,
-                                // If points for the response is not specified,
-                                // default to question points for correct answers, 0 for wrong.
                                 points:
                                     r.points ??
                                     (r.isCorrect ? q.points ?? 1 : 0),

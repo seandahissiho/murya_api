@@ -1,8 +1,0 @@
-model Role {
-  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name        String        @unique(map: "role_name") @db.VarChar(255)
-  createdAt   DateTime      @default(now()) @db.Timestamp(0)
-  updatedAt   DateTime      @default(now()) @db.Timestamp(0)
-  permissions Permissions[]
-  users       User[]
-}
