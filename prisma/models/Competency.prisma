@@ -1,0 +1,19 @@
+model Competency {
+  id                String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String                   @unique(map: "competency_name") @db.VarChar(255)
+  normalizedName    String                   @db.VarChar(255)
+  beginnerScore     Int                      @default(1) @map("beginner_score")
+  intermediateScore Int                      @default(2) @map("intermediate_score")
+  advancedScore     Int                      @default(3) @map("advanced_score")
+  expertScore       Int                      @default(4) @map("expert_score")
+  maxScore          Int                      @default(5) @map("max_score")
+  type              CompetencyType
+  level             Level                    @default(EASY)
+  createdAt         DateTime                 @default(now()) @db.Timestamp(0)
+  updatedAt         DateTime                 @default(now()) @updatedAt @db.Timestamp(0)
+  jobs              Job[]                    @relation("JobCompetencies")
+  families          CompetenciesFamily[]     @relation("CompetencyFamilies")
+  questionLinks     QuizQuestionCompetency[]
+
+  @@index([name], map: "idx_competency_name")
+}

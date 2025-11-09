@@ -1,0 +1,9 @@
+model UserQuizAnswerOption {
+  userQuizAnswerId String         @db.Uuid
+  responseId       String         @db.Uuid // QuizResponse.id
+  answer           UserQuizAnswer @relation(fields: [userQuizAnswerId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  response         QuizResponse   @relation(fields: [responseId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@id([userQuizAnswerId, responseId])
+  @@index([responseId], map: "idx_user_quiz_answer_option_response")
+}

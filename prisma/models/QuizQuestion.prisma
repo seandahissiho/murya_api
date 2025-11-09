@@ -1,0 +1,19 @@
+model QuizQuestion {
+  id                 String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quizId             String                   @db.Uuid
+  quiz               Quiz                     @relation(fields: [quizId], references: [id])
+  text               String
+  timeLimitInSeconds Int                      @default(30)
+  points             Int                      @default(1)
+  type               QuizQuestionType         @default(single_choice)
+  mediaUrl           String                   @default("")
+  metadata           Json?
+  position           Int                      @default(0)
+  responses          QuizResponse[]
+  createdAt          DateTime                 @default(now())
+  updatedAt          DateTime                 @updatedAt
+  userAnswers        UserQuizAnswer[]
+  competenciesLinks  QuizQuestionCompetency[]
+
+  @@index([quizId])
+}

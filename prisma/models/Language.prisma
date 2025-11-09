@@ -1,0 +1,6 @@
+model Language {
+  code           String  @id @db.VarChar(16) // ex: "en", "fr", "fr-FR"
+  name           String
+  isDefault      Boolean @default(false)
+  usersPreferred User[]  @relation("UserPreferredLanguage")
+}

@@ -1,0 +1,8 @@
+model NotificationTemplate {
+  id        String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key       String               @unique @db.VarChar(255) // e.g. "USER.WELCOME"
+  category  NotificationCategory @default(OTHER)
+  type      NotificationType     @default(INFO)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @default(now()) @updatedAt
+}

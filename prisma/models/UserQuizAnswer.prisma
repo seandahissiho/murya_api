@@ -1,0 +1,16 @@
+model UserQuizAnswer {
+  id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userQuizId     String                 @db.Uuid
+  questionId     String                 @db.Uuid // QuizQuestion.id (String)
+  freeTextAnswer String?
+  isCorrect      Boolean? // set after correction
+  score          Int?                   @default(0)
+  createdAt      DateTime               @default(now()) @db.Timestamp(0)
+  updatedAt      DateTime               @default(now()) @updatedAt @db.Timestamp(0)
+  userQuiz       UserQuiz               @relation(fields: [userQuizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  question       QuizQuestion           @relation(fields: [questionId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  options        UserQuizAnswerOption[]
+
+  @@index([userQuizId], map: "idx_user_quiz_answer_user_quiz")
+  @@index([questionId], map: "idx_user_quiz_answer_question")
+}

@@ -1,0 +1,8 @@
+model Quiz {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questions      QuizQuestion[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  jobPositioning Job?           @relation("JobPositioningQuiz")
+  userQuizzes    UserQuiz[]
+}
