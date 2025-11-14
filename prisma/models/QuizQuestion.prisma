@@ -1,19 +1,20 @@
 model QuizQuestion {
-  id                 String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  quizId             String                   @db.Uuid
-  quiz               Quiz                     @relation(fields: [quizId], references: [id])
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quizId             String           @db.Uuid
+  competencyId       String           @db.Uuid
   text               String
-  timeLimitInSeconds Int                      @default(30)
-  points             Int                      @default(1)
-  type               QuizQuestionType         @default(single_choice)
-  mediaUrl           String                   @default("")
+  timeLimitInSeconds Int              @default(30)
+  points             Int              @default(1)
+  type               QuizQuestionType @default(single_choice)
+  mediaUrl           String           @default("")
+  index              Int              @default(0)
   metadata           Json?
-  position           Int                      @default(0)
-  responses          QuizResponse[]
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
   userAnswers        UserQuizAnswer[]
-  competenciesLinks  QuizQuestionCompetency[]
+  quiz               Quiz             @relation(fields: [quizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  competency         Competency       @relation("CompetencyQuizQuestions", fields: [competencyId], references: [id])
+  responses          QuizResponse[]
 
   @@index([quizId])
 }

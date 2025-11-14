@@ -1,0 +1,357 @@
+{
+  "title": "Quiz 5 - Product Manager",
+  "description": "Quiz de positionnement Product Manager (5/5)",
+  "level": "MIX",
+  "questions": [
+    {
+      "text": "Pourquoi est-il important d'aligner la stratégie produit sur les objectifs de l'entreprise ?",
+      "timeLimitInSeconds": 30,
+      "points": 10,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 1,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "Pour que le produit contribue aux priorités et au succès de l'entreprise",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "Pour que l'équipe produit suive strictement les ordres de la direction sans discuter",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "Ce n'est pas important : un bon produit trouvera son marché sans s'aligner sur l'entreprise",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "Parce que cela permet de réduire artificiellement les ambitions de l'entreprise",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    },
+    {
+      "text": "Dans la gestion d'un portefeuille de produits, quelle décision un PM senior peut-il être amené à prendre ?",
+      "timeLimitInSeconds": 30,
+      "points": 10,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 2,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "Arrêter un produit peu performant pour réallouer ses ressources sur un produit stratégique",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "Lancer systématiquement de nouveaux produits sans jamais retirer les anciens",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "Gérer chaque produit isolément sans considérer la cohérence du portefeuille global",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "Se focaliser uniquement sur le produit historique en délaissant les autres produits du portefeuille",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    },
+    {
+      "text": "Quelle action fait partie de la coordination d'une stratégie de lancement (go-to-market) réussie ?",
+      "timeLimitInSeconds": 30,
+      "points": 7,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 3,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "S'assurer que marketing, ventes et support sont prêts et alignés pour le lancement",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "Laisser le produit sortir sans plan marketing pour tester le bouche-à-oreille",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "Ne pas informer l'équipe support des détails du lancement avant la mise en production",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "Publier le produit discrètement puis ne commencer la communication marketing qu'après coup",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    },
+    {
+      "text": "Laquelle de ces approches traduit une optimisation continue du produit ?",
+      "timeLimitInSeconds": 30,
+      "points": 10,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 4,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "Collecter les retours et ajuster le produit en tenant compte des contraintes techniques",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "Attendre une refonte majeure du produit pour intégrer toutes les améliorations d'un seul coup",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "Promettre toutes les demandes des utilisateurs sans considérer les contraintes techniques sous-jacentes",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "Ne pas exploiter les feedbacks clients tant que le produit fonctionne sans incident majeur",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    },
+    {
+      "text": "Quel est le but principal de mettre en place un test A/B sur une fonctionnalité ?",
+      "timeLimitInSeconds": 30,
+      "points": 5,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 5,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "Comparer deux variantes d'une fonctionnalité pour déterminer laquelle performe mieux",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "Valider les préférences du PM sans se soucier des résultats chiffrés",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "Lancer deux versions différentes aux utilisateurs puis ne pas analyser les résultats",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "Tester des idées opposées en prod sans définir de critère de succès précis",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    },
+    {
+      "text": "Laquelle de ces pratiques reflète une utilisation efficace d'un outil d'analytics produit ?",
+      "timeLimitInSeconds": 30,
+      "points": 5,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 6,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "Configurer des tableaux de bord pertinents et suivre régulièrement les métriques clés",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "Réserver l'accès à l'outil au seul PM et ne partager aucune donnée avec l'équipe",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "Collecter un maximum de données d'utilisation sans prévoir de temps pour les analyser",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "Suivre une seule métrique et ignorer les autres indicateurs de performance du produit",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    },
+    {
+      "text": "Quelle habitude aide un PM junior à bien gérer ses tâches dans un outil de backlog (Jira, Trello...) ?",
+      "timeLimitInSeconds": 30,
+      "points": 3,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 7,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "Mettre à jour chaque jour le statut des tickets et ajuster les priorités si nécessaire",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "Créer des tickets uniquement en cas de problème urgent à résoudre",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "S'assigner toutes les tâches du backlog pour en garder le contrôle total",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "Ne pas décrire les modifications dans l'outil pour gagner du temps",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    },
+    {
+      "text": "Que doit faire un PM pour s'assurer de la qualité du produit avant sa mise en production ?",
+      "timeLimitInSeconds": 30,
+      "points": 5,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 8,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "Travailler avec l'équipe QA pour tester et résoudre les bugs critiques avant le lancement",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "Déployer le produit le plus vite possible sans effectuer de phase de tests",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "Laisser les utilisateurs finaux découvrir les bugs une fois le produit en ligne",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "Ne pas impliquer l'équipe de test afin de gagner du temps sur le planning",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    },
+    {
+      "text": "Qu'est-ce qui caractérise une bonne collaboration d'un PM junior avec les autres équipes (tech, design, marketing) ?",
+      "timeLimitInSeconds": 30,
+      "points": 3,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 9,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "Être ouvert aux idées, communiquer régulièrement et respecter l'expertise de chaque équipe",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "Imposer ses choix à chaque service afin de garder la maîtrise totale du produit",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "Éviter d'impliquer les équipes externes (design, marketing) dans le processus produit",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "Travailler en vase clos uniquement avec son équipe produit sans considérer les autres",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    },
+    {
+      "text": "Comment un PM peut-il fédérer son équipe autour des objectifs du produit ?",
+      "timeLimitInSeconds": 30,
+      "points": 5,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 10,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "En partageant une vision claire où chaque contribution sert l'objectif commun",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "En énonçant des objectifs vagues pour ne pas mettre de pression sur l'équipe",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "En utilisant la crainte de l'échec pour motiver chaque membre à travailler plus dur",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "En restant distant et en évitant de rappeler régulièrement les objectifs à l'équipe",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    }
+  ]
+}

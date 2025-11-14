@@ -1,0 +1,382 @@
+{
+  "jobTitle": "UI Designer",
+  "jobDescription": "Conçoit interfaces et systèmes visuels; assure accessibilité, cohérence et tests pour des expériences claires et efficaces.",
+  "normalizedJobName": "ui_designer",
+  "families": [
+    {
+      "name": "Recherche",
+      "subFamilies": [
+        {
+          "name": "Utilisateur",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Conduire interviews",
+              "acquisitionLevel": "Moyen",
+              "description": "Mener entretiens qualitatifs ciblés"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Observer terrain",
+              "acquisitionLevel": "Facile",
+              "description": "Noter usages réels en contexte"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Écoute active",
+              "acquisitionLevel": "Facile",
+              "description": "Reformuler et vérifier la compréhension"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Ouverture d'esprit",
+              "acquisitionLevel": "Moyen",
+              "description": "Accueillir idées et retours"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Cartographier parcours",
+              "acquisitionLevel": "Moyen",
+              "description": "Visualiser étapes et frictions"
+            }
+          ]
+        },
+        {
+          "name": "Analyse",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Synthétiser insights",
+              "acquisitionLevel": "Moyen",
+              "description": "Regrouper signaux en thèmes clairs"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Formuler problèmes",
+              "acquisitionLevel": "Moyen",
+              "description": "Exprimer clairement le besoin"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Modéliser personas",
+              "acquisitionLevel": "Moyen",
+              "description": "Décrire archétypes et contextes"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Rigueur analytique",
+              "acquisitionLevel": "Moyen",
+              "description": "Suivre méthodes sans biais"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Esprit critique",
+              "acquisitionLevel": "Moyen",
+              "description": "Questionner résultats et limites"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Interface",
+      "subFamilies": [
+        {
+          "name": "Visuel",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Construire UI kit",
+              "acquisitionLevel": "Difficile",
+              "description": "Structurer composants et styles"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Définir iconographie",
+              "acquisitionLevel": "Difficile",
+              "description": "Choisir formes, sens et usage"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Harmoniser couleur",
+              "acquisitionLevel": "Moyen",
+              "description": "Composer palettes accessibles"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Sens du détail",
+              "acquisitionLevel": "Moyen",
+              "description": "Repérer défauts avant livraison"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Goût esthétique",
+              "acquisitionLevel": "Moyen",
+              "description": "Évaluer harmonie et hiérarchie"
+            }
+          ]
+        },
+        {
+          "name": "Typographie",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Choisir fontes",
+              "acquisitionLevel": "Moyen",
+              "description": "Sélectionner familles adaptées"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Hiérarchiser texte",
+              "acquisitionLevel": "Moyen",
+              "description": "Organiser styles et niveaux"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Microtypographie",
+              "acquisitionLevel": "Difficile",
+              "description": "Soigner guillemets, tirets, apostrophes"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Optimiser lisibilité",
+              "acquisitionLevel": "Facile",
+              "description": "Améliorer clarté de lecture"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Rythmer espaces",
+              "acquisitionLevel": "Moyen",
+              "description": "Maîtriser interlignes et marges"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Interaction",
+      "subFamilies": [
+        {
+          "name": "Comportement",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Concevoir feedback",
+              "acquisitionLevel": "Moyen",
+              "description": "Définir états, erreurs et succès"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Définir micro-interactions",
+              "acquisitionLevel": "Difficile",
+              "description": "Spécifier déclencheurs et réponses"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Anticiper flux",
+              "acquisitionLevel": "Difficile",
+              "description": "Prévoir chemins et exceptions"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Accessibilité clavier",
+              "acquisitionLevel": "Moyen",
+              "description": "Permettre navigation sans souris"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Empathie stratégique",
+              "acquisitionLevel": "Moyen",
+              "description": "Comprendre clients pour orienter choix"
+            }
+          ]
+        },
+        {
+          "name": "Prototype",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Prototyper haute fidélité",
+              "acquisitionLevel": "Difficile",
+              "description": "Assembler écrans réalistes cliquables"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Prototyper basse fidélité",
+              "acquisitionLevel": "Facile",
+              "description": "Esquisser flux rapides au crayon"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Animer transitions",
+              "acquisitionLevel": "Moyen",
+              "description": "Créer mouvements utiles et clairs"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Tester utilisabilité",
+              "acquisitionLevel": "Difficile",
+              "description": "Mesurer tâches, erreurs, satisfaction"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Curiosité structurée",
+              "acquisitionLevel": "Facile",
+              "description": "Explorer avec méthode et rigueur"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Qualité",
+      "subFamilies": [
+        {
+          "name": "Accessibilité",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Respecter WCAG",
+              "acquisitionLevel": "Difficile",
+              "description": "Appliquer critères AA au design"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Couleurs contrastées",
+              "acquisitionLevel": "Facile",
+              "description": "Garantir ratios conformes"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Alternatives texte",
+              "acquisitionLevel": "Facile",
+              "description": "Fournir équivalents descriptifs"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Navigation cohérente",
+              "acquisitionLevel": "Moyen",
+              "description": "Stabiliser modèles mentaux"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Éthique",
+              "acquisitionLevel": "Expert",
+              "description": "Agir avec transparence et équité"
+            }
+          ]
+        },
+        {
+          "name": "Évaluation",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Planifier tests",
+              "acquisitionLevel": "Moyen",
+              "description": "Définir objectifs et protocoles"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Conduire tests",
+              "acquisitionLevel": "Moyen",
+              "description": "Animer sessions et débriefs"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Critique design",
+              "acquisitionLevel": "Difficile",
+              "description": "Évaluer solutions et compromis"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Mesurer métriques UX",
+              "acquisitionLevel": "Difficile",
+              "description": "Suivre SUS, NPS et temps tâche"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Humilité",
+              "acquisitionLevel": "Facile",
+              "description": "Accueillir preuves contraires"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Collaboration",
+      "subFamilies": [
+        {
+          "name": "Process",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Documenter décisions",
+              "acquisitionLevel": "Facile",
+              "description": "Tracer options et raisons"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Spécifier exigences",
+              "acquisitionLevel": "Moyen",
+              "description": "Détailler critères et règles"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Animer ateliers",
+              "acquisitionLevel": "Moyen",
+              "description": "Faciliter co-création et décisions"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Organisation personnelle",
+              "acquisitionLevel": "Facile",
+              "description": "Structurer son temps efficacement"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Discipline",
+              "acquisitionLevel": "Facile",
+              "description": "Tenir les engagements pris"
+            }
+          ]
+        },
+        {
+          "name": "Influence",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Storytelling produit",
+              "acquisitionLevel": "Moyen",
+              "description": "Raconter valeur et vision"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Communication claire",
+              "acquisitionLevel": "Facile",
+              "description": "Expliquer sans jargon inutile"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Résolution de conflits",
+              "acquisitionLevel": "Difficile",
+              "description": "Désamorcer tensions constructives"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Aligner parties prenantes",
+              "acquisitionLevel": "Difficile",
+              "description": "Obtenir accords durables"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Mentorat",
+              "acquisitionLevel": "Moyen",
+              "description": "Faire grandir l'équipe"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,7 +1,6 @@
 import {NextFunction, Request, Response} from "express";
 import * as jobService from "../services/jobs.services";
 import {sendResponse} from "../utils/helpers";
-import {buildLangChain} from "../i18n/langChain";
 import {detectLanguage} from "../middlewares/i18n";
 
 
@@ -9,7 +8,7 @@ export const searchJobs = async (req: Request, res: Response, next: NextFunction
     try {
         const query = (req.query.query as string)?.trim();
         if (query === undefined) {
-            return sendResponse(res, 400, { error: 'Le paramètre "query" est requis.' });
+            return sendResponse(res, 400, {error: 'Le paramètre "query" est requis.'});
         }
 
         const page = parseInt((req.query.page as string) || '1', 10);
@@ -17,8 +16,8 @@ export const searchJobs = async (req: Request, res: Response, next: NextFunction
 
         const lang = await detectLanguage(req);
 
-        const result = await jobService.searchJobs(query, { page, perPage, lang });
-        return sendResponse(res, 200, { data: result });
+        const result = await jobService.searchJobs(query, {page, perPage, lang});
+        return sendResponse(res, 200, {data: result});
     } catch (err) {
         console.error('searchJobs error:', err);
         return sendResponse(res, 500, {
@@ -32,17 +31,17 @@ export const getJobDetails = async (req: Request, res: Response, next: NextFunct
     try {
         const jobId = req.params.id;
         if (!jobId) {
-            return sendResponse(res, 400, { error: 'L’identifiant du job est requis.' });
+            return sendResponse(res, 400, {error: 'L’identifiant du job est requis.'});
         }
 
         const lang = await detectLanguage(req);
 
         const job = await jobService.getJobDetails(jobId, lang);
         if (!job) {
-            return sendResponse(res, 404, { error: 'Job non trouvé.' });
+            return sendResponse(res, 404, {error: 'Job non trouvé.'});
         }
 
-        return sendResponse(res, 200, { data: job });
+        return sendResponse(res, 200, {data: job});
     } catch (err) {
         console.error('getJobDetails error:', err);
         return sendResponse(res, 500, {
@@ -57,17 +56,17 @@ export const getCompetencyFamilyDetailsForJob = async (req: Request, res: Respon
         const jobId = req.params.jobId;
         const cfId = req.params.cfId;
         if (!jobId || !cfId) {
-            return sendResponse(res, 400, { error: 'jobId et cfId sont requis.' });
+            return sendResponse(res, 400, {error: 'jobId et cfId sont requis.'});
         }
 
         const lang = await detectLanguage(req);
 
         const details = await jobService.getCompetencyFamilyDetailsForJob(jobId, cfId, lang);
         if (!details) {
-            return sendResponse(res, 404, { error: 'Détails introuvables pour cette famille de compétences.' });
+            return sendResponse(res, 404, {error: 'Détails introuvables pour cette famille de compétences.'});
         }
 
-        return sendResponse(res, 200, { data: details });
+        return sendResponse(res, 200, {data: details});
     } catch (err) {
         console.error('getCompetencyFamilyDetailsForJob error:', err);
         return sendResponse(res, 500, {

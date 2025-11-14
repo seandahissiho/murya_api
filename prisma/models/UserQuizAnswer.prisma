@@ -3,7 +3,7 @@ model UserQuizAnswer {
   userQuizId     String                 @db.Uuid
   questionId     String                 @db.Uuid // QuizQuestion.id (String)
   freeTextAnswer String?
-  isCorrect      Boolean? // set after correction
+  isCorrect      Boolean                @default(false)
   score          Int?                   @default(0)
   createdAt      DateTime               @default(now()) @db.Timestamp(0)
   updatedAt      DateTime               @default(now()) @updatedAt @db.Timestamp(0)

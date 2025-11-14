@@ -72,12 +72,7 @@ enum Level {
   MEDIUM
   HARD
   EXPERT
-}
-
-enum UserJobStatus {
-  TARGET // a job the user is preparing for
-  CURRENT // job they currently have
-  PAST // job they had in the past
+  MIX
 }
 
 enum QuizQuestionType {
@@ -88,6 +83,12 @@ enum QuizQuestionType {
   fill_in_the_blank
 }
 
+enum UserJobStatus {
+  TARGET // a job the user is preparing for
+  CURRENT // job they currently have
+  PAST // job they had in the past
+}
+
 enum UserQuizStatus {
   ASSIGNED
   STARTED
@@ -95,7 +96,7 @@ enum UserQuizStatus {
   EXPIRED
 }
 
-enum UserQuizKind {
+enum UserQuizType {
   POSITIONING
   DAILY
 }
@@ -156,7 +157,7 @@ model Company {
 model CompetenciesFamily {
   id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name           String               @unique(map: "competencies_family_name") @db.VarChar(255)
-  normalizedName String               @db.VarChar(255)
+  normalizedName String               @unique @db.VarChar(255)
   description    String               @default(" ") @db.Text
   parentId       String?              @db.Uuid
   createdAt      DateTime             @default(now()) @db.Timestamp(0)
@@ -168,21 +169,21 @@ model CompetenciesFamily {
 }
 
 model Competency {
-  id                String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name              String                   @unique(map: "competency_name") @db.VarChar(255)
-  normalizedName    String                   @db.VarChar(255)
-  beginnerScore     Int                      @default(1) @map("beginner_score")
-  intermediateScore Int                      @default(2) @map("intermediate_score")
-  advancedScore     Int                      @default(3) @map("advanced_score")
-  expertScore       Int                      @default(4) @map("expert_score")
-  maxScore          Int                      @default(5) @map("max_score")
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String               @unique(map: "competency_name") @db.VarChar(255)
+  normalizedName    String               @unique @db.VarChar(255)
+  beginnerScore     Float                @default(1.0) @map("beginner_score")
+  intermediateScore Float                @default(2.20) @map("intermediate_score")
+  advancedScore     Float                @default(3.5) @map("advanced_score")
+  expertScore       Float                @default(4.25) @map("expert_score")
+  maxScore          Float                @default(5.0) @map("max_score")
   type              CompetencyType
-  level             Level                    @default(EASY)
-  createdAt         DateTime                 @default(now()) @db.Timestamp(0)
-  updatedAt         DateTime                 @default(now()) @updatedAt @db.Timestamp(0)
-  jobs              Job[]                    @relation("JobCompetencies")
-  families          CompetenciesFamily[]     @relation("CompetencyFamilies")
-  questionLinks     QuizQuestionCompetency[]
+  level             Level                @default(EASY)
+  createdAt         DateTime             @default(now()) @db.Timestamp(0)
+  updatedAt         DateTime             @default(now()) @updatedAt @db.Timestamp(0)
+  jobs              Job[]                @relation("JobCompetencies")
+  families          CompetenciesFamily[] @relation("CompetencyFamilies")
+  quizQuestions     QuizQuestion[]       @relation("CompetencyQuizQuestions")
 
   @@index([name], map: "idx_competency_name")
 }
@@ -207,9 +208,9 @@ model Country {
 
 model Job {
   id                   String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  jobFamilyId          String               @db.Uuid
+  jobFamilyId          String?              @db.Uuid
   title                String               @db.VarChar(255)
-  normalizedName       String               @db.VarChar(255)
+  normalizedName       String               @unique @db.VarChar(255)
   description          String?              @db.Text
   createdAt            DateTime             @default(now()) @db.Timestamp(0)
   updatedAt            DateTime             @default(now()) @updatedAt @db.Timestamp(0)
@@ -221,10 +222,9 @@ model Job {
   overlayColor         String               @default("#FFFFFFFF") @db.VarChar(9)
   imageIndex           Int                  @default(0)
   // NEW: special positioning quiz template attached to the job
-  positioningQuizId    String?              @unique @db.Uuid // references Quiz.id (String)
-  positioningQuiz      Quiz?                @relation("JobPositioningQuiz", fields: [positioningQuizId], references: [id], onUpdate: Cascade, onDelete: SetNull)
+  quizzes              Quiz[]               @relation("JobQuizzes")
   // Relations
-  jobFamily            JobFamily            @relation(fields: [jobFamilyId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_jobs_job_family_id")
+  jobFamily            JobFamily?           @relation(fields: [jobFamilyId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_jobs_job_family_id")
   competencies         Competency[]         @relation("JobCompetencies")
   competenciesFamilies CompetenciesFamily[] @relation("JobCompetenciesFamilies")
   userJobs             UserJob[]
@@ -236,7 +236,7 @@ model JobFamily {
   id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   parentId       String?     @db.Uuid
   name           String      @unique(map: "job_family_name") @db.VarChar(255)
-  normalizedName String      @db.VarChar(255)
+  normalizedName String      @unique @db.VarChar(255)
   createdAt      DateTime    @default(now()) @db.Timestamp(0)
   updatedAt      DateTime    @default(now()) @updatedAt @db.Timestamp(0)
   jobs           Job[]
@@ -251,22 +251,6 @@ model Language {
   usersPreferred User[]  @relation("UserPreferredLanguage")
 }
 
-model Translation {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  entity    String   @db.VarChar(64) // "Job", "JobFamily", "Competency", etc.
-  entityId  String   @db.Uuid
-  field     String   @db.VarChar(64) // "title", "description", ...
-  langCode  String   @db.VarChar(16) // "fr", "en"
-  value     String   @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
-
-  @@unique([entity, entityId, field, langCode], map: "unique_translation_row")
-  @@index([langCode], map: "idx_translation_lang")
-  @@index([entity, field], map: "idx_translation_entity_field")
-}
-
-/// The actual delivered notification is materialized text for audit & immutability.
 model Notification {
   id                     String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title                  String                  @db.VarChar(255)
@@ -279,15 +263,6 @@ model Notification {
   notificationRecipients NotificationRecipient[]
 }
 
-model NotificationTemplate {
-  id        String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  key       String               @unique @db.VarChar(255) // e.g. "USER.WELCOME"
-  category  NotificationCategory @default(OTHER)
-  type      NotificationType     @default(INFO)
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @default(now()) @updatedAt
-}
-
 model NotificationRecipient {
   notificationId String       @db.Uuid
   userId         String       @db.Uuid
@@ -296,6 +271,15 @@ model NotificationRecipient {
 
   @@id([notificationId, userId])
   @@index([userId], map: "userId")
+}
+
+model NotificationTemplate {
+  id        String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key       String               @unique @db.VarChar(255) // e.g. "USER.WELCOME"
+  category  NotificationCategory @default(OTHER)
+  type      NotificationType     @default(INFO)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @default(now()) @updatedAt
 }
 
 model Permissions {
@@ -312,68 +296,53 @@ model Permissions {
 }
 
 model Quiz {
-  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  questions      QuizQuestion[]
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  jobPositioning Job?           @relation("JobPositioningQuiz")
-  userQuizzes    UserQuiz[]
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobId       String         @db.Uuid
+  title       String?
+  description String?
+  level       Level          @default(EASY)
+  questions   QuizQuestion[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  job         Job            @relation("JobQuizzes", fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  quizzes     UserQuiz[]
 }
 
 model QuizQuestion {
-  id                 String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  quizId             String                   @db.Uuid
-  quiz               Quiz                     @relation(fields: [quizId], references: [id])
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quizId             String           @db.Uuid
+  competencyId       String           @db.Uuid
   text               String
-  timeLimitInSeconds Int                      @default(30)
-  points             Int                      @default(1)
-  type               QuizQuestionType         @default(single_choice)
-  mediaUrl           String                   @default("")
+  timeLimitInSeconds Int              @default(30)
+  points             Int              @default(1)
+  type               QuizQuestionType @default(single_choice)
+  mediaUrl           String           @default("")
+  index              Int              @default(0)
   metadata           Json?
-  position           Int                      @default(0)
-  responses          QuizResponse[]
-  createdAt          DateTime                 @default(now())
-  updatedAt          DateTime                 @updatedAt
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
   userAnswers        UserQuizAnswer[]
-  competenciesLinks  QuizQuestionCompetency[]
+  quiz               Quiz             @relation(fields: [quizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  competency         Competency       @relation("CompetencyQuizQuestions", fields: [competencyId], references: [id])
+  responses          QuizResponse[]
 
   @@index([quizId])
 }
 
 model QuizResponse {
-  id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  questionId        String                 @db.Uuid
-  question          QuizQuestion           @relation(fields: [questionId], references: [id])
-  text              String
-  metadata          Json?
-  isCorrect         Boolean                @default(false)
-  points            Int                    @default(0)
-  index             Int
-  createdAt         DateTime               @default(now())
-  updatedAt         DateTime               @updatedAt
-  selectedInAnswers UserQuizAnswerOption[]
+  id            String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questionId    String                 @db.Uuid
+  text          String
+  metadata      Json?
+  isCorrect     Boolean                @default(false)
+  index         Int
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+  // Relations
+  question      QuizQuestion           @relation(fields: [questionId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  answerOptions UserQuizAnswerOption[]
 
   @@index([questionId])
-}
-
-model QuizQuestionCompetency {
-  questionId   String       @db.Uuid
-  competencyId String       @db.Uuid
-  /// How important this competency is in this question
-  /// Example:
-  /// - If the question has 10 points and you have 2 competencies with weight 1 and 2,
-  ///   you can distribute 10 points proportionally (3.33 vs 6.66)
-  weight       Int          @default(1)
-  /// Optional explicit max points for this competency *for this question*.
-  /// If you set it, you don't need to derive from QuizQuestion.points.
-  maxPoints    Int?
-  createdAt    DateTime     @default(now()) @db.Timestamp(0)
-  updatedAt    DateTime     @default(now()) @updatedAt @db.Timestamp(0)
-  question     QuizQuestion @relation(fields: [questionId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  competency   Competency   @relation(fields: [competencyId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-
-  @@id([questionId, competencyId])
-  @@index([competencyId], map: "idx_qqc_competency")
 }
 
 model Role {
@@ -383,6 +352,21 @@ model Role {
   updatedAt   DateTime      @default(now()) @db.Timestamp(0)
   permissions Permissions[]
   users       User[]
+}
+
+model Translation {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity    String   @db.VarChar(64) // "Job", "JobFamily", "Competency", etc.
+  entityId  String   @db.Uuid
+  field     String   @db.VarChar(64) // "title", "description", ...
+  langCode  String   @db.VarChar(16) // "fr", "en"
+  value     String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([entity, entityId, field, langCode], map: "unique_translation_row")
+  @@index([langCode], map: "idx_translation_lang")
+  @@index([entity, field], map: "idx_translation_entity_field")
 }
 
 model UploadedFile {
@@ -462,23 +446,23 @@ model User {
 }
 
 model UserJob {
-  id           String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId       String        @db.Uuid
-  jobId        String        @db.Uuid
-  status       UserJobStatus @default(TARGET)
+  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String        @db.Uuid
+  jobId            String        @db.Uuid
+  status           UserJobStatus @default(TARGET)
   // Optional: manual level or seniority (1–5 for example)
-  level        Int?
-  note         String?       @db.Text
+  level            Level         @default(EASY)
+  note             String?       @db.Text
   // Aggregated stats for fast dashboards (optional but useful)
-  quizzesCount Int           @default(0)
-  totalScore   Int           @default(0) // sum of all quiz totalScore
-  maxScoreSum  Int           @default(0) // sum of all quiz maxScore
-  lastQuizAt   DateTime?     @db.Timestamp(0)
-  createdAt    DateTime      @default(now()) @db.Timestamp(0)
-  updatedAt    DateTime      @default(now()) @updatedAt @db.Timestamp(0)
-  user         User          @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  job          Job           @relation(fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  userQuizzes  UserQuiz[]
+  totalScore       Int           @default(0) // sum of all quiz totalScore
+  maxScoreSum      Int           @default(0) // sum of all quiz maxScore
+  completedQuizzes Int           @default(0)
+  lastQuizAt       DateTime?     @db.Timestamp(0)
+  createdAt        DateTime      @default(now()) @db.Timestamp(0)
+  updatedAt        DateTime      @default(now()) @updatedAt @db.Timestamp(0)
+  user             User          @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  job              Job           @relation(fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  quizzes          UserQuiz[]
 
   @@unique([userId, jobId], map: "unique_user_job")
   @@index([userId], map: "idx_user_job_user")
@@ -489,23 +473,26 @@ model UserQuiz {
   id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userJobId   String           @db.Uuid
   quizId      String           @db.Uuid // Quiz.id is String @default(uuid())
-  kind        UserQuizKind     @default(DAILY)
+  type        UserQuizType     @default(DAILY)
   status      UserQuizStatus   @default(ASSIGNED)
+  index       Int
   assignedAt  DateTime         @default(now()) @db.Timestamp(0)
   startedAt   DateTime?        @db.Timestamp(0)
   completedAt DateTime?        @db.Timestamp(0)
-  totalScore  Int?             @default(0)
-  maxScore    Int?             @default(0)
+  totalScore  Int              @default(0)
+  maxScore    Int              @default(0)
   percentage  Float?           @default(0)
   createdAt   DateTime         @default(now()) @db.Timestamp(0)
   updatedAt   DateTime         @default(now()) @updatedAt @db.Timestamp(0)
+  // Relations
   userJob     UserJob          @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   quiz        Quiz             @relation(fields: [quizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   answers     UserQuizAnswer[]
 
+  @@unique([userJobId, quizId], map: "unique_user_quiz_user_job_quiz")
   @@index([userJobId], map: "idx_user_quiz_user_job")
   @@index([quizId], map: "idx_user_quiz_quiz")
-  @@index([kind, status, assignedAt])
+  @@index([type, status, assignedAt])
 }
 
 model UserQuizAnswer {
@@ -513,7 +500,7 @@ model UserQuizAnswer {
   userQuizId     String                 @db.Uuid
   questionId     String                 @db.Uuid // QuizQuestion.id (String)
   freeTextAnswer String?
-  isCorrect      Boolean? // set after correction
+  isCorrect      Boolean                @default(false)
   score          Int?                   @default(0)
   createdAt      DateTime               @default(now()) @db.Timestamp(0)
   updatedAt      DateTime               @default(now()) @updatedAt @db.Timestamp(0)
@@ -528,6 +515,7 @@ model UserQuizAnswer {
 model UserQuizAnswerOption {
   userQuizAnswerId String         @db.Uuid
   responseId       String         @db.Uuid // QuizResponse.id
+  // Relations
   answer           UserQuizAnswer @relation(fields: [userQuizAnswerId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   response         QuizResponse   @relation(fields: [responseId], references: [id], onUpdate: Cascade, onDelete: Cascade)
 

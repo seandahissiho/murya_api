@@ -203,6 +203,10 @@ function defaultScoresForLevel(level: Level): Scores {
             return {beginner: 2, intermediate: 3, advanced: 4, expert: 4, max: 5};
         case Level.EXPERT:
             return {beginner: 2, intermediate: 3, advanced: 4, expert: 5, max: 5};
+        case Level.MIX:
+            return {beginner: 1, intermediate: 2, advanced: 3, expert: 4, max: 5};
+        default:
+            throw new Error(`Unknown level: ${level}`);
     }
 }
 
@@ -793,8 +797,8 @@ async function main() {
     await seedRole('BASIC');
     await seedRole('PREMIUM');
     await seedRole('PROFESSIONAL');
-    await seedJob(JOB_PM);
-    await seedJob(JOB_UI);
+    // await seedJob(JOB_PM);
+    // await seedJob(JOB_UI);
 
     console.log('\nSeed completed ✅');
 }

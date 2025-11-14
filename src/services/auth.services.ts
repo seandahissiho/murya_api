@@ -109,10 +109,10 @@ export const login = async (
     });
 
     // 2) Once login is successful, trigger daily quiz creation
-    quizAssignmentService.assignQuizzesForUserOnLogin(user.id).then(r => {
-        // Quizzes assigned
-        console.log(`Daily quizzes assigned for user ${user.id} on login.`);
-    });
+    // quizAssignmentService.assignQuizzesForUserOnLogin(user.id).then(r => {
+    //     // Quizzes assigned
+    //     console.log(`Daily quizzes assigned for user ${user.id} on login.`);
+    // });
 
     return {access_token, refresh_token}
 };
@@ -171,6 +171,11 @@ export const refresh = async (refreshToken: string): Promise<{ access_token: str
     if (!newAccessToken) {
         throw new Error('Failed to generate new access token');
     }
+
+    // quizAssignmentService.assignQuizzesForUserOnLogin(user.id).then(r => {
+    //     // Quizzes assigned
+    //     console.log(`Daily quizzes assigned for user ${user.id} on login.`);
+    // });
 
     return {access_token: newAccessToken, user};
 

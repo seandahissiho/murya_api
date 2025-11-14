@@ -56,12 +56,7 @@ enum Level {
   MEDIUM
   HARD
   EXPERT
-}
-
-enum UserJobStatus {
-  TARGET // a job the user is preparing for
-  CURRENT // job they currently have
-  PAST // job they had in the past
+  MIX
 }
 
 enum QuizQuestionType {
@@ -72,6 +67,12 @@ enum QuizQuestionType {
   fill_in_the_blank
 }
 
+enum UserJobStatus {
+  TARGET // a job the user is preparing for
+  CURRENT // job they currently have
+  PAST // job they had in the past
+}
+
 enum UserQuizStatus {
   ASSIGNED
   STARTED
@@ -79,7 +80,7 @@ enum UserQuizStatus {
   EXPIRED
 }
 
-enum UserQuizKind {
+enum UserQuizType {
   POSITIONING
   DAILY
 }

@@ -1,0 +1,382 @@
+{
+  "jobTitle": "Software Developer",
+  "jobDescription": "Conçoit, développe et maintient des logiciels fiables; optimise performance, sécurité et qualité en collaboration continue.",
+  "normalizedJobName": "software_developer",
+  "families": [
+    {
+      "name": "Conception",
+      "subFamilies": [
+        {
+          "name": "Modélisation",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Spécifier exigences",
+              "acquisitionLevel": "Moyen",
+              "description": "Détailler critères et règles"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Concevoir API",
+              "acquisitionLevel": "Difficile",
+              "description": "Dessiner endpoints cohérents"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Modéliser données",
+              "acquisitionLevel": "Moyen",
+              "description": "Définir entités et relations"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Choisir architectures",
+              "acquisitionLevel": "Difficile",
+              "description": "Sélectionner patterns adaptés"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Esprit critique",
+              "acquisitionLevel": "Moyen",
+              "description": "Questionner résultats et limites"
+            }
+          ]
+        },
+        {
+          "name": "Algorithmes",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Analyser complexité",
+              "acquisitionLevel": "Difficile",
+              "description": "Évaluer coûts temps et mémoire"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Structurer données",
+              "acquisitionLevel": "Moyen",
+              "description": "Sélectionner structures optimales"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Concevoir performances",
+              "acquisitionLevel": "Difficile",
+              "description": "Optimiser latence et débit"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Rigueur analytique",
+              "acquisitionLevel": "Moyen",
+              "description": "Suivre méthodes sans biais"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Curiosité structurée",
+              "acquisitionLevel": "Facile",
+              "description": "Explorer avec méthode et rigueur"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Développement",
+      "subFamilies": [
+        {
+          "name": "Backend",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Implémenter API REST",
+              "acquisitionLevel": "Moyen",
+              "description": "Coder endpoints robustes"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Gérer bases données",
+              "acquisitionLevel": "Difficile",
+              "description": "Concevoir schémas et requêtes"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Gérer concurrence",
+              "acquisitionLevel": "Difficile",
+              "description": "Maîtriser locks et transactions"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Sécuriser services",
+              "acquisitionLevel": "Difficile",
+              "description": "Protéger accès et secrets"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Discipline",
+              "acquisitionLevel": "Facile",
+              "description": "Tenir les engagements pris"
+            }
+          ]
+        },
+        {
+          "name": "Frontend",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Intégrer composants",
+              "acquisitionLevel": "Moyen",
+              "description": "Assembler UI réutilisables"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Optimiser chargement",
+              "acquisitionLevel": "Difficile",
+              "description": "Réduire poids et requêtes"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Gérer état",
+              "acquisitionLevel": "Difficile",
+              "description": "Structurer stores et flux"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Organisation personnelle",
+              "acquisitionLevel": "Facile",
+              "description": "Structurer son temps efficacement"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Sens du détail",
+              "acquisitionLevel": "Moyen",
+              "description": "Repérer défauts avant livraison"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Qualité",
+      "subFamilies": [
+        {
+          "name": "Tests",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Planifier tests",
+              "acquisitionLevel": "Moyen",
+              "description": "Définir objectifs et protocoles"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Rédiger tests unitaires",
+              "acquisitionLevel": "Facile",
+              "description": "Couvrir logique critique"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Rédiger tests d'intégration",
+              "acquisitionLevel": "Moyen",
+              "description": "Vérifier interactions clés"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Mesurer couverture",
+              "acquisitionLevel": "Moyen",
+              "description": "Suivre lignes et branches"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Humilité",
+              "acquisitionLevel": "Facile",
+              "description": "Accueillir preuves contraires"
+            }
+          ]
+        },
+        {
+          "name": "Fiabilité",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Observabilité",
+              "acquisitionLevel": "Moyen",
+              "description": "Tracer logs et métriques"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Corriger bugs",
+              "acquisitionLevel": "Facile",
+              "description": "Diagnostiquer causes profondes"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Gestion des risques",
+              "acquisitionLevel": "Difficile",
+              "description": "Identifier et atténuer aléas"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Résilience",
+              "acquisitionLevel": "Moyen",
+              "description": "Rebondir face aux revers"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Éthique",
+              "acquisitionLevel": "Expert",
+              "description": "Agir avec transparence et équité"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Opérations",
+      "subFamilies": [
+        {
+          "name": "Déploiement",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Automatiser CI/CD",
+              "acquisitionLevel": "Moyen",
+              "description": "Configurer pipelines fiables"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Conteneuriser",
+              "acquisitionLevel": "Moyen",
+              "description": "Emballer apps portables"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Orchestrer services",
+              "acquisitionLevel": "Difficile",
+              "description": "Gérer clusters et jobs"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Gestion du changement",
+              "acquisitionLevel": "Difficile",
+              "description": "Préparer et accompagner impacts"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Communication claire",
+              "acquisitionLevel": "Facile",
+              "description": "Expliquer sans jargon inutile"
+            }
+          ]
+        },
+        {
+          "name": "Surveillance",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Mettre alertes",
+              "acquisitionLevel": "Moyen",
+              "description": "Définir seuils pertinents"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Agréger métriques",
+              "acquisitionLevel": "Moyen",
+              "description": "Consolider traces et spans"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Gérer incidents",
+              "acquisitionLevel": "Difficile",
+              "description": "Coordonner réponse rapide"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Analyser postmortems",
+              "acquisitionLevel": "Moyen",
+              "description": "Documenter causes et actions"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Sang-froid",
+              "acquisitionLevel": "Difficile",
+              "description": "Rester calme en crise"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Collaboration",
+      "subFamilies": [
+        {
+          "name": "Process",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Documenter décisions",
+              "acquisitionLevel": "Facile",
+              "description": "Tracer options et raisons"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Animer ateliers",
+              "acquisitionLevel": "Moyen",
+              "description": "Faciliter co-création et décisions"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Revue de code",
+              "acquisitionLevel": "Moyen",
+              "description": "Détecter défauts et odeurs"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Organisation personnelle",
+              "acquisitionLevel": "Facile",
+              "description": "Structurer son temps efficacement"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Écoute interdisciplinaire",
+              "acquisitionLevel": "Moyen",
+              "description": "Comprendre métiers partenaires"
+            }
+          ]
+        },
+        {
+          "name": "Influence",
+          "competencies": [
+            {
+              "kind": "SavoirFaire",
+              "name": "Convaincre par preuves",
+              "acquisitionLevel": "Difficile",
+              "description": "Soutenir décisions par données"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Négocier ressources",
+              "acquisitionLevel": "Difficile",
+              "description": "Obtenir moyens au bon moment"
+            },
+            {
+              "kind": "SavoirFaire",
+              "name": "Storytelling produit",
+              "acquisitionLevel": "Moyen",
+              "description": "Raconter valeur et vision"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Mentorat",
+              "acquisitionLevel": "Moyen",
+              "description": "Faire grandir l'équipe"
+            },
+            {
+              "kind": "SavoirÊtre",
+              "name": "Résolution de conflits",
+              "acquisitionLevel": "Difficile",
+              "description": "Désamorcer tensions constructives"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

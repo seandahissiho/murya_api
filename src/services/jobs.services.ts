@@ -1,6 +1,7 @@
 import {PrismaClient} from '@prisma/client';
 import {resolveFields} from '../i18n/translate';
 
+
 const prisma = new PrismaClient();
 
 /**
@@ -17,18 +18,18 @@ interface SearchOptions {
  */
 export const searchJobs = async (
     query: string,
-    { page = 1, perPage = 20, lang = 'en' }: SearchOptions = {},
+    {page = 1, perPage = 20, lang = 'en'}: SearchOptions = {},
 ) => {
     const skip = (page - 1) * perPage;
 
     const where: any = {
         OR: [
-            { title: { contains: query, mode: 'insensitive' } },
-            { normalizedName: { contains: query, mode: 'insensitive' } },
-            { description: { contains: query, mode: 'insensitive' } },
+            {title: {contains: query, mode: 'insensitive'}},
+            {normalizedName: {contains: query, mode: 'insensitive'}},
+            {description: {contains: query, mode: 'insensitive'}},
             {
                 jobFamily: {
-                    name: { contains: query, mode: 'insensitive' },
+                    name: {contains: query, mode: 'insensitive'},
                 },
             },
         ],
@@ -37,12 +38,12 @@ export const searchJobs = async (
     const [jobs, total] = await Promise.all([
         prisma.job.findMany({
             where,
-            orderBy: { title: 'asc' },
-            include: { jobFamily: true },
+            orderBy: {title: 'asc'},
+            include: {jobFamily: true},
             skip,
             take: perPage,
         }),
-        prisma.job.count({ where }),
+        prisma.job.count({where}),
     ]);
 
     const localizedJobs = await Promise.all(
@@ -65,7 +66,7 @@ export const searchJobs = async (
                 })
                 : null;
 
-            return { ...localizedJob, jobFamily: localizedJobFamily };
+            return {...localizedJob, jobFamily: localizedJobFamily};
         }),
     );
 
@@ -85,7 +86,7 @@ export const searchJobs = async (
  */
 export const getJobDetails = async (jobId: string, lang: string = 'en') => {
     const job = await prisma.job.findUnique({
-        where: { id: jobId },
+        where: {id: jobId},
         include: {
             jobFamily: true,
             competenciesFamilies: {
@@ -180,18 +181,18 @@ export const getCompetencyFamilyDetailsForJob = async (
     cfId: string,
     lang: string = 'en',
 ) => {
-    const job = await prisma.job.findUnique({ where: { id: jobId } });
+    const job = await prisma.job.findUnique({where: {id: jobId}});
     if (!job) throw new Error('Job not found');
 
     const family = await prisma.competenciesFamily.findUnique({
-        where: { id: cfId },
+        where: {id: cfId},
     });
     if (!family) throw new Error('Competency Family not found');
 
     const competencies = await prisma.competency.findMany({
         where: {
-            jobs: { some: { id: jobId } },
-            families: { some: { id: cfId } },
+            jobs: {some: {id: jobId}},
+            families: {some: {id: cfId}},
         },
     });
 

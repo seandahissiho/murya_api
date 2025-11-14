@@ -1,7 +1,7 @@
 model CompetenciesFamily {
   id             String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name           String               @unique(map: "competencies_family_name") @db.VarChar(255)
-  normalizedName String               @db.VarChar(255)
+  normalizedName String               @unique @db.VarChar(255)
   description    String               @default(" ") @db.Text
   parentId       String?              @db.Uuid
   createdAt      DateTime             @default(now()) @db.Timestamp(0)

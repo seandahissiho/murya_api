@@ -1,0 +1,357 @@
+{
+  "title": "Quiz 2 - Product Manager",
+  "description": "Quiz de positionnement Product Manager (2/5)",
+  "level": "MIX",
+  "questions": [
+    {
+      "text": "Quel est l'objectif principal d'une analyse concurrentielle approfondie pour un Product Manager ?",
+      "timeLimitInSeconds": 30,
+      "points": 5,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 1,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "Comprendre les forces et faiblesses des concurrents pour ajuster la stratégie produit",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "Copier intégralement les fonctionnalités du leader du marché",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "Prouver que son produit est meilleur sans s'appuyer sur de données concrètes",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "Ignorer les évolutions du marché après le lancement du produit",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    },
+    {
+      "text": "Parmi ces énoncés, lequel correspond à une proposition de valeur produit claire ?",
+      "timeLimitInSeconds": 30,
+      "points": 5,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 2,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "Une application mobile qui aide les étudiants à organiser leurs cours plus efficacement",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "Le produit le plus innovant intégrant de l'IA avancée",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "Un ensemble complet de fonctionnalités pour tout type d'utilisateur",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "Une solution universelle répondant à tous les problèmes des clients",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    },
+    {
+      "text": "Quel est un bon exemple de formulation de user story ?",
+      "timeLimitInSeconds": 30,
+      "points": 3,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 3,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "En tant que client, je veux suivre ma commande pour connaître la date de livraison",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "Intégrer un nouveau micro-service pour la gestion des stocks",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "L'application doit être développée en React et Node.js",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "Ajouter une colonne \"Date\" dans la base de données des commandes",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    },
+    {
+      "text": "Quelle est une bonne pratique pour maintenir un backlog produit à jour ?",
+      "timeLimitInSeconds": 30,
+      "points": 3,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 4,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "Revoir régulièrement les priorités et supprimer les éléments obsolètes du backlog",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "Ajouter toutes les idées de fonctionnalité sans jamais rien retirer",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "Ne mettre à jour que les nouvelles fonctionnalités majeures, pas les petites tâches",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "Confier la gestion du backlog uniquement à l'équipe de développement",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    },
+    {
+      "text": "Quelle démarche illustre une prise de décision stratégique guidée par les données ?",
+      "timeLimitInSeconds": 30,
+      "points": 7,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 5,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "Analyser les métriques clés et les tendances d'usage pour orienter la stratégie du produit",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "Se fier uniquement à son intuition pour définir la stratégie produit",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "Choisir l'orientation du produit selon les préférences personnelles du PM",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "S'appuyer principalement sur l'avis du dirigeant pour prendre les décisions stratégiques",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    },
+    {
+      "text": "Quelle compétence illustre l'application d'analyses statistiques avancées aux données produit ?",
+      "timeLimitInSeconds": 30,
+      "points": 10,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 6,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "Savoir calculer la significativité statistique des résultats d'un test A/B",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "Suivre simplement l'évolution du nombre d'utilisateurs sans analyse approfondie",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "Ne pas prendre en compte la variabilité des données lors de l'analyse",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "S'appuyer sur des approximations grossières pour interpréter les données",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    },
+    {
+      "text": "La planification d'un sprint Agile efficace implique de :",
+      "timeLimitInSeconds": 30,
+      "points": 5,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 7,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "Définir avec l'équipe un objectif de sprint clair et un backlog réaliste",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "Prévoir plus de tâches que l'équipe ne peut en finir pour la motiver",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "Laisser le sprint démarrer sans avoir d'objectif précis",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "Éviter de demander l'estimation des tâches par l'équipe",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    },
+    {
+      "text": "Comment un PM doit-il gérer les risques majeurs lors de l'exécution d'un projet produit ?",
+      "timeLimitInSeconds": 30,
+      "points": 10,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 8,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "Identifier les risques dès le début et prévoir des plans d'atténuation pour chacun",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "Ignorer les risques potentiels afin de ne pas retarder le projet",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "Blâmer l'équipe dès qu'un imprévu survient pour éviter que cela se reproduise",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "Attendre qu'un problème cause des dégâts avant de réagir afin de prioritiser",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    },
+    {
+      "text": "Adapter sa communication aux différentes parties prenantes signifie :",
+      "timeLimitInSeconds": 30,
+      "points": 5,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 9,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "Adapter son message en fonction de l'interlocuteur pour être bien compris",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "Employer toujours un langage très technique pour montrer son expertise",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "Donner le même niveau de détail à tous les interlocuteurs sans distinction",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "Ne communiquer qu'avec son équipe proche et ignorer les autres services",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    },
+    {
+      "text": "Comment un PM peut-il communiquer une vision inspirante à l'ensemble de l'organisation ?",
+      "timeLimitInSeconds": 30,
+      "points": 10,
+      "type": "single_choice",
+      "mediaUrl": "",
+      "index": 10,
+      "metadata": null,
+      "responses": [
+        {
+          "text": "En partageant clairement comment le produit apportera de la valeur aux clients",
+          "metadata": null,
+          "isCorrect": true,
+          "index": 0
+        },
+        {
+          "text": "En imposant la vision sans explications dès qu'il en a l'occasion",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 1
+        },
+        {
+          "text": "En ne présentant la vision qu'aux cadres supérieurs de l'entreprise",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 2
+        },
+        {
+          "text": "En changeant de vision régulièrement pour suivre les dernières tendances",
+          "metadata": null,
+          "isCorrect": false,
+          "index": 3
+        }
+      ]
+    }
+  ]
+}

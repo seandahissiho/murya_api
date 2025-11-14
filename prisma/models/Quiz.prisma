@@ -1,8 +1,13 @@
 model Quiz {
-  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  questions      QuizQuestion[]
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  jobPositioning Job?           @relation("JobPositioningQuiz")
-  userQuizzes    UserQuiz[]
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobId       String         @db.Uuid
+  title       String?
+  description String?
+  level       Level          @default(EASY)
+  questions   QuizQuestion[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  job     Job        @relation("JobQuizzes", fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  quizzes UserQuiz[]
 }
