@@ -2,6 +2,7 @@ model UserQuizAnswer {
   id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userQuizId     String                 @db.Uuid
   questionId     String                 @db.Uuid // QuizQuestion.id (String)
+  timeToAnswer   Int
   freeTextAnswer String?
   isCorrect      Boolean                @default(false)
   score          Int?                   @default(0)

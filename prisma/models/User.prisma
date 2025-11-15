@@ -6,6 +6,7 @@ model User {
   phone                  String?                 @db.VarChar(30)
   deviceId               String?                 @db.VarChar(255)
   password               String? // mot de passe haché
+  diamonds               Int                     @default(0) // nombre de diamants de l'utilisateur
   isActive               Boolean                 @default(true) // utilisateur actif ou non
   isAdmin                Boolean                 @default(false) // utilisateur admin
   createdAt              DateTime                @default(now())

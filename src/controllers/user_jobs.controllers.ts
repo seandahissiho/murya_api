@@ -58,3 +58,31 @@ export const saveDailyQuizAnswers = async (req: Request, res: Response, next: Ne
         });
     }
 };
+
+// getUserJob
+export const getUserJob = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = (req as any).user?.userId;
+        const jobId = req.params.jobId;
+
+        if (!jobId) {
+            return sendResponse(res, 400, {error: 'L’identifiant du job est requis.'});
+        }
+        if (!userId) {
+            return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
+        }
+
+        const userJob = await jobService.getUserJob(jobId, userId);
+        if (!userJob) {
+            return sendResponse(res, 404, {error: 'Job utilisateur non trouvé.'});
+        }
+
+        return sendResponse(res, 200, {data: userJob});
+    } catch (err) {
+        console.error('getUserJob error:', err);
+        return sendResponse(res, 500, {
+            error: "Une erreur s'est produite lors de la récupération du job utilisateur.",
+            message: err instanceof Error ? err.message : 'Unknown error'
+        });
+    }
+};

@@ -4,7 +4,7 @@ import {
     PrismaClient,
     UserJobStatus,
     UserQuizStatus,
-    UserQuizKind,
+    UserQuizType,
     QuizQuestionType,
 } from '@prisma/client';
 
@@ -91,7 +91,7 @@ export class QuizAssignmentService {
                 const completedPositioning = await this.prisma.userQuiz.findFirst({
                     where: {
                         userJobId: userJob.id,
-                        kind: UserQuizKind.POSITIONING,
+                        kind: UserQuizType.POSITIONING,
                         quizId: job.positioningQuizId,
                         status: UserQuizStatus.COMPLETED,
                     },
@@ -104,7 +104,7 @@ export class QuizAssignmentService {
                         await this.prisma.userQuiz.findFirst({
                             where: {
                                 userJobId: userJob.id,
-                                kind: UserQuizKind.POSITIONING,
+                                kind: UserQuizType.POSITIONING,
                                 quizId: job.positioningQuizId,
                             },
                             orderBy: {
@@ -118,7 +118,7 @@ export class QuizAssignmentService {
                             data: {
                                 userJobId: userJob.id,
                                 quizId: job.positioningQuizId,
-                                kind: UserQuizKind.POSITIONING,
+                                kind: UserQuizType.POSITIONING,
                                 status: UserQuizStatus.ASSIGNED,
                                 assignedAt: now,
                             },
@@ -146,7 +146,7 @@ export class QuizAssignmentService {
             const existingDailyToday = await this.prisma.userQuiz.findFirst({
                 where: {
                     userJobId: userJob.id,
-                    kind: UserQuizKind.DAILY,
+                    kind: UserQuizType.DAILY,
                     assignedAt: {
                         gte: startOfDay,
                         lt: endOfDay,
@@ -173,7 +173,7 @@ export class QuizAssignmentService {
                 data: {
                     userJobId: userJob.id,
                     quizId: dailyQuizTemplate.id,
-                    kind: UserQuizKind.DAILY,
+                    kind: UserQuizType.DAILY,
                     status: UserQuizStatus.ASSIGNED,
                     assignedAt: now,
                 },

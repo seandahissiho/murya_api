@@ -8,6 +8,8 @@ const router = Router();
 router.get('/:jobId/quiz/', authenticateToken, jobControllers.retrieveDailyQuizForJob);
 // saveDailyQuizAnswers
 router.post('/:jobId/quiz/:quizId', authenticateToken, jobControllers.saveDailyQuizAnswers);
+// getUserJob
+router.get('/:jobId', authenticateToken, jobControllers.getUserJob);
 
 
 export default router;
