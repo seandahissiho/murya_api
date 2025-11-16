@@ -3,6 +3,6 @@ model NotificationTemplate {
   key       String               @unique @db.VarChar(255) // e.g. "USER.WELCOME"
   category  NotificationCategory @default(OTHER)
   type      NotificationType     @default(INFO)
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @default(now()) @updatedAt
+  createdAt DateTime             @default(now()) @db.Timestamp(0)
+  updatedAt DateTime             @default(now()) @updatedAt @db.Timestamp(0)
 }

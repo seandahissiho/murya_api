@@ -1,7 +1,87 @@
 import {NextFunction, Request, Response} from "express";
 import * as jobService from "../services/user_jobs.services";
 import {sendResponse} from "../utils/helpers";
-import {detectLanguage} from "../middlewares/i18n";
+
+// 👉 Optionnel : validation simple de format
+const LOCAL_DATETIME_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.000Z$/;
+
+export const retrieveCurrentUserJob = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = (req as any).user?.userId;
+        if (!userId) {
+            return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
+        }
+
+        const userJob = await jobService.getCurrentUserJob(userId);
+        if (!userJob) {
+            return sendResponse(res, 404, {error: 'Aucun job utilisateur actuel trouvé.'});
+        }
+
+        return sendResponse(res, 200, {data: userJob});
+    } catch (err) {
+        console.error('retrieveCurrentUserJob error:', err);
+        return sendResponse(res, 500, {
+            error: "Une erreur s'est produite lors de la récupération du job utilisateur actuel.",
+            message: err instanceof Error ? err.message : 'Unknown error'
+        });
+    }
+}
+
+export const getJobLeaderboard = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const {jobId} = req.params;
+
+        if (!jobId) {
+            return res.status(400).json({error: 'jobId is required'});
+        }
+
+        // Période optionnelle via query params
+        // Période optionnelle via query params (toujours des strings ou string[])
+        const fromParam = typeof req.query.from === 'string' ? req.query.from : undefined;
+        const toParam = typeof req.query.to === 'string' ? req.query.to : undefined;
+
+        if (fromParam && !LOCAL_DATETIME_REGEX.test(fromParam)) {
+            return res.status(400).json({error: "Format de 'from' invalide. Attendu: YYYY-MM-DD ou YYYY-MM-DDTHH:mm"});
+        }
+
+        if (toParam && !LOCAL_DATETIME_REGEX.test(toParam)) {
+            return res.status(400).json({error: "Format de 'to' invalide. Attendu: YYYY-MM-DD ou YYYY-MM-DDTHH:mm"});
+        }
+
+        const ranking = await jobService.getRankingForJob({
+            jobId,
+            from: fromParam,
+            to: toParam,
+        });
+
+        return sendResponse(res, 200, {
+            data: {
+                jobId,
+                from: fromDate ?? null,
+                to: toDate ?? null,
+                count: ranking.length,
+                results: ranking,
+            }
+        });
+
+
+        // return res.json({
+        //     jobId,
+        //     from: fromDate ?? null,
+        //     to: toDate ?? null,
+        //     count: ranking.length,
+        //     results: ranking,
+        // });
+    } catch (error) {
+        console.error('Error fetching leaderboard', error);
+        // return res.status(500).json({error: 'Internal server error'});
+        return sendResponse(res, 500, {
+            error: "Une erreur s'est produite lors de la récupération du classement.",
+            message: error instanceof Error ? error.message : 'Unknown error'
+        });
+    }
+}
+
 
 // retrieveDailyQuizForJob
 export const retrieveDailyQuizForJob = async (req: Request, res: Response, next: NextFunction) => {
@@ -37,6 +117,12 @@ export const saveDailyQuizAnswers = async (req: Request, res: Response, next: Ne
         const jobId = req.params.jobId;
         const quizId = req.params.quizId;
         const answers = req.body.answers;
+        const doneAt : any = typeof req.body.doneAt === 'string' ? req.body.doneAt : undefined;
+
+        if (doneAt && !LOCAL_DATETIME_REGEX.test(doneAt)) {
+            return res.status(400).json({error: "Format de 'from' invalide. Attendu: YYYY-MM-DD ou YYYY-MM-DDTHH:mm"});
+        }
+
 
         if (!jobId || !quizId) {
             return sendResponse(res, 400, {error: 'jobId et quizId sont requis.'});
@@ -48,7 +134,7 @@ export const saveDailyQuizAnswers = async (req: Request, res: Response, next: Ne
             return sendResponse(res, 400, {error: 'Les réponses du quiz sont requises et doivent être un tableau.'});
         }
 
-        const result = await jobService.saveUserQuizAnswers(jobId, quizId, userId, answers);
+        const result = await jobService.saveUserQuizAnswers(jobId, quizId, userId, answers, doneAt);
         return sendResponse(res, 200, {data: result});
     } catch (err) {
         console.error('saveDailyQuizAnswers error:', err);
@@ -83,6 +169,23 @@ export const getUserJob = async (req: Request, res: Response, next: NextFunction
         return sendResponse(res, 500, {
             error: "Une erreur s'est produite lors de la récupération du job utilisateur.",
             message: err instanceof Error ? err.message : 'Unknown error'
+        });
+    }
+};
+
+
+export const getUserJobCompetencyProfileHandler = async (req: Request, res: Response, next: NextFunction) => {
+    const userId = (req as any).user?.userId;
+    const jobId = req.params.jobId as string; // ou query/body
+
+    try {
+        const profile = await jobService.getUserJobCompetencyProfile(userId, jobId);
+        sendResponse(res, 200, {data: profile});
+    } catch (e: any) {
+        console.error(e);
+        sendResponse(res, 500, {
+            error: "Une erreur s'est produite lors de la récupération du profil de compétences du job utilisateur.",
+            message: e instanceof Error ? e.message : 'Unknown error'
         });
     }
 };

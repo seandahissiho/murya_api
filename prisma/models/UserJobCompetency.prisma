@@ -1,0 +1,30 @@
+model UserJobCompetency {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userJobId      String      @db.Uuid
+  competencyId   String      @db.Uuid
+
+  // Stats globales pour ce couple (User, Job, Competency)
+  currentScore   Float       @default(0)      // score actuel (pondéré ou moyenne)
+  maxScore       Float       @default(0)      // max théorique cumulé
+  percentage     Float       @default(0)      // currentScore / maxScore * 100
+  attemptsCount  Int         @default(0)      // nombre de quiz qui ont alimenté cette compétence
+  bestScore      Float       @default(0)      // meilleur score pour cette compétence
+  lastQuizAt     DateTime?   @db.Timestamp(0)
+
+  // Optionnel : niveau dérivé des scores (si tu veux mapper vers EASY/MEDIUM/HARD/EXPERT)
+  level          Level?
+
+  createdAt      DateTime    @default(now()) @db.Timestamp(0)
+  updatedAt      DateTime    @default(now()) @updatedAt @db.Timestamp(0)
+
+  // Relations
+  userJob        UserJob     @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  competency     Competency  @relation(fields: [competencyId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  histories      UserJobCompetencyHistory[]
+
+  @@unique([userJobId, competencyId], map: "unique_user_job_competency")
+  @@index([userJobId], map: "idx_ujc_user_job")
+  @@index([competencyId], map: "idx_ujc_competency")
+}
+

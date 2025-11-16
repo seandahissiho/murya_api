@@ -5,7 +5,7 @@ import morgan from "morgan";
 import cors from "cors";
 import router from "./routes/index.routes";
 import path from "path";
-import {parseDateStrings} from "./utils/parseDateStrings";
+// import {parseDateStrings} from "./utils/parseDateStrings";
 
 dotenv.config();
 
@@ -23,7 +23,7 @@ app.use((req, res, next) => {
 app.use(bodyParser.json({limit: "5mb"}));
 app.use(bodyParser.urlencoded({extended: true, limit: "5mb"}));
 
-app.use(parseDateStrings);
+// app.use(parseDateStrings);
 
 app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 // const baseDir = path.join(process.cwd(), "private_uploads"); // not publicly served

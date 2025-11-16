@@ -6,11 +6,12 @@
     {
       "text": "Quelle démarche favorise l'innovation dans la gestion de produit ?",
       "timeLimitInSeconds": 30,
-      "points": 7,
+      "points": 120,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 1,
       "metadata": null,
+      "competencySlug": "encourager_l_innovation",
       "responses": [
         {
           "text": "Élaborer une culture où l'expérimentation est encouragée et l'échec n'est pas sanctionné",
@@ -36,16 +37,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "HARD"
     },
     {
       "text": "Quel énoncé reflète le mieux une vision stratégique de produit bien définie ?",
       "timeLimitInSeconds": 30,
-      "points": 10,
+      "points": 130,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 2,
       "metadata": null,
+      "competencySlug": "aligner_vision_et_strategie",
       "responses": [
         {
           "text": "Une direction à long terme qui aligne le produit sur la mission de l'entreprise",
@@ -71,16 +74,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EXPERT"
     },
     {
       "text": "Pour gérer le cycle de vie complet d'un produit, que doit anticiper un PM expérimenté ?",
       "timeLimitInSeconds": 30,
-      "points": 10,
+      "points": 130,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 3,
       "metadata": null,
+      "competencySlug": "prendre_des_decisions",
       "responses": [
         {
           "text": "La fin de vie du produit en planifiant dès le départ les conditions de son retrait",
@@ -106,16 +111,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EXPERT"
     },
     {
       "text": "Face à de nombreuses demandes de fonctionnalités, comment un PM expérimenté gère-t-il le scope du produit ?",
       "timeLimitInSeconds": 30,
-      "points": 10,
+      "points": 130,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 4,
       "metadata": null,
+      "competencySlug": "assumer_les_arbitrages",
       "responses": [
         {
           "text": "Il priorise selon la stratégie et n'hésite pas à refuser les demandes hors périmètre",
@@ -141,16 +148,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EXPERT"
     },
     {
       "text": "Quelle mesure fait partie des métriques de base du suivi d'un produit digital ?",
       "timeLimitInSeconds": 30,
-      "points": 3,
+      "points": 100,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 5,
       "metadata": null,
+      "competencySlug": "definir_les_metriques",
       "responses": [
         {
           "text": "Le nombre d'utilisateurs actifs mensuels (MAU) sur le produit",
@@ -176,16 +185,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EASY"
     },
     {
       "text": "Laquelle de ces méthodes aide à collecter efficacement les retours utilisateurs ?",
       "timeLimitInSeconds": 30,
-      "points": 3,
+      "points": 100,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 6,
       "metadata": null,
+      "competencySlug": "conduire_des_interviews",
       "responses": [
         {
           "text": "Mener régulièrement des interviews d'utilisateurs et analyser leurs retours",
@@ -211,16 +222,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EASY"
     },
     {
       "text": "Que doit faire un PM pour bien coordonner des équipes pluridisciplinaires pendant le développement d'un produit ?",
       "timeLimitInSeconds": 30,
-      "points": 5,
+      "points": 110,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 7,
       "metadata": null,
+      "competencySlug": "gerer_les_dependances",
       "responses": [
         {
           "text": "Assurer une communication fluide entre toutes les équipes et veiller à leur alignement",
@@ -246,16 +259,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "MEDIUM"
     },
     {
       "text": "Si les priorités changent en cours de projet, comment un PM doit-il réagir ?",
       "timeLimitInSeconds": 30,
-      "points": 5,
+      "points": 110,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 8,
       "metadata": null,
+      "competencySlug": "adapter_le_plan",
       "responses": [
         {
           "text": "Réévaluer et reprioriser le backlog puis communiquer clairement les changements à l'équipe",
@@ -281,16 +296,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "MEDIUM"
     },
     {
       "text": "Quelle est une bonne pratique pour donner un feedback constructif à un collègue ?",
       "timeLimitInSeconds": 30,
-      "points": 5,
+      "points": 110,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 9,
       "metadata": null,
+      "competencySlug": "donner_du_feedback",
       "responses": [
         {
           "text": "Formuler un retour spécifique et respectueux en proposant des pistes d'amélioration",
@@ -316,16 +333,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "MEDIUM"
     },
     {
       "text": "Comment un PM devrait-il présenter une décision produit impopulaire aux parties prenantes ?",
       "timeLimitInSeconds": 30,
-      "points": 5,
+      "points": 110,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 10,
       "metadata": null,
+      "competencySlug": "assumer_les_arbitrages",
       "responses": [
         {
           "text": "Expliquer de façon transparente les raisons de la décision pour qu'elle soit comprise",
@@ -351,7 +370,8 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "MEDIUM"
     }
   ]
 }

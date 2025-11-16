@@ -5,7 +5,7 @@ model Notification {
   is_read                Boolean                 @default(false) @db.Boolean
   is_important           Boolean                 @default(false) @db.Boolean
   category               NotificationCategory    @default(OTHER)
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @default(now()) @updatedAt
+  createdAt              DateTime                @default(now()) @db.Timestamp(0)
+  updatedAt              DateTime                @default(now()) @updatedAt @db.Timestamp(0)
   notificationRecipients NotificationRecipient[]
 }

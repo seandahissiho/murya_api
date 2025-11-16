@@ -9,10 +9,10 @@ model User {
   diamonds               Int                     @default(0) // nombre de diamants de l'utilisateur
   isActive               Boolean                 @default(true) // utilisateur actif ou non
   isAdmin                Boolean                 @default(false) // utilisateur admin
-  createdAt              DateTime                @default(now())
-  lastLogin              DateTime? // date de dernière connexion
+  createdAt              DateTime                @default(now()) @db.Timestamp(0)
+  lastLogin              DateTime?               @db.Timestamp(0) // date de dernière connexion
   avatarUrl              String?
-  birthDate              DateTime?
+  birthDate              DateTime?               @db.Timestamp(0)
   genre                  Genre?                  @default(UNDEFINED) // genre de l'utilisateur
   roleId                 String                  @db.Uuid // identifiant du rôle de l'utilisateur
   refreshToken           String? // token de rafraîchissement pour l'authentification

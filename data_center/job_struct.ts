@@ -135,7 +135,7 @@ const quizStructSchema = {
             {
                 "text": "What is the primary responsibility of a Product Manager?",
                 "timeLimitInSeconds": 30,
-                "points": 5,
+                "points": 110,
                 "type": "single_choice",
                 "mediaUrl": "",
                 "index": 1,

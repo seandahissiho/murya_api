@@ -6,11 +6,12 @@
     {
       "text": "Quel est l'objectif principal d'une analyse concurrentielle approfondie pour un Product Manager ?",
       "timeLimitInSeconds": 30,
-      "points": 5,
+      "points": 110,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 1,
       "metadata": null,
+      "competencySlug": "evaluer_la_concurrence",
       "responses": [
         {
           "text": "Comprendre les forces et faiblesses des concurrents pour ajuster la stratégie produit",
@@ -36,16 +37,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "MEDIUM"
     },
     {
       "text": "Parmi ces énoncés, lequel correspond à une proposition de valeur produit claire ?",
       "timeLimitInSeconds": 30,
-      "points": 5,
+      "points": 110,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 2,
       "metadata": null,
+      "competencySlug": "definir_la_vision_produit",
       "responses": [
         {
           "text": "Une application mobile qui aide les étudiants à organiser leurs cours plus efficacement",
@@ -71,16 +74,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "MEDIUM"
     },
     {
       "text": "Quel est un bon exemple de formulation de user story ?",
       "timeLimitInSeconds": 30,
-      "points": 3,
+      "points": 100,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 3,
       "metadata": null,
+      "competencySlug": "rediger_des_user_stories",
       "responses": [
         {
           "text": "En tant que client, je veux suivre ma commande pour connaître la date de livraison",
@@ -106,16 +111,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EASY"
     },
     {
       "text": "Quelle est une bonne pratique pour maintenir un backlog produit à jour ?",
       "timeLimitInSeconds": 30,
-      "points": 3,
+      "points": 100,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 4,
       "metadata": null,
+      "competencySlug": "gerer_le_backlog",
       "responses": [
         {
           "text": "Revoir régulièrement les priorités et supprimer les éléments obsolètes du backlog",
@@ -141,16 +148,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EASY"
     },
     {
       "text": "Quelle démarche illustre une prise de décision stratégique guidée par les données ?",
       "timeLimitInSeconds": 30,
-      "points": 7,
+      "points": 120,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 5,
       "metadata": null,
+      "competencySlug": "interpreter_les_donnees",
       "responses": [
         {
           "text": "Analyser les métriques clés et les tendances d'usage pour orienter la stratégie du produit",
@@ -176,16 +185,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "HARD"
     },
     {
       "text": "Quelle compétence illustre l'application d'analyses statistiques avancées aux données produit ?",
       "timeLimitInSeconds": 30,
-      "points": 10,
+      "points": 130,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 6,
       "metadata": null,
+      "competencySlug": "tester_des_hypotheses",
       "responses": [
         {
           "text": "Savoir calculer la significativité statistique des résultats d'un test A/B",
@@ -211,16 +222,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EXPERT"
     },
     {
       "text": "La planification d'un sprint Agile efficace implique de :",
       "timeLimitInSeconds": 30,
-      "points": 5,
+      "points": 110,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 7,
       "metadata": null,
+      "competencySlug": "planifier_les_releases",
       "responses": [
         {
           "text": "Définir avec l'équipe un objectif de sprint clair et un backlog réaliste",
@@ -246,16 +259,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "MEDIUM"
     },
     {
       "text": "Comment un PM doit-il gérer les risques majeurs lors de l'exécution d'un projet produit ?",
       "timeLimitInSeconds": 30,
-      "points": 10,
+      "points": 130,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 8,
       "metadata": null,
+      "competencySlug": "adapter_le_plan",
       "responses": [
         {
           "text": "Identifier les risques dès le début et prévoir des plans d'atténuation pour chacun",
@@ -281,16 +296,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EXPERT"
     },
     {
       "text": "Adapter sa communication aux différentes parties prenantes signifie :",
       "timeLimitInSeconds": 30,
-      "points": 5,
+      "points": 110,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 9,
       "metadata": null,
+      "competencySlug": "communiquer_avec_impact",
       "responses": [
         {
           "text": "Adapter son message en fonction de l'interlocuteur pour être bien compris",
@@ -316,16 +333,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "MEDIUM"
     },
     {
       "text": "Comment un PM peut-il communiquer une vision inspirante à l'ensemble de l'organisation ?",
       "timeLimitInSeconds": 30,
-      "points": 10,
+      "points": 130,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 10,
       "metadata": null,
+      "competencySlug": "communiquer_la_vision",
       "responses": [
         {
           "text": "En partageant clairement comment le produit apportera de la valeur aux clients",
@@ -351,7 +370,8 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EXPERT"
     }
   ]
 }

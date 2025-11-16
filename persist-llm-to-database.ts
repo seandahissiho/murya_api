@@ -53,6 +53,7 @@ interface QuizQuestionDto {
     metadata: unknown | null;
     responses: QuizResponseDto[];
     competencySlug: string;
+    difficulty: Level;
 }
 
 interface QuizDto {
@@ -104,14 +105,17 @@ async function loadJobWithQuizzes(jobFilePath: string): Promise<{ job: JobDto; q
 function levelMapper(acquisitionLevel: string) {
     switch (acquisitionLevel.toLowerCase()) {
         case "facile":
+        case "easy":
             return Level.EASY;
         case "moyen":
+        case "medium":
             return Level.MEDIUM;
         case "difficile":
+        case "hard":
             return Level.HARD;
         case "expert":
             return Level.EXPERT;
-            case "mix":
+        case "mix":
             return Level.MIX;
         default:
             return Level.EASY;
@@ -265,7 +269,8 @@ async function persistJobAndQuizzesToDatabase(job: JobDto, quizzes: QuizDto[]) {
                     },
                     competency: {
                         connect: {id: linkedCompetency.id}
-                    }
+                    },
+                    level: question.difficulty,
                 },
             });
             if (!createdQuestion) {

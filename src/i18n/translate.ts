@@ -1,6 +1,6 @@
 // i18n/translate.ts
-import { PrismaClient } from '@prisma/client';
-const prisma = new PrismaClient();
+
+import {prisma} from "../config/db";
 
 export async function resolveField({
                                        entity,

@@ -5,8 +5,8 @@ model Translation {
   field     String   @db.VarChar(64) // "title", "description", ...
   langCode  String   @db.VarChar(16) // "fr", "en"
   value     String   @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamp(0)
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamp(0)
 
   @@unique([entity, entityId, field, langCode], map: "unique_translation_row")
   @@index([langCode], map: "idx_translation_lang")

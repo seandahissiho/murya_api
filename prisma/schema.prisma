@@ -169,21 +169,22 @@ model CompetenciesFamily {
 }
 
 model Competency {
-  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name              String               @unique(map: "competency_name") @db.VarChar(255)
-  normalizedName    String               @unique @db.VarChar(255)
-  beginnerScore     Float                @default(1.0) @map("beginner_score")
-  intermediateScore Float                @default(2.20) @map("intermediate_score")
-  advancedScore     Float                @default(3.5) @map("advanced_score")
-  expertScore       Float                @default(4.25) @map("expert_score")
-  maxScore          Float                @default(5.0) @map("max_score")
-  type              CompetencyType
-  level             Level                @default(EASY)
-  createdAt         DateTime             @default(now()) @db.Timestamp(0)
-  updatedAt         DateTime             @default(now()) @updatedAt @db.Timestamp(0)
-  jobs              Job[]                @relation("JobCompetencies")
-  families          CompetenciesFamily[] @relation("CompetencyFamilies")
-  quizQuestions     QuizQuestion[]       @relation("CompetencyQuizQuestions")
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                String               @unique(map: "competency_name") @db.VarChar(255)
+  normalizedName      String               @unique @db.VarChar(255)
+  beginnerScore       Float                @default(1.0) @map("beginner_score")
+  intermediateScore   Float                @default(2.20) @map("intermediate_score")
+  advancedScore       Float                @default(3.5) @map("advanced_score")
+  expertScore         Float                @default(4.25) @map("expert_score")
+  maxScore            Float                @default(5.0) @map("max_score")
+  type                CompetencyType
+  level               Level                @default(EASY)
+  createdAt           DateTime             @default(now()) @db.Timestamp(0)
+  updatedAt           DateTime             @default(now()) @updatedAt @db.Timestamp(0)
+  jobs                Job[]                @relation("JobCompetencies")
+  families            CompetenciesFamily[] @relation("CompetencyFamilies")
+  quizQuestions       QuizQuestion[]       @relation("CompetencyQuizQuestions")
+  userJobCompetencies UserJobCompetency[]
 
   @@index([name], map: "idx_competency_name")
 }
@@ -258,8 +259,8 @@ model Notification {
   is_read                Boolean                 @default(false) @db.Boolean
   is_important           Boolean                 @default(false) @db.Boolean
   category               NotificationCategory    @default(OTHER)
-  createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @default(now()) @updatedAt
+  createdAt              DateTime                @default(now()) @db.Timestamp(0)
+  updatedAt              DateTime                @default(now()) @updatedAt @db.Timestamp(0)
   notificationRecipients NotificationRecipient[]
 }
 
@@ -278,8 +279,8 @@ model NotificationTemplate {
   key       String               @unique @db.VarChar(255) // e.g. "USER.WELCOME"
   category  NotificationCategory @default(OTHER)
   type      NotificationType     @default(INFO)
-  createdAt DateTime             @default(now())
-  updatedAt DateTime             @default(now()) @updatedAt
+  createdAt DateTime             @default(now()) @db.Timestamp(0)
+  updatedAt DateTime             @default(now()) @updatedAt @db.Timestamp(0)
 }
 
 model Permissions {
@@ -302,8 +303,8 @@ model Quiz {
   description String?
   level       Level          @default(EASY)
   questions   QuizQuestion[]
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  createdAt   DateTime       @default(now()) @db.Timestamp(0)
+  updatedAt   DateTime       @updatedAt @db.Timestamp(0)
   job         Job            @relation("JobQuizzes", fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   quizzes     UserQuiz[]
 }
@@ -315,12 +316,13 @@ model QuizQuestion {
   text               String
   timeLimitInSeconds Int              @default(30)
   points             Int              @default(1)
+  level              Level
   type               QuizQuestionType @default(single_choice)
   mediaUrl           String           @default("")
   index              Int              @default(0)
   metadata           Json?
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  createdAt          DateTime         @default(now()) @db.Timestamp(0)
+  updatedAt          DateTime         @updatedAt @db.Timestamp(0)
   userAnswers        UserQuizAnswer[]
   quiz               Quiz             @relation(fields: [quizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   competency         Competency       @relation("CompetencyQuizQuestions", fields: [competencyId], references: [id])
@@ -336,8 +338,8 @@ model QuizResponse {
   metadata      Json?
   isCorrect     Boolean                @default(false)
   index         Int
-  createdAt     DateTime               @default(now())
-  updatedAt     DateTime               @updatedAt
+  createdAt     DateTime               @default(now()) @db.Timestamp(0)
+  updatedAt     DateTime               @updatedAt @db.Timestamp(0)
   // Relations
   question      QuizQuestion           @relation(fields: [questionId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   answerOptions UserQuizAnswerOption[]
@@ -361,8 +363,8 @@ model Translation {
   field     String   @db.VarChar(64) // "title", "description", ...
   langCode  String   @db.VarChar(16) // "fr", "en"
   value     String   @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  createdAt DateTime @default(now()) @db.Timestamp(0)
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamp(0)
 
   @@unique([entity, entityId, field, langCode], map: "unique_translation_row")
   @@index([langCode], map: "idx_translation_lang")
@@ -399,10 +401,10 @@ model User {
   diamonds               Int                     @default(0) // nombre de diamants de l'utilisateur
   isActive               Boolean                 @default(true) // utilisateur actif ou non
   isAdmin                Boolean                 @default(false) // utilisateur admin
-  createdAt              DateTime                @default(now())
-  lastLogin              DateTime? // date de dernière connexion
+  createdAt              DateTime                @default(now()) @db.Timestamp(0)
+  lastLogin              DateTime?               @db.Timestamp(0) // date de dernière connexion
   avatarUrl              String?
-  birthDate              DateTime?
+  birthDate              DateTime?               @db.Timestamp(0)
   genre                  Genre?                  @default(UNDEFINED) // genre de l'utilisateur
   roleId                 String                  @db.Uuid // identifiant du rôle de l'utilisateur
   refreshToken           String? // token de rafraîchissement pour l'authentification
@@ -447,50 +449,96 @@ model User {
 }
 
 model UserJob {
-  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId           String        @db.Uuid
-  jobId            String        @db.Uuid
-  status           UserJobStatus @default(TARGET)
+  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String              @db.Uuid
+  jobId            String              @db.Uuid
+  status           UserJobStatus       @default(TARGET)
   // Optional: manual level or seniority (1–5 for example)
-  level            Level         @default(EASY)
-  note             String?       @db.Text
+  level            Level               @default(EASY)
+  note             String?             @db.Text
   // Aggregated stats for fast dashboards (optional but useful)
-  totalScore       Int           @default(0) // sum of all quiz totalScore
-  maxScoreSum      Int           @default(0) // sum of all quiz maxScore
-  completedQuizzes Int           @default(0)
-  lastQuizAt       DateTime?     @db.Timestamp(0)
-  createdAt        DateTime      @default(now()) @db.Timestamp(0)
-  updatedAt        DateTime      @default(now()) @updatedAt @db.Timestamp(0)
-  user             User          @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  job              Job           @relation(fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  totalScore       Int                 @default(0) // sum of all quiz totalScore
+  maxScoreSum      Int                 @default(0) // sum of all quiz maxScore
+  completedQuizzes Int                 @default(0)
+  lastQuizAt       DateTime?           @db.Timestamp(0)
+  createdAt        DateTime            @default(now()) @db.Timestamp(0)
+  updatedAt        DateTime            @default(now()) @updatedAt @db.Timestamp(0)
+  user             User                @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  job              Job                 @relation(fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   quizzes          UserQuiz[]
+  competencies     UserJobCompetency[]
 
   @@unique([userId, jobId], map: "unique_user_job")
   @@index([userId], map: "idx_user_job_user")
   @@index([jobId], map: "idx_user_job_job")
 }
 
-model UserQuiz {
-  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userJobId         String           @db.Uuid
-  quizId            String           @db.Uuid // Quiz.id is String @default(uuid())
-  type              UserQuizType     @default(DAILY)
-  status            UserQuizStatus   @default(ASSIGNED)
-  index             Int
-  assignedAt        DateTime         @default(now()) @db.Timestamp(0)
-  startedAt         DateTime?        @db.Timestamp(0)
-  completedAt       DateTime?        @db.Timestamp(0)
-  totalScore        Int              @default(0)
-  bonusPoints       Int              @default(0)
-  maxScore          Int              @default(0)
-  maxScoreWithBonus Int              @default(0)
-  percentage        Float?           @default(0)
-  createdAt         DateTime         @default(now()) @db.Timestamp(0)
-  updatedAt         DateTime         @default(now()) @updatedAt @db.Timestamp(0)
+model UserJobCompetency {
+  id            String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userJobId     String                     @db.Uuid
+  competencyId  String                     @db.Uuid
+  // Stats globales pour ce couple (User, Job, Competency)
+  currentScore  Float                      @default(0) // score actuel (pondéré ou moyenne)
+  maxScore      Float                      @default(0) // max théorique cumulé
+  percentage    Float                      @default(0) // currentScore / maxScore * 100
+  attemptsCount Int                        @default(0) // nombre de quiz qui ont alimenté cette compétence
+  bestScore     Float                      @default(0) // meilleur score pour cette compétence
+  lastQuizAt    DateTime?                  @db.Timestamp(0)
+  // Optionnel : niveau dérivé des scores (si tu veux mapper vers EASY/MEDIUM/HARD/EXPERT)
+  level         Level?
+  createdAt     DateTime                   @default(now()) @db.Timestamp(0)
+  updatedAt     DateTime                   @default(now()) @updatedAt @db.Timestamp(0)
   // Relations
-  userJob           UserJob          @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  quiz              Quiz             @relation(fields: [quizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  answers           UserQuizAnswer[]
+  userJob       UserJob                    @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  competency    Competency                 @relation(fields: [competencyId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  histories     UserJobCompetencyHistory[]
+
+  @@unique([userJobId, competencyId], map: "unique_user_job_competency")
+  @@index([userJobId], map: "idx_ujc_user_job")
+  @@index([competencyId], map: "idx_ujc_competency")
+}
+
+model UserJobCompetencyHistory {
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userJobCompetencyId String            @db.Uuid
+  userQuizId          String            @db.Uuid
+  // Score pour CETTE compétence dans CE quiz précis
+  score               Float             @default(0)
+  maxScore            Float             @default(0)
+  percentage          Float             @default(0)
+  // Optionnel : snapshot du niveau à ce moment là
+  level               Level?
+  createdAt           DateTime          @default(now()) @db.Timestamp(0)
+  // Relations
+  userJobCompetency   UserJobCompetency @relation(fields: [userJobCompetencyId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  userQuiz            UserQuiz          @relation(fields: [userQuizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@index([userJobCompetencyId, createdAt], map: "idx_ujc_history_timeline")
+  @@index([userQuizId], map: "idx_ujc_history_user_quiz")
+}
+
+model UserQuiz {
+  id                  String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userJobId           String                     @db.Uuid
+  quizId              String                     @db.Uuid // Quiz.id is String @default(uuid())
+  type                UserQuizType               @default(DAILY)
+  status              UserQuizStatus             @default(ASSIGNED)
+  index               Int
+  assignedAt          DateTime                   @default(now()) @db.Timestamp(0)
+  startedAt           DateTime?                  @db.Timestamp(0)
+  completedAt         DateTime?                  @db.Timestamp(0)
+  totalScore          Int                        @default(0)
+  bonusPoints         Int                        @default(0)
+  maxScore            Int                        @default(0)
+  maxScoreWithBonus   Int                        @default(0)
+  percentage          Float?                     @default(0)
+  createdAt           DateTime                   @default(now()) @db.Timestamp(0)
+  updatedAt           DateTime                   @default(now()) @updatedAt @db.Timestamp(0)
+  // Relations
+  userJob             UserJob                    @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  quiz                Quiz                       @relation(fields: [quizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  answers             UserQuizAnswer[]
+  competencyHistories UserJobCompetencyHistory[]
 
   @@unique([userJobId, quizId], map: "unique_user_quiz_user_job_quiz")
   @@index([userJobId], map: "idx_user_quiz_user_job")

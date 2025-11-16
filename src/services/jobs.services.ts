@@ -1,8 +1,7 @@
 import {PrismaClient} from '@prisma/client';
 import {resolveFields} from '../i18n/translate';
+import {prisma} from "../config/db";
 
-
-const prisma = new PrismaClient();
 
 /**
  * Recherche de jobs avec support multilingue (lang = 'fr' ou 'en').

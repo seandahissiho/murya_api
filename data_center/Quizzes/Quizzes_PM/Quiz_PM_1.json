@@ -6,11 +6,12 @@
     {
       "text": "Laquelle de ces actions est la plus efficace pour comprendre les besoins réels des utilisateurs ?",
       "timeLimitInSeconds": 30,
-      "points": 3,
+      "points": 100,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 1,
       "metadata": null,
+      "competencySlug": "conduire_des_interviews",
       "responses": [
         {
           "text": "Interviewer directement des utilisateurs sur leurs besoins",
@@ -36,16 +37,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EASY"
     },
     {
       "text": "Laquelle de ces activités aide un PM débutant à mieux connaître son marché et ses concurrents ?",
       "timeLimitInSeconds": 30,
-      "points": 3,
+      "points": 100,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 2,
       "metadata": null,
+      "competencySlug": "evaluer_la_concurrence",
       "responses": [
         {
           "text": "Réaliser une veille régulière des produits concurrents",
@@ -71,16 +74,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EASY"
     },
     {
       "text": "Quel critère est le plus important pour prioriser les fonctionnalités d'un produit ?",
       "timeLimitInSeconds": 30,
-      "points": 5,
+      "points": 110,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 3,
       "metadata": null,
+      "competencySlug": "prioriser_le_backlog",
       "responses": [
         {
           "text": "L'impact potentiel de la fonctionnalité sur la valeur apportée aux utilisateurs",
@@ -106,16 +111,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "MEDIUM"
     },
     {
       "text": "La roadmap produit sur 6–12 mois doit avant tout être :",
       "timeLimitInSeconds": 30,
-      "points": 5,
+      "points": 110,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 4,
       "metadata": null,
+      "competencySlug": "planifier_les_releases",
       "responses": [
         {
           "text": "Alignée sur la stratégie globale et régulièrement ajustée selon les retours",
@@ -141,16 +148,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "MEDIUM"
     },
     {
       "text": "Quel est le principal objectif de l'analyse des données d'usage d'un produit ?",
       "timeLimitInSeconds": 30,
-      "points": 5,
+      "points": 110,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 5,
       "metadata": null,
+      "competencySlug": "interpreter_les_donnees",
       "responses": [
         {
           "text": "Identifier des tendances d'usage afin d'orienter les décisions produit",
@@ -176,16 +185,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "MEDIUM"
     },
     {
       "text": "Laquelle de ces mesures peut servir de KPI pertinent pour suivre la performance d'un produit ?",
       "timeLimitInSeconds": 30,
-      "points": 5,
+      "points": 110,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 6,
       "metadata": null,
+      "competencySlug": "definir_les_metriques",
       "responses": [
         {
           "text": "Le taux de conversion des utilisateurs gratuits en clients payants",
@@ -211,16 +222,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "MEDIUM"
     },
     {
       "text": "Vous pilotez un projet produit complexe impliquant plusieurs équipes. Quelle action assure un suivi efficace de bout en bout ?",
       "timeLimitInSeconds": 30,
-      "points": 7,
+      "points": 120,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 7,
       "metadata": null,
+      "competencySlug": "suivre_l_avancement",
       "responses": [
         {
           "text": "Définir dès le départ des jalons clairs et suivre régulièrement l'avancement",
@@ -246,16 +259,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "HARD"
     },
     {
       "text": "L'équipe produit passe de 1 à 5 équipes en parallèle. Quelle mesure aide à adapter les processus de développement à cette échelle ?",
       "timeLimitInSeconds": 30,
-      "points": 10,
+      "points": 130,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 8,
       "metadata": null,
+      "competencySlug": "ameliorer_les_processus",
       "responses": [
         {
           "text": "Mettre en place des processus unifiés et des outils communs pour toutes les équipes",
@@ -281,16 +296,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EXPERT"
     },
     {
       "text": "Un PM n'a pas d'autorité hiérarchique sur les équipes. Comment peut-il malgré tout les mobiliser efficacement ?",
       "timeLimitInSeconds": 30,
-      "points": 10,
+      "points": 130,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 9,
       "metadata": null,
+      "competencySlug": "porter_la_vision_produit",
       "responses": [
         {
           "text": "En partageant une vision claire du produit et en instaurant un climat de confiance",
@@ -316,16 +333,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EXPERT"
     },
     {
       "text": "Quelle est une bonne pratique pour un PM expérimenté qui mentore des membres juniors de son équipe produit ?",
       "timeLimitInSeconds": 30,
-      "points": 10,
+      "points": 130,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 10,
       "metadata": null,
+      "competencySlug": "developper_les_talents",
       "responses": [
         {
           "text": "Partager régulièrement son expérience et fournir des conseils adaptés à chaque membre",
@@ -351,7 +370,8 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EXPERT"
     }
   ]
 }

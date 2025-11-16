@@ -5,8 +5,8 @@ model QuizResponse {
   metadata      Json?
   isCorrect     Boolean                @default(false)
   index         Int
-  createdAt     DateTime               @default(now())
-  updatedAt     DateTime               @updatedAt
+  createdAt     DateTime               @default(now()) @db.Timestamp(0)
+  updatedAt     DateTime               @updatedAt @db.Timestamp(0)
   // Relations
   question      QuizQuestion           @relation(fields: [questionId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   answerOptions UserQuizAnswerOption[]

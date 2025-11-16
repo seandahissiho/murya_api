@@ -5,12 +5,13 @@ model QuizQuestion {
   text               String
   timeLimitInSeconds Int              @default(30)
   points             Int              @default(1)
+  level              Level
   type               QuizQuestionType @default(single_choice)
   mediaUrl           String           @default("")
   index              Int              @default(0)
   metadata           Json?
-  createdAt          DateTime         @default(now())
-  updatedAt          DateTime         @updatedAt
+  createdAt          DateTime         @default(now()) @db.Timestamp(0)
+  updatedAt          DateTime         @updatedAt @db.Timestamp(0)
   userAnswers        UserQuizAnswer[]
   quiz               Quiz             @relation(fields: [quizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   competency         Competency       @relation("CompetencyQuizQuestions", fields: [competencyId], references: [id])

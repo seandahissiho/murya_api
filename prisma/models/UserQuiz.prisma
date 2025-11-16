@@ -17,9 +17,10 @@ model UserQuiz {
   updatedAt         DateTime       @default(now()) @updatedAt @db.Timestamp(0)
 
   // Relations
-  userJob UserJob          @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  quiz    Quiz             @relation(fields: [quizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  answers UserQuizAnswer[]
+  userJob             UserJob                    @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  quiz                Quiz                       @relation(fields: [quizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  answers             UserQuizAnswer[]
+  competencyHistories UserJobCompetencyHistory[]
 
   @@unique([userJobId, quizId], map: "unique_user_quiz_user_job_quiz")
   @@index([userJobId], map: "idx_user_quiz_user_job")

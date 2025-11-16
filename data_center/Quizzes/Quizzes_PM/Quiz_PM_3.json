@@ -6,11 +6,12 @@
     {
       "text": "Quel aspect est crucial pour élaborer un business model viable d'un nouveau produit ?",
       "timeLimitInSeconds": 30,
-      "points": 5,
+      "points": 110,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 1,
       "metadata": null,
+      "competencySlug": "piloter_par_la_valeur",
       "responses": [
         {
           "text": "Déterminer comment le produit générera des revenus de manière durable",
@@ -36,16 +37,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "MEDIUM"
     },
     {
       "text": "Comment un Product Manager peut-il vérifier que son produit a atteint le « product-market fit » ?",
       "timeLimitInSeconds": 30,
-      "points": 5,
+      "points": 110,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 2,
       "metadata": null,
+      "competencySlug": "comprendre_les_utilisateurs",
       "responses": [
         {
           "text": "En constatant une forte adoption par les utilisateurs cibles et des retours très positifs",
@@ -71,16 +74,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "MEDIUM"
     },
     {
       "text": "Laquelle de ces pratiques reflète une bonne intégration des principes UX/UI dans la conception d'un produit ?",
       "timeLimitInSeconds": 30,
-      "points": 5,
+      "points": 110,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 3,
       "metadata": null,
+      "competencySlug": "collaborer_avec_la_tech",
       "responses": [
         {
           "text": "Impliquer les designers dès le début et utiliser les retours pour améliorer l'UX",
@@ -106,16 +111,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "MEDIUM"
     },
     {
       "text": "Quelle activité fait partie d'une démarche de Product Discovery pour valider une idée ?",
       "timeLimitInSeconds": 30,
-      "points": 5,
+      "points": 110,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 4,
       "metadata": null,
+      "competencySlug": "tester_des_hypotheses",
       "responses": [
         {
           "text": "Faire tester rapidement un prototype de l'idée auprès d'un panel d'utilisateurs cibles",
@@ -141,16 +148,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "MEDIUM"
     },
     {
       "text": "Quelle approche permet de prévoir les tendances d'utilisation future d'un produit à partir des données existantes ?",
       "timeLimitInSeconds": 30,
-      "points": 10,
+      "points": 130,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 5,
       "metadata": null,
+      "competencySlug": "interpreter_les_donnees",
       "responses": [
         {
           "text": "Analyser les données historiques du produit et utiliser des modèles pour projeter les tendances",
@@ -176,16 +185,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EXPERT"
     },
     {
       "text": "Laquelle de ces actions contribue à instaurer une culture data-driven au sein d'une équipe produit ?",
       "timeLimitInSeconds": 30,
-      "points": 10,
+      "points": 130,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 6,
       "metadata": null,
+      "competencySlug": "concevoir_des_tableaux_de_bord",
       "responses": [
         {
           "text": "Partager régulièrement les analyses de données avec l'équipe pour éclairer les décisions",
@@ -211,16 +222,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EXPERT"
     },
     {
       "text": "Quelle attitude un PM doit-il adopter pour participer efficacement aux stand-ups quotidiens Agile ?",
       "timeLimitInSeconds": 30,
-      "points": 3,
+      "points": 100,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 7,
       "metadata": null,
+      "competencySlug": "suivre_l_avancement",
       "responses": [
         {
           "text": "Partager brèvement ce qu'il a fait, ce qu'il va faire et mentionner d'éventuels obstacles",
@@ -246,16 +259,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EASY"
     },
     {
       "text": "Dans un projet avec plusieurs équipes produit en parallèle, comment le PM peut-il assurer une bonne coordination ?",
       "timeLimitInSeconds": 30,
-      "points": 10,
+      "points": 130,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 8,
       "metadata": null,
+      "competencySlug": "gerer_les_dependances",
       "responses": [
         {
           "text": "Planifier des réunions inter-équipes régulières pour suivre les dépendances",
@@ -281,16 +296,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EXPERT"
     },
     {
       "text": "Comment un PM junior peut-il communiquer de manière claire avec son équipe produit et technique ?",
       "timeLimitInSeconds": 30,
-      "points": 3,
+      "points": 100,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 9,
       "metadata": null,
+      "competencySlug": "communiquer_avec_impact",
       "responses": [
         {
           "text": "En formulant des demandes précises et en écoutant les retours de l'équipe",
@@ -316,16 +333,18 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "EASY"
     },
     {
       "text": "En cas de conflit entre des parties prenantes sur les priorités produit, quel rôle doit jouer le PM ?",
       "timeLimitInSeconds": 30,
-      "points": 7,
+      "points": 120,
       "type": "single_choice",
       "mediaUrl": "",
       "index": 10,
       "metadata": null,
+      "competencySlug": "negocier_les_priorites",
       "responses": [
         {
           "text": "Faciliter le dialogue pour trouver un compromis aligné sur les objectifs communs",
@@ -351,7 +370,8 @@
           "isCorrect": false,
           "index": 3
         }
-      ]
+      ],
+      "difficulty": "HARD"
     }
   ]
 }

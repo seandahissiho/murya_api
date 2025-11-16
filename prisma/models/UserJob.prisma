@@ -1,21 +1,22 @@
 model UserJob {
-  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId           String        @db.Uuid
-  jobId            String        @db.Uuid
-  status           UserJobStatus @default(TARGET)
+  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String              @db.Uuid
+  jobId            String              @db.Uuid
+  status           UserJobStatus       @default(TARGET)
   // Optional: manual level or seniority (1–5 for example)
-  level            Level         @default(EASY)
-  note             String?       @db.Text
+  level            Level               @default(EASY)
+  note             String?             @db.Text
   // Aggregated stats for fast dashboards (optional but useful)
-  totalScore       Int           @default(0) // sum of all quiz totalScore
-  maxScoreSum      Int           @default(0) // sum of all quiz maxScore
-  completedQuizzes Int           @default(0)
-  lastQuizAt       DateTime?     @db.Timestamp(0)
-  createdAt        DateTime      @default(now()) @db.Timestamp(0)
-  updatedAt        DateTime      @default(now()) @updatedAt @db.Timestamp(0)
-  user             User          @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  job              Job           @relation(fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  totalScore       Int                 @default(0) // sum of all quiz totalScore
+  maxScoreSum      Int                 @default(0) // sum of all quiz maxScore
+  completedQuizzes Int                 @default(0)
+  lastQuizAt       DateTime?           @db.Timestamp(0)
+  createdAt        DateTime            @default(now()) @db.Timestamp(0)
+  updatedAt        DateTime            @default(now()) @updatedAt @db.Timestamp(0)
+  user             User                @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  job              Job                 @relation(fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   quizzes          UserQuiz[]
+  competencies     UserJobCompetency[]
 
   @@unique([userId, jobId], map: "unique_user_job")
   @@index([userId], map: "idx_user_job_user")

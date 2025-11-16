@@ -5,8 +5,8 @@ model Quiz {
   description String?
   level       Level          @default(EASY)
   questions   QuizQuestion[]
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  createdAt   DateTime       @default(now()) @db.Timestamp(0)
+  updatedAt   DateTime       @updatedAt @db.Timestamp(0)
 
   job     Job        @relation("JobQuizzes", fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   quizzes UserQuiz[]
