@@ -84,3 +84,21 @@ enum UserQuizType {
   POSITIONING
   DAILY
 }
+
+enum LearningResourceType {
+  ARTICLE
+  PODCAST
+  VIDEO
+  MIX
+}
+
+enum LearningResourceScope {
+  JOB_DEFAULT // Ressource par défaut liée au Job (visible pour tous les UserJob du job)
+  USER_JOB // Ressource personnalisée pour un UserJob précis
+}
+
+enum LearningResourceSource {
+  SYSTEM_DEFAULT // créée à la main / seed
+  AI_GENERATED // générée par l'IA
+  EXTERNAL_LINK // lien externe (YouTube, podcast hébergé ailleurs, etc.)
+}

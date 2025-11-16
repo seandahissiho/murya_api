@@ -101,6 +101,24 @@ enum UserQuizType {
   DAILY
 }
 
+enum LearningResourceType {
+  ARTICLE
+  PODCAST
+  VIDEO
+  MIX
+}
+
+enum LearningResourceScope {
+  JOB_DEFAULT // Ressource par défaut liée au Job (visible pour tous les UserJob du job)
+  USER_JOB // Ressource personnalisée pour un UserJob précis
+}
+
+enum LearningResourceSource {
+  SYSTEM_DEFAULT // créée à la main / seed
+  AI_GENERATED // générée par l'IA
+  EXTERNAL_LINK // lien externe (YouTube, podcast hébergé ailleurs, etc.)
+}
+
 model Address {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   ref         String    @unique
@@ -229,6 +247,7 @@ model Job {
   competencies         Competency[]         @relation("JobCompetencies")
   competenciesFamilies CompetenciesFamily[] @relation("JobCompetenciesFamilies")
   userJobs             UserJob[]
+  learningResources    LearningResource[]
 
   @@index([jobFamilyId])
 }
@@ -250,6 +269,41 @@ model Language {
   name           String
   isDefault      Boolean @default(false)
   usersPreferred User[]  @relation("UserPreferredLanguage")
+}
+
+model LearningResource {
+  id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Scope & typage
+  scope             LearningResourceScope  @default(USER_JOB)
+  type              LearningResourceType   @default(ARTICLE)
+  source            LearningResourceSource @default(AI_GENERATED)
+  // Liens métier
+  jobId             String?                @db.Uuid // pour les ressources par défaut (et/ou redondance pour les ressources user)
+  userJobId         String?                @db.Uuid // pour les ressources personnalisées
+  // Contenu
+  title             String                 @db.VarChar(255)
+  slug              String?                @unique @db.VarChar(255)
+  description       String?                @db.Text
+  content           String?                @db.Text // article, script de podcast, transcript de vidéo, etc.
+  mediaUrl          String?                @db.VarChar(1024) // URL audio/vidéo si besoin
+  thumbnailUrl      String?                @db.VarChar(1024)
+  languageCode      String?                @db.VarChar(16)
+  estimatedDuration Int? // en secondes
+  metadata          Json? // pour stocker n’importe quel extra (IDs IA, tags, etc.)
+  // Audit
+  createdAt         DateTime               @default(now()) @db.Timestamp(0)
+  updatedAt         DateTime               @default(now()) @updatedAt @db.Timestamp(0)
+  createdById       String?                @db.Uuid
+  updatedById       String?                @db.Uuid
+  // Relations
+  job               Job?                   @relation(fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  userJob           UserJob?               @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  createdBy         User?                  @relation(name: "LearningResourceCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: SetNull)
+  updatedBy         User?                  @relation(name: "LearningResourceUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: SetNull)
+
+  @@index([jobId], map: "idx_learning_resource_job")
+  @@index([userJobId], map: "idx_learning_resource_user_job")
+  @@index([scope, type], map: "idx_learning_resource_scope_type")
 }
 
 model Notification {
@@ -391,52 +445,55 @@ model UploadedFile {
 }
 
 model User {
-  id                     String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  firstname              String?
-  lastname               String?
-  email                  String?                 @db.VarChar(255)
-  phone                  String?                 @db.VarChar(30)
-  deviceId               String?                 @db.VarChar(255)
-  password               String? // mot de passe haché
-  diamonds               Int                     @default(0) // nombre de diamants de l'utilisateur
-  isActive               Boolean                 @default(true) // utilisateur actif ou non
-  isAdmin                Boolean                 @default(false) // utilisateur admin
-  createdAt              DateTime                @default(now()) @db.Timestamp(0)
-  lastLogin              DateTime?               @db.Timestamp(0) // date de dernière connexion
-  avatarUrl              String?
-  birthDate              DateTime?               @db.Timestamp(0)
-  genre                  Genre?                  @default(UNDEFINED) // genre de l'utilisateur
-  roleId                 String                  @db.Uuid // identifiant du rôle de l'utilisateur
-  refreshToken           String? // token de rafraîchissement pour l'authentification
-  addressId              String?                 @db.Uuid // ID de l'adresse associée
-  preferredLangCode      String?                 @db.VarChar(16)
-  createdById            String?                 @db.Uuid // identifiant de l'utilisateur qui a créé ce compte
-  updatedById            String?                 @db.Uuid // identifiant de l'utilisateur qui a mis à jour ce compte
-  role                   Role                    @relation(fields: [roleId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_role_id")
-  preferredLang          Language?               @relation(name: "UserPreferredLanguage", fields: [preferredLangCode], references: [code], onUpdate: Cascade, onDelete: SetNull)
+  id                         String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firstname                  String?
+  lastname                   String?
+  email                      String?                 @db.VarChar(255)
+  phone                      String?                 @db.VarChar(30)
+  deviceId                   String?                 @db.VarChar(255)
+  password                   String? // mot de passe haché
+  diamonds                   Int                     @default(0) // nombre de diamants de l'utilisateur
+  isActive                   Boolean                 @default(true) // utilisateur actif ou non
+  isAdmin                    Boolean                 @default(false) // utilisateur admin
+  createdAt                  DateTime                @default(now()) @db.Timestamp(0)
+  lastLogin                  DateTime?               @db.Timestamp(0) // date de dernière connexion
+  avatarUrl                  String?
+  birthDate                  DateTime?               @db.Timestamp(0)
+  genre                      Genre?                  @default(UNDEFINED) // genre de l'utilisateur
+  roleId                     String                  @db.Uuid // identifiant du rôle de l'utilisateur
+  refreshToken               String? // token de rafraîchissement pour l'authentification
+  addressId                  String?                 @db.Uuid // ID de l'adresse associée
+  preferredLangCode          String?                 @db.VarChar(16)
+  createdById                String?                 @db.Uuid // identifiant de l'utilisateur qui a créé ce compte
+  updatedById                String?                 @db.Uuid // identifiant de l'utilisateur qui a mis à jour ce compte
+  role                       Role                    @relation(fields: [roleId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_role_id")
+  preferredLang              Language?               @relation(name: "UserPreferredLanguage", fields: [preferredLangCode], references: [code], onUpdate: Cascade, onDelete: SetNull)
   // utilisateur qui a créé ou mis à jour ce compte
-  createdBy              User?                   @relation(name: "UserCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_created_by")
-  updatedBy              User?                   @relation(name: "UserUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_updated_by")
+  createdBy                  User?                   @relation(name: "UserCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_created_by")
+  updatedBy                  User?                   @relation(name: "UserUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_updated_by")
   // notifications envoyées à cet utilisateur
-  notificationRecipients NotificationRecipient[]
+  notificationRecipients     NotificationRecipient[]
   // fichiers téléchargés par cet utilisateur
-  uploadedFilesCreatedBy UploadedFile[]          @relation(name: "UploadedFileCreatedBy")
-  uploadedFilesUpdatedBy UploadedFile[]          @relation(name: "UploadedFileUploadedBy")
+  uploadedFilesCreatedBy     UploadedFile[]          @relation(name: "UploadedFileCreatedBy")
+  uploadedFilesUpdatedBy     UploadedFile[]          @relation(name: "UploadedFileUploadedBy")
   // adresse associée à cet utilisateur
-  address                Address?                @relation(fields: [addressId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_address_id")
+  address                    Address?                @relation(fields: [addressId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_address_id")
   // utilisateurs créés et mis à jour par cet utilisateur
-  usersCreated           User[]                  @relation(name: "UserCreatedBy")
-  usersUpdated           User[]                  @relation(name: "UserUpdatedBy")
+  usersCreated               User[]                  @relation(name: "UserCreatedBy")
+  usersUpdated               User[]                  @relation(name: "UserUpdatedBy")
   // pays créés et mis à jour par cet utilisateur
-  countriesCreated       Country[]               @relation(name: "CountryCreatedBy")
-  countriesUpdated       Country[]               @relation(name: "CountryUpdatedBy")
+  countriesCreated           Country[]               @relation(name: "CountryCreatedBy")
+  countriesUpdated           Country[]               @relation(name: "CountryUpdatedBy")
   // adresses créées et mises à jour par cet utilisateur
-  addressesCreated       Address[]               @relation(name: "AddressCreatedBy")
-  addressesUpdated       Address[]               @relation(name: "AddressUpdatedBy")
+  addressesCreated           Address[]               @relation(name: "AddressCreatedBy")
+  addressesUpdated           Address[]               @relation(name: "AddressUpdatedBy")
   // clients créés et mis à jour par cet utilisateur
-  clientCompaniesCreated Company[]               @relation(name: "ClientCompanyCreatedBy")
-  clientCompaniesUpdated Company[]               @relation(name: "ClientCompanyUpdatedBy")
-  userJobs               UserJob[]
+  clientCompaniesCreated     Company[]               @relation(name: "ClientCompanyCreatedBy")
+  clientCompaniesUpdated     Company[]               @relation(name: "ClientCompanyUpdatedBy")
+  userJobs                   UserJob[]
+  // ressources d'apprentissage créées et mises à jour par cet utilisateur
+  learningResourcesCreatedBy LearningResource[]      @relation(name: "LearningResourceCreatedBy")
+  learningResourcesUpdatedBy LearningResource[]      @relation(name: "LearningResourceUpdatedBy")
 
   @@unique([email], map: "unique_email_not_null")
   @@unique([phone], map: "unique_phone_not_null")
@@ -449,24 +506,25 @@ model User {
 }
 
 model UserJob {
-  id               String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId           String              @db.Uuid
-  jobId            String              @db.Uuid
-  status           UserJobStatus       @default(TARGET)
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String              @db.Uuid
+  jobId             String              @db.Uuid
+  status            UserJobStatus       @default(TARGET)
   // Optional: manual level or seniority (1–5 for example)
-  level            Level               @default(EASY)
-  note             String?             @db.Text
+  level             Level               @default(EASY)
+  note              String?             @db.Text
   // Aggregated stats for fast dashboards (optional but useful)
-  totalScore       Int                 @default(0) // sum of all quiz totalScore
-  maxScoreSum      Int                 @default(0) // sum of all quiz maxScore
-  completedQuizzes Int                 @default(0)
-  lastQuizAt       DateTime?           @db.Timestamp(0)
-  createdAt        DateTime            @default(now()) @db.Timestamp(0)
-  updatedAt        DateTime            @default(now()) @updatedAt @db.Timestamp(0)
-  user             User                @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  job              Job                 @relation(fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  quizzes          UserQuiz[]
-  competencies     UserJobCompetency[]
+  totalScore        Int                 @default(0) // sum of all quiz totalScore
+  maxScoreSum       Int                 @default(0) // sum of all quiz maxScore
+  completedQuizzes  Int                 @default(0)
+  lastQuizAt        DateTime?           @db.Timestamp(0)
+  createdAt         DateTime            @default(now()) @db.Timestamp(0)
+  updatedAt         DateTime            @default(now()) @updatedAt @db.Timestamp(0)
+  user              User                @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  job               Job                 @relation(fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  quizzes           UserQuiz[]
+  competencies      UserJobCompetency[]
+  learningResources LearningResource[]
 
   @@unique([userId, jobId], map: "unique_user_job")
   @@index([userId], map: "idx_user_job_user")

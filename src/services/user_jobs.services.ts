@@ -194,7 +194,7 @@ async function updateUserJobStats(userJobId: string, doneAt: string) {
 
     // const quizzesCount = allQuizzes.length;
     const completedQuizzes = allQuizzes.filter(
-        (q) => q.status === "COMPLETED"
+        (q) => q.status === UserQuizStatus.COMPLETED
     ).length;
     const totalScoreSum = allQuizzes.reduce(
         (sum, q) => {
@@ -396,7 +396,7 @@ export const saveUserQuizAnswers = async (
                 bonusPoints,
                 maxScoreWithBonus,
                 percentage,
-                status: "COMPLETED",
+                status: UserQuizStatus.COMPLETED,
                 completedAt: doneAt,
                 startedAt: userQuiz.startedAt ?? doneAt,
             },

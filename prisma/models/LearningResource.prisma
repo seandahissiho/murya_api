@@ -1,0 +1,34 @@
+model LearningResource {
+  id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Scope & typage
+  scope             LearningResourceScope  @default(USER_JOB)
+  type              LearningResourceType   @default(ARTICLE)
+  source            LearningResourceSource @default(AI_GENERATED)
+  // Liens métier
+  jobId             String?                @db.Uuid // pour les ressources par défaut (et/ou redondance pour les ressources user)
+  userJobId         String?                @db.Uuid // pour les ressources personnalisées
+  // Contenu
+  title             String                 @db.VarChar(255)
+  slug              String?                @unique @db.VarChar(255)
+  description       String?                @db.Text
+  content           String?                @db.Text // article, script de podcast, transcript de vidéo, etc.
+  mediaUrl          String?                @db.VarChar(1024) // URL audio/vidéo si besoin
+  thumbnailUrl      String?                @db.VarChar(1024)
+  languageCode      String?                @db.VarChar(16)
+  estimatedDuration Int? // en secondes
+  metadata          Json? // pour stocker n’importe quel extra (IDs IA, tags, etc.)
+  // Audit
+  createdAt         DateTime               @default(now()) @db.Timestamp(0)
+  updatedAt         DateTime               @default(now()) @updatedAt @db.Timestamp(0)
+  createdById       String?                @db.Uuid
+  updatedById       String?                @db.Uuid
+  // Relations
+  job               Job?                   @relation(fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  userJob           UserJob?               @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  createdBy         User?                  @relation(name: "LearningResourceCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: SetNull)
+  updatedBy         User?                  @relation(name: "LearningResourceUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: SetNull)
+
+  @@index([jobId], map: "idx_learning_resource_job")
+  @@index([userJobId], map: "idx_learning_resource_user_job")
+  @@index([scope, type], map: "idx_learning_resource_scope_type")
+}

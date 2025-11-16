@@ -1,50 +1,53 @@
 model User {
-  id                     String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  firstname              String?
-  lastname               String?
-  email                  String?                 @db.VarChar(255)
-  phone                  String?                 @db.VarChar(30)
-  deviceId               String?                 @db.VarChar(255)
-  password               String? // mot de passe haché
-  diamonds               Int                     @default(0) // nombre de diamants de l'utilisateur
-  isActive               Boolean                 @default(true) // utilisateur actif ou non
-  isAdmin                Boolean                 @default(false) // utilisateur admin
-  createdAt              DateTime                @default(now()) @db.Timestamp(0)
-  lastLogin              DateTime?               @db.Timestamp(0) // date de dernière connexion
-  avatarUrl              String?
-  birthDate              DateTime?               @db.Timestamp(0)
-  genre                  Genre?                  @default(UNDEFINED) // genre de l'utilisateur
-  roleId                 String                  @db.Uuid // identifiant du rôle de l'utilisateur
-  refreshToken           String? // token de rafraîchissement pour l'authentification
-  addressId              String?                 @db.Uuid // ID de l'adresse associée
-  preferredLangCode      String?                 @db.VarChar(16)
-  createdById            String?                 @db.Uuid // identifiant de l'utilisateur qui a créé ce compte
-  updatedById            String?                 @db.Uuid // identifiant de l'utilisateur qui a mis à jour ce compte
-  role                   Role                    @relation(fields: [roleId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_role_id")
-  preferredLang          Language?               @relation(name: "UserPreferredLanguage", fields: [preferredLangCode], references: [code], onUpdate: Cascade, onDelete: SetNull)
+  id                         String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firstname                  String?
+  lastname                   String?
+  email                      String?                 @db.VarChar(255)
+  phone                      String?                 @db.VarChar(30)
+  deviceId                   String?                 @db.VarChar(255)
+  password                   String? // mot de passe haché
+  diamonds                   Int                     @default(0) // nombre de diamants de l'utilisateur
+  isActive                   Boolean                 @default(true) // utilisateur actif ou non
+  isAdmin                    Boolean                 @default(false) // utilisateur admin
+  createdAt                  DateTime                @default(now()) @db.Timestamp(0)
+  lastLogin                  DateTime?               @db.Timestamp(0) // date de dernière connexion
+  avatarUrl                  String?
+  birthDate                  DateTime?               @db.Timestamp(0)
+  genre                      Genre?                  @default(UNDEFINED) // genre de l'utilisateur
+  roleId                     String                  @db.Uuid // identifiant du rôle de l'utilisateur
+  refreshToken               String? // token de rafraîchissement pour l'authentification
+  addressId                  String?                 @db.Uuid // ID de l'adresse associée
+  preferredLangCode          String?                 @db.VarChar(16)
+  createdById                String?                 @db.Uuid // identifiant de l'utilisateur qui a créé ce compte
+  updatedById                String?                 @db.Uuid // identifiant de l'utilisateur qui a mis à jour ce compte
+  role                       Role                    @relation(fields: [roleId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_role_id")
+  preferredLang              Language?               @relation(name: "UserPreferredLanguage", fields: [preferredLangCode], references: [code], onUpdate: Cascade, onDelete: SetNull)
   // utilisateur qui a créé ou mis à jour ce compte
-  createdBy              User?                   @relation(name: "UserCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_created_by")
-  updatedBy              User?                   @relation(name: "UserUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_updated_by")
+  createdBy                  User?                   @relation(name: "UserCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_created_by")
+  updatedBy                  User?                   @relation(name: "UserUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_updated_by")
   // notifications envoyées à cet utilisateur
-  notificationRecipients NotificationRecipient[]
+  notificationRecipients     NotificationRecipient[]
   // fichiers téléchargés par cet utilisateur
-  uploadedFilesCreatedBy UploadedFile[]          @relation(name: "UploadedFileCreatedBy")
-  uploadedFilesUpdatedBy UploadedFile[]          @relation(name: "UploadedFileUploadedBy")
+  uploadedFilesCreatedBy     UploadedFile[]          @relation(name: "UploadedFileCreatedBy")
+  uploadedFilesUpdatedBy     UploadedFile[]          @relation(name: "UploadedFileUploadedBy")
   // adresse associée à cet utilisateur
-  address                Address?                @relation(fields: [addressId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_address_id")
+  address                    Address?                @relation(fields: [addressId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_address_id")
   // utilisateurs créés et mis à jour par cet utilisateur
-  usersCreated           User[]                  @relation(name: "UserCreatedBy")
-  usersUpdated           User[]                  @relation(name: "UserUpdatedBy")
+  usersCreated               User[]                  @relation(name: "UserCreatedBy")
+  usersUpdated               User[]                  @relation(name: "UserUpdatedBy")
   // pays créés et mis à jour par cet utilisateur
-  countriesCreated       Country[]               @relation(name: "CountryCreatedBy")
-  countriesUpdated       Country[]               @relation(name: "CountryUpdatedBy")
+  countriesCreated           Country[]               @relation(name: "CountryCreatedBy")
+  countriesUpdated           Country[]               @relation(name: "CountryUpdatedBy")
   // adresses créées et mises à jour par cet utilisateur
-  addressesCreated       Address[]               @relation(name: "AddressCreatedBy")
-  addressesUpdated       Address[]               @relation(name: "AddressUpdatedBy")
+  addressesCreated           Address[]               @relation(name: "AddressCreatedBy")
+  addressesUpdated           Address[]               @relation(name: "AddressUpdatedBy")
   // clients créés et mis à jour par cet utilisateur
-  clientCompaniesCreated Company[]               @relation(name: "ClientCompanyCreatedBy")
-  clientCompaniesUpdated Company[]               @relation(name: "ClientCompanyUpdatedBy")
-  userJobs               UserJob[]
+  clientCompaniesCreated     Company[]               @relation(name: "ClientCompanyCreatedBy")
+  clientCompaniesUpdated     Company[]               @relation(name: "ClientCompanyUpdatedBy")
+  userJobs                   UserJob[]
+  // ressources d'apprentissage créées et mises à jour par cet utilisateur
+  learningResourcesCreatedBy LearningResource[]      @relation(name: "LearningResourceCreatedBy")
+  learningResourcesUpdatedBy LearningResource[]      @relation(name: "LearningResourceUpdatedBy")
 
   @@unique([email], map: "unique_email_not_null")
   @@unique([phone], map: "unique_phone_not_null")
