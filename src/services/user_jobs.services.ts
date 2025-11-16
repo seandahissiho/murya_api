@@ -479,12 +479,6 @@ export const saveUserQuizAnswers = async (
 };
 
 
-export type GetRankingForJobParams = {
-    jobId: string;
-    from?: string;
-    to?: string;
-};
-
 export type UserJobRankingRow = {
     userJobId: string;
     userId: string;
@@ -500,6 +494,12 @@ export type UserJobRankingRow = {
     rank: number;
 };
 
+export type GetRankingForJobParams = {
+    jobId: string;
+    from?: string;
+    to?: string;
+};
+
 export async function getRankingForJob({
                                            jobId,
                                            from,
@@ -507,9 +507,9 @@ export async function getRankingForJob({
                                        }: GetRankingForJobParams): Promise<UserJobRankingRow[]> {
     // fragments pour la période
     const fromFilter =
-        from ? Prisma.sql`AND uq."completedAt" >= ${from}` : Prisma.empty;
+        from ? Prisma.sql`AND uq."completedAt" >= ${from}::timestamp` : Prisma.empty;
     const toFilter =
-        to ? Prisma.sql`AND uq."completedAt" < ${to}` : Prisma.empty;
+        to ? Prisma.sql`AND uq."completedAt" < ${to}::timestamp` : Prisma.empty;
 
     // language=SQL format=false
     const rows = await prisma.$queryRaw<UserJobRankingRow[]>`
@@ -590,7 +590,10 @@ type UserJobCompetencyProfile = {
         title: string;
         normalizedName: string;
         description: string | null;
-        competencyFamiliesIds: string[];
+        competencyFamilies: {
+            id: string;
+            name: string;
+        }[];
     };
     user: {
         id: string;
@@ -657,7 +660,7 @@ export const getUserJobCompetencyProfile = async (
                     normalizedName: true,
                     description: true,
                     competenciesFamilies: {
-                        select: {id: true},
+                        select: {id: true, name: true},
                     },
                 },
             },
@@ -753,7 +756,10 @@ export const getUserJobCompetencyProfile = async (
             title: userJob.job.title,
             normalizedName: userJob.job.normalizedName,
             description: userJob.job.description,
-            competencyFamiliesIds: userJob.job.competenciesFamilies.map((f) => f.id),
+            competencyFamilies: userJob.job.competenciesFamilies.map((f) => ({
+                id: f.id,
+                name: f.name,
+            })),
         },
         user: {
             id: userJob.user.id,

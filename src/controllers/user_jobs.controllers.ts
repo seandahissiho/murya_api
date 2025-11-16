@@ -57,8 +57,8 @@ export const getJobLeaderboard = async (req: Request, res: Response, next: NextF
         return sendResponse(res, 200, {
             data: {
                 jobId,
-                from: fromDate ?? null,
-                to: toDate ?? null,
+                from: fromParam ?? null,
+                to: toParam ?? null,
                 count: ranking.length,
                 results: ranking,
             }
