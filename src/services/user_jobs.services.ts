@@ -779,3 +779,5 @@ export const getUserJobCompetencyProfile = async (
 
     return profile;
 };
+
+

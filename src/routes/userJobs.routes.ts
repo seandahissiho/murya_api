@@ -17,6 +17,8 @@ router.get('/leaderboard/job/:jobId', authenticateToken, jobControllers.getJobLe
 router.get('/:jobId/competenciesProfile', authenticateToken, jobControllers.getUserJobCompetencyProfileHandler);
 // getUserJob
 router.get('/:jobId', authenticateToken, jobControllers.getUserJob);
+// generateMarkdownArticleForLastQuiz2
+router.post('/generateArticle/:userJobId', authenticateToken, jobControllers.generateMarkdownArticleForLastQuiz2);
 
 
 export default router;

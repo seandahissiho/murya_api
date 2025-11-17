@@ -105,7 +105,6 @@ enum LearningResourceType {
   ARTICLE
   PODCAST
   VIDEO
-  MIX
 }
 
 enum LearningResourceScope {

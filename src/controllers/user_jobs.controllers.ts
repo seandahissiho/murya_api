@@ -1,6 +1,7 @@
 import {NextFunction, Request, Response} from "express";
 import * as jobService from "../services/user_jobs.services";
 import {sendResponse} from "../utils/helpers";
+import {generateMarkdownArticleForLastQuiz} from "../services/generateMarkdownArticleForLastQuiz";
 
 // 👉 Optionnel : validation simple de format
 const LOCAL_DATETIME_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.000Z$/;
@@ -186,6 +187,30 @@ export const getUserJobCompetencyProfileHandler = async (req: Request, res: Resp
         sendResponse(res, 500, {
             error: "Une erreur s'est produite lors de la récupération du profil de compétences du job utilisateur.",
             message: e instanceof Error ? e.message : 'Unknown error'
+        });
+    }
+};
+
+// generateMarkdownArticleForLastQuiz
+export const generateMarkdownArticleForLastQuiz2 = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = (req as any).user?.userId;
+        const userJobId = req.params.userJobId;
+
+        if (!userJobId) {
+            return sendResponse(res, 400, {error: 'L’identifiant du job utilisateur est requis.'});
+        }
+        if (!userId) {
+            return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
+        }
+
+        const article = await generateMarkdownArticleForLastQuiz(userJobId, userId);
+        return sendResponse(res, 200, {data: article});
+    } catch (err) {
+        console.error('generateMarkdownArticleForLastQuiz error:', err);
+        return sendResponse(res, 500, {
+            error: "Une erreur s'est produite lors de la génération de l'article Markdown pour le dernier quiz.",
+            message: err instanceof Error ? err.message : 'Unknown error'
         });
     }
 };
