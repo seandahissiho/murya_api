@@ -1,11 +1,11 @@
-model JobFamily {
-  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  parentId       String?     @db.Uuid
-  name           String      @unique(map: "job_family_name") @db.VarChar(255)
-  normalizedName String      @unique @db.VarChar(255)
-  createdAt      DateTime    @default(now()) @db.Timestamp(0)
-  updatedAt      DateTime    @default(now()) @updatedAt @db.Timestamp(0)
-  jobs           Job[]
-  parent         JobFamily?  @relation("JobFamilyToParent", fields: [parentId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_job_families_parent_id")
-  children       JobFamily[] @relation("JobFamilyToParent")
-}
+// model JobFamily {
+//   id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+//   parentId       String?     @db.Uuid
+//   name           String      @unique(map: "job_family_name") @db.VarChar(255)
+//   normalizedName String      @unique @db.VarChar(255)
+//   createdAt      DateTime    @default(now()) @db.Timestamp(0)
+//   updatedAt      DateTime    @default(now()) @updatedAt @db.Timestamp(0)
+//   jobs           Job[]
+//   parent         JobFamily?  @relation("JobFamilyToParent", fields: [parentId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_job_families_parent_id")
+//   children       JobFamily[] @relation("JobFamilyToParent")
+// }

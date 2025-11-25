@@ -16,7 +16,7 @@ model Job {
   // NEW: special positioning quiz template attached to the job
   quizzes              Quiz[]               @relation("JobQuizzes")
   // Relations
-  jobFamily            JobFamily?           @relation(fields: [jobFamilyId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_jobs_job_family_id")
+  // jobFamily            JobFamily?           @relation(fields: [jobFamilyId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_jobs_job_family_id")
   competencies         Competency[]         @relation("JobCompetencies")
   competenciesFamilies CompetenciesFamily[] @relation("JobCompetenciesFamilies")
   userJobs             UserJob[]
