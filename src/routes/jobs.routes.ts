@@ -8,5 +8,6 @@ router.get('/', jobControllers.searchJobs);
 router.get('/:id', jobControllers.getJobDetails);
 // '/jobs/$jobId/competency_families/$cfId/'
 router.get('/:jobId/competency_families/:cfId/', jobControllers.getCompetencyFamilyDetailsForJob);
+router.post('/', jobControllers.createJobWithCompetencies);
 
 export default router;

@@ -76,3 +76,21 @@ export const getCompetencyFamilyDetailsForJob = async (req: Request, res: Respon
         });
     }
 };
+
+export const createJobWithCompetencies = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const payload = req.body;
+        if (!payload?.jobTitle) {
+            return sendResponse(res, 400, {error: 'Le champ "jobTitle" est requis.'});
+        }
+
+        const job = await jobService.createJobWithCompetencies(payload);
+        return sendResponse(res, 201, {data: job});
+    } catch (err) {
+        console.error('createJobWithCompetencies error:', err);
+        return sendResponse(res, 500, {
+            error: "Une erreur s'est produite lors de la création du job et des compétences.",
+            message: err instanceof Error ? err.message : 'Unknown error'
+        });
+    }
+};
