@@ -573,23 +573,23 @@ async function upsertCompetencyWithScores(nameFr: string, s: Scores, kind: strin
     return competency;
 }
 
-async function upsertJobFamily(nameFr: string) {
-    const jf = await prisma.jobFamily.upsert({
-        where: {name: nameFr},
-        update: {normalizedName: slugify(nameFr), updatedAt: new Date()},
-        create: {
-            name: nameFr,
-            normalizedName: slugify(nameFr),
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        },
-    });
-
-    const nameEn = toEn(nameFr);
-    await createBiLangTranslation('JobFamily', jf.id, 'name', nameEn, nameFr);
-
-    return jf;
-}
+// async function upsertJobFamily(nameFr: string) {
+//     const jf = await prisma.jobFamily.upsert({
+//         where: {name: nameFr},
+//         update: {normalizedName: slugify(nameFr), updatedAt: new Date()},
+//         create: {
+//             name: nameFr,
+//             normalizedName: slugify(nameFr),
+//             createdAt: new Date(),
+//             updatedAt: new Date(),
+//         },
+//     });
+//
+//     const nameEn = toEn(nameFr);
+//     await createBiLangTranslation('JobFamily', jf.id, 'name', nameEn, nameFr);
+//
+//     return jf;
+// }
 
 async function upsertJob(jobFamilyId: string, titleEn: string, descriptionFr?: string | null) {
     const existing = await prisma.job.findFirst({where: {title: titleEn, jobFamilyId}});
@@ -626,132 +626,132 @@ async function upsertJob(jobFamilyId: string, titleEn: string, descriptionFr?: s
 // -----------------------------------------------------------------------------
 // Seeding d’un rôle
 // -----------------------------------------------------------------------------
-async function seedJob(job: JobBlock) {
-    console.log(`\n=== Seeding job: ${job.jobTitle} ===`);
-
-    // Families + subfamilies
-    const familyIds = new Set<string>();
-    const familyMap = new Map<string, string>();
-    const subfamilyMap = new Map<string, string>();
-
-    for (const block of job.blocks) {
-        const fam = await upsertFamily(block.family);
-        familyMap.set(block.family, fam.id);
-        familyIds.add(fam.id);
-
-        for (const sub of block.subfamilies) {
-            const subFam = await upsertFamily(sub, fam.id);
-            subfamilyMap.set(`${block.family}:${sub}`, subFam.id);
-            familyIds.add(subFam.id);
-        }
-    }
-
-    // Competencies
-    const competencyIds: string[] = [];
-
-    for (const block of job.blocks) {
-        const famId = familyMap.get(block.family)!;
-
-        for (const item of block.items) {
-            const scores = mergeAndValidateScores(item);
-            const comp = await upsertCompetencyWithScores(item.name, scores, item.kind, item.level);
-            competencyIds.push(comp.id);
-
-            const subId = subfamilyMap.get(`${block.family}:${item.subfamily}`)!;
-
-            await prisma.competency.update({
-                where: {id: comp.id},
-                data: {
-                    families: {
-                        connect: [{id: famId}, {id: subId}],
-                    },
-                },
-            });
-        }
-    }
-
-    // JobFamily + Job
-    const jf = await upsertJobFamily(job.jobFamilyName);
-
-    const titleEn = job.jobTitle;
-    const titleFr = JOB_TITLE_FR[job.jobTitle] ?? job.jobTitle;
-
-    let descriptionFr: string;
-    let descriptionEn: string;
-
-    if (job.jobTitle === 'Product Manager') {
-        descriptionFr = "Le Product Manager est responsable de la vision, de la stratégie et de la réussite du produit.\n" +
-            "Il travaille à l’intersection du business, de la technologie et du design pour créer une solution qui apporte une réelle valeur aux utilisateurs.\n" +
-            "Son rôle consiste à comprendre les besoins du marché et à les transformer en objectifs clairs et réalisables.\n" +
-            "Il définit la feuille de route produit, priorise les fonctionnalités et s’assure que chaque décision contribue à la mission de l’entreprise.\n" +
-            "Le PM collabore étroitement avec les équipes techniques, design et marketing pour coordonner le développement et le lancement du produit.\n" +
-            "Il analyse les données d’usage et les retours clients afin d’ajuster la stratégie et d’améliorer en continu la performance.\n" +
-            "Le Product Manager doit être capable de prendre des décisions rapides basées sur la donnée et la vision long terme.\n" +
-            "Il fixe les indicateurs clés de succès (KPIs) et mesure régulièrement leur évolution.\n" +
-            "Il veille également à la cohérence de l’expérience sur tous les canaux — web, mobile et autres interfaces.\n" +
-            "Le PM agit comme la voix du client, défend ses besoins et s’assure que le produit réponde à de vraies attentes.\n" +
-            "Son objectif final est de construire un produit durable, utile et aligné avec les ambitions stratégiques de l’entreprise.\n" +
-            "C’est un rôle d’équilibre entre vision, exécution et communication.";
-        descriptionEn = "The Product Manager is responsible for the vision, strategy, and overall success of the product.\n" +
-            "They operate at the crossroads of business, technology, and design to build a solution that truly delivers value.\n" +
-            "Their mission is to understand market and user needs and turn them into clear, actionable goals.\n" +
-            "They define the product roadmap, prioritize features, and ensure every decision supports the company’s mission.\n" +
-            "The PM works closely with engineering, design, and marketing teams to coordinate development and launches.\n" +
-            "They analyze usage data and customer feedback to refine strategy and continuously improve performance.\n" +
-            "A Product Manager must be able to make fast, data-informed decisions while keeping a long-term vision.\n" +
-            "They establish key success indicators (KPIs) and monitor progress toward them.\n" +
-            "They also ensure consistency across all user touchpoints — web, mobile, and beyond.\n" +
-            "The PM acts as the customer’s voice, advocating for user needs and real-world impact.\n" +
-            "Their ultimate goal is to build a product that is sustainable, useful, and strategically aligned.\n" +
-            "It’s a role that balances vision, execution, and communication.";
-    } else {
-        descriptionFr = "Le UI Designer conçoit l’interface visuelle du produit et façonne son identité graphique.\n" +
-            "Il traduit les besoins des utilisateurs et les objectifs business en expériences visuelles claires, harmonieuses et engageantes.\n" +
-            "Son rôle consiste à créer des interfaces intuitives, modernes et cohérentes sur toutes les plateformes.\n" +
-            "Il collabore avec les UX Designers pour transformer les parcours utilisateurs en maquettes détaillées et fonctionnelles.\n" +
-            "Le UI Designer travaille également avec les développeurs afin de garantir la fidélité du rendu final et la qualité de l’expérience.\n" +
-            "Il définit le design system, la palette de couleurs, la typographie et la hiérarchie visuelle du produit.\n" +
-            "Le designer veille à maintenir une cohérence forte entre les composants et les interactions.\n" +
-            "Il s’assure que chaque élément visuel ait une fonction claire et renforce la compréhension de l’utilisateur.\n" +
-            "Le UI Designer contribue à rendre le produit accessible, esthétique et agréable à utiliser au quotidien.\n" +
-            "Il suit les tendances graphiques du moment tout en gardant une approche durable et cohérente avec la marque.\n" +
-            "C’est un rôle créatif et rigoureux qui allie sens du détail, empathie et compréhension des contraintes techniques.\n" +
-            "Son objectif : rendre le produit à la fois beau, fonctionnel et mémorable.";
-        descriptionEn = "The UI Designer is responsible for crafting the product’s visual interface and defining its graphic identity.\n" +
-            "They translate user needs and business goals into clear, consistent, and engaging visual experiences.\n" +
-            "Their mission is to design intuitive, modern, and coherent interfaces across all platforms.\n" +
-            "They collaborate with UX Designers to transform user journeys into detailed, functional mockups.\n" +
-            "The UI Designer also works with developers to ensure high visual fidelity and seamless user experience.\n" +
-            "They define the design system, color palette, typography, and visual hierarchy of the product.\n" +
-            "The designer maintains strong consistency across all visual components and interactions.\n" +
-            "They make sure every element serves a clear purpose and supports usability.\n" +
-            "The UI Designer helps make the product accessible, attractive, and enjoyable to use every day.\n" +
-            "They stay up to date with visual trends while ensuring long-term consistency with the brand identity.\n" +
-            "This role combines creativity, precision, and a deep understanding of technical constraints.\n" +
-            "Their goal is to make the product both beautiful, functional, and memorable.";
-    }
-
-    let job2 = await upsertJob(jf.id, titleEn, descriptionFr);
-
-    // Traductions Job (title + description)
-    await createBiLangTranslation('Job', job2.id, 'title', titleEn, titleFr);
-    await createBiLangTranslation('Job', job2.id, 'description', descriptionEn, descriptionFr);
-
-    // Relier Job -> Competencies & Families
-    await prisma.job.update({
-        where: {id: job2.id},
-        data: {
-            competencies: {
-                connect: competencyIds.map((id) => ({id})),
-            },
-            competenciesFamilies: {
-                connect: Array.from(familyIds).map((id) => ({id})),
-            },
-        },
-    });
-
-    console.log(`✓ ${job.jobTitle}: ${competencyIds.length} compétences, ${familyIds.size} familles liées`);
-}
+// async function seedJob(job: JobBlock) {
+//     console.log(`\n=== Seeding job: ${job.jobTitle} ===`);
+//
+//     // Families + subfamilies
+//     const familyIds = new Set<string>();
+//     const familyMap = new Map<string, string>();
+//     const subfamilyMap = new Map<string, string>();
+//
+//     for (const block of job.blocks) {
+//         const fam = await upsertFamily(block.family);
+//         familyMap.set(block.family, fam.id);
+//         familyIds.add(fam.id);
+//
+//         for (const sub of block.subfamilies) {
+//             const subFam = await upsertFamily(sub, fam.id);
+//             subfamilyMap.set(`${block.family}:${sub}`, subFam.id);
+//             familyIds.add(subFam.id);
+//         }
+//     }
+//
+//     // Competencies
+//     const competencyIds: string[] = [];
+//
+//     for (const block of job.blocks) {
+//         const famId = familyMap.get(block.family)!;
+//
+//         for (const item of block.items) {
+//             const scores = mergeAndValidateScores(item);
+//             const comp = await upsertCompetencyWithScores(item.name, scores, item.kind, item.level);
+//             competencyIds.push(comp.id);
+//
+//             const subId = subfamilyMap.get(`${block.family}:${item.subfamily}`)!;
+//
+//             await prisma.competency.update({
+//                 where: {id: comp.id},
+//                 data: {
+//                     families: {
+//                         connect: [{id: famId}, {id: subId}],
+//                     },
+//                 },
+//             });
+//         }
+//     }
+//
+//     // JobFamily + Job
+//     // const jf = await upsertJobFamily(job.jobFamilyName);
+//
+//     const titleEn = job.jobTitle;
+//     const titleFr = JOB_TITLE_FR[job.jobTitle] ?? job.jobTitle;
+//
+//     let descriptionFr: string;
+//     let descriptionEn: string;
+//
+//     if (job.jobTitle === 'Product Manager') {
+//         descriptionFr = "Le Product Manager est responsable de la vision, de la stratégie et de la réussite du produit.\n" +
+//             "Il travaille à l’intersection du business, de la technologie et du design pour créer une solution qui apporte une réelle valeur aux utilisateurs.\n" +
+//             "Son rôle consiste à comprendre les besoins du marché et à les transformer en objectifs clairs et réalisables.\n" +
+//             "Il définit la feuille de route produit, priorise les fonctionnalités et s’assure que chaque décision contribue à la mission de l’entreprise.\n" +
+//             "Le PM collabore étroitement avec les équipes techniques, design et marketing pour coordonner le développement et le lancement du produit.\n" +
+//             "Il analyse les données d’usage et les retours clients afin d’ajuster la stratégie et d’améliorer en continu la performance.\n" +
+//             "Le Product Manager doit être capable de prendre des décisions rapides basées sur la donnée et la vision long terme.\n" +
+//             "Il fixe les indicateurs clés de succès (KPIs) et mesure régulièrement leur évolution.\n" +
+//             "Il veille également à la cohérence de l’expérience sur tous les canaux — web, mobile et autres interfaces.\n" +
+//             "Le PM agit comme la voix du client, défend ses besoins et s’assure que le produit réponde à de vraies attentes.\n" +
+//             "Son objectif final est de construire un produit durable, utile et aligné avec les ambitions stratégiques de l’entreprise.\n" +
+//             "C’est un rôle d’équilibre entre vision, exécution et communication.";
+//         descriptionEn = "The Product Manager is responsible for the vision, strategy, and overall success of the product.\n" +
+//             "They operate at the crossroads of business, technology, and design to build a solution that truly delivers value.\n" +
+//             "Their mission is to understand market and user needs and turn them into clear, actionable goals.\n" +
+//             "They define the product roadmap, prioritize features, and ensure every decision supports the company’s mission.\n" +
+//             "The PM works closely with engineering, design, and marketing teams to coordinate development and launches.\n" +
+//             "They analyze usage data and customer feedback to refine strategy and continuously improve performance.\n" +
+//             "A Product Manager must be able to make fast, data-informed decisions while keeping a long-term vision.\n" +
+//             "They establish key success indicators (KPIs) and monitor progress toward them.\n" +
+//             "They also ensure consistency across all user touchpoints — web, mobile, and beyond.\n" +
+//             "The PM acts as the customer’s voice, advocating for user needs and real-world impact.\n" +
+//             "Their ultimate goal is to build a product that is sustainable, useful, and strategically aligned.\n" +
+//             "It’s a role that balances vision, execution, and communication.";
+//     } else {
+//         descriptionFr = "Le UI Designer conçoit l’interface visuelle du produit et façonne son identité graphique.\n" +
+//             "Il traduit les besoins des utilisateurs et les objectifs business en expériences visuelles claires, harmonieuses et engageantes.\n" +
+//             "Son rôle consiste à créer des interfaces intuitives, modernes et cohérentes sur toutes les plateformes.\n" +
+//             "Il collabore avec les UX Designers pour transformer les parcours utilisateurs en maquettes détaillées et fonctionnelles.\n" +
+//             "Le UI Designer travaille également avec les développeurs afin de garantir la fidélité du rendu final et la qualité de l’expérience.\n" +
+//             "Il définit le design system, la palette de couleurs, la typographie et la hiérarchie visuelle du produit.\n" +
+//             "Le designer veille à maintenir une cohérence forte entre les composants et les interactions.\n" +
+//             "Il s’assure que chaque élément visuel ait une fonction claire et renforce la compréhension de l’utilisateur.\n" +
+//             "Le UI Designer contribue à rendre le produit accessible, esthétique et agréable à utiliser au quotidien.\n" +
+//             "Il suit les tendances graphiques du moment tout en gardant une approche durable et cohérente avec la marque.\n" +
+//             "C’est un rôle créatif et rigoureux qui allie sens du détail, empathie et compréhension des contraintes techniques.\n" +
+//             "Son objectif : rendre le produit à la fois beau, fonctionnel et mémorable.";
+//         descriptionEn = "The UI Designer is responsible for crafting the product’s visual interface and defining its graphic identity.\n" +
+//             "They translate user needs and business goals into clear, consistent, and engaging visual experiences.\n" +
+//             "Their mission is to design intuitive, modern, and coherent interfaces across all platforms.\n" +
+//             "They collaborate with UX Designers to transform user journeys into detailed, functional mockups.\n" +
+//             "The UI Designer also works with developers to ensure high visual fidelity and seamless user experience.\n" +
+//             "They define the design system, color palette, typography, and visual hierarchy of the product.\n" +
+//             "The designer maintains strong consistency across all visual components and interactions.\n" +
+//             "They make sure every element serves a clear purpose and supports usability.\n" +
+//             "The UI Designer helps make the product accessible, attractive, and enjoyable to use every day.\n" +
+//             "They stay up to date with visual trends while ensuring long-term consistency with the brand identity.\n" +
+//             "This role combines creativity, precision, and a deep understanding of technical constraints.\n" +
+//             "Their goal is to make the product both beautiful, functional, and memorable.";
+//     }
+//
+//     let job2 = await upsertJob(jf.id, titleEn, descriptionFr);
+//
+//     // Traductions Job (title + description)
+//     await createBiLangTranslation('Job', job2.id, 'title', titleEn, titleFr);
+//     await createBiLangTranslation('Job', job2.id, 'description', descriptionEn, descriptionFr);
+//
+//     // Relier Job -> Competencies & Families
+//     await prisma.job.update({
+//         where: {id: job2.id},
+//         data: {
+//             competencies: {
+//                 connect: competencyIds.map((id) => ({id})),
+//             },
+//             competenciesFamilies: {
+//                 connect: Array.from(familyIds).map((id) => ({id})),
+//             },
+//         },
+//     });
+//
+//     console.log(`✓ ${job.jobTitle}: ${competencyIds.length} compétences, ${familyIds.size} familles liées`);
+// }
 
 // model Role {
 //     id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid

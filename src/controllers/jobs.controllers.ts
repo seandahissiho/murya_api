@@ -51,6 +51,32 @@ export const getJobDetails = async (req: Request, res: Response, next: NextFunct
     }
 };
 
+export const getJobDetailsByName = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const name = req.params.normalizedJobName;
+        if (!name) {
+            return sendResponse(res, 400, {error: 'Le nom normalisé du job est requis.'});
+        }
+
+        const lang = await detectLanguage(req);
+
+        const job = await jobService.getJobDetailsByName(name, lang);
+
+        if (!job) {
+            return sendResponse(res, 404, {error: 'Job non trouvé.'});
+        }
+
+        return sendResponse(res, 200, {data: job});
+
+    } catch (err) {
+        console.error('getJobDetailsByName error:', err);
+        return sendResponse(res, 500, {
+            error: "Une erreur s'est produite lors de la récupération des détails par nom.",
+            message: err instanceof Error ? err.message : 'Unknown error'
+        });
+    }
+}
+
 export const getCompetencyFamilyDetailsForJob = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const jobId = req.params.jobId;

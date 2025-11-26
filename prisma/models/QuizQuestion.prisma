@@ -1,6 +1,6 @@
 model QuizQuestion {
   id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  quizId             String           @db.Uuid
+  quizId             String?          @db.Uuid
   competencyId       String           @db.Uuid
   text               String
   timeLimitInSeconds Int              @default(30)
@@ -13,7 +13,7 @@ model QuizQuestion {
   createdAt          DateTime         @default(now()) @db.Timestamp(0)
   updatedAt          DateTime         @updatedAt @db.Timestamp(0)
   userAnswers        UserQuizAnswer[]
-  quiz               Quiz             @relation(fields: [quizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  quiz               Quiz?            @relation(fields: [quizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   competency         Competency       @relation("CompetencyQuizQuestions", fields: [competencyId], references: [id])
   responses          QuizResponse[]
 

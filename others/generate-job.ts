@@ -13,9 +13,7 @@
 import {CompetenciesFamily, Competency, JobFamily, Language} from '@prisma/client';
 import {Command} from 'commander';
 import slugify from 'slugify';
-import {prisma} from "./src/config/db";
 import {generateJobSpec, generateTranslations, validateJobSpec} from "./job-spec-generator";
-import {persistJobSpec} from "./job-spec-persistence";
 
 // -----------------------------------------------------------------------------
 //  Helpers de normalisation

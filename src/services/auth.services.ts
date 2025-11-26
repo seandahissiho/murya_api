@@ -2,9 +2,6 @@ import {User} from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import {prisma} from "../config/db";
-import {QuizAssignmentService} from './dailyQuizService';
-
-const quizAssignmentService = new QuizAssignmentService(prisma as any);
 
 const SALT_ROUNDS = 10;
 

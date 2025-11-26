@@ -39,7 +39,7 @@ export const searchJobs = async (
         prisma.job.findMany({
             where,
             orderBy: {title: 'asc'},
-            include: {jobFamily: true},
+            // include: {jobFamily: true},
             skip,
             take: perPage,
         }),
@@ -274,7 +274,7 @@ const mapAcquisitionToLevel = (level?: string): Level => {
     return Level.MEDIUM;
 };
 
-export const createJobWithCompetencies = async (payload: JobCompetencyPayload) => {
+export const createJobWithCompetencies = async (payload: any) => {
     const jobNormalizedName = payload.normalizedJobName || normalizeName(payload.jobTitle);
 
     return prisma.$transaction(async (tx) => {
@@ -390,3 +390,14 @@ export const createJobWithCompetencies = async (payload: JobCompetencyPayload) =
         return jobWithRelations;
     });
 };
+
+export const getJobDetailsByName = async (normalizedJobName: string, lang: string = 'en') => {
+    const job = await prisma.job.findUnique({
+        where: {normalizedName: normalizedJobName},
+        select: {id: true},
+    });
+
+    if (!job) return null;
+
+    return await getJobDetails(job.id, lang);
+}

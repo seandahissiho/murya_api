@@ -242,7 +242,7 @@ model Job {
   // NEW: special positioning quiz template attached to the job
   quizzes              Quiz[]               @relation("JobQuizzes")
   // Relations
-  // jobFamily            JobFamily?           @relation(fields: [jobFamilyId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_jobs_job_family_id")
+  jobFamily            JobFamily?           @relation(fields: [jobFamilyId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_jobs_job_family_id")
   competencies         Competency[]         @relation("JobCompetencies")
   competenciesFamilies CompetenciesFamily[] @relation("JobCompetenciesFamilies")
   userJobs             UserJob[]
@@ -251,17 +251,18 @@ model Job {
   @@index([jobFamilyId])
 }
 
-// model JobFamily {
-//   id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-//   parentId       String?     @db.Uuid
-//   name           String      @unique(map: "job_family_name") @db.VarChar(255)
-//   normalizedName String      @unique @db.VarChar(255)
-//   createdAt      DateTime    @default(now()) @db.Timestamp(0)
-//   updatedAt      DateTime    @default(now()) @updatedAt @db.Timestamp(0)
-//   jobs           Job[]
-//   parent         JobFamily?  @relation("JobFamilyToParent", fields: [parentId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_job_families_parent_id")
-//   children       JobFamily[] @relation("JobFamilyToParent")
-// }
+model JobFamily {
+  id             String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  parentId       String?     @db.Uuid
+  name           String      @unique(map: "job_family_name") @db.VarChar(255)
+  normalizedName String      @unique @db.VarChar(255)
+  createdAt      DateTime    @default(now()) @db.Timestamp(0)
+  updatedAt      DateTime    @default(now()) @updatedAt @db.Timestamp(0)
+  jobs           Job[]
+  parent         JobFamily?  @relation("JobFamilyToParent", fields: [parentId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_job_families_parent_id")
+  children       JobFamily[] @relation("JobFamilyToParent")
+}
+
 model Language {
   code           String  @id @db.VarChar(16) // ex: "en", "fr", "fr-FR"
   name           String
