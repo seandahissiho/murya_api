@@ -335,6 +335,11 @@ export const createJobWithCompetencies = async (payload: any) => {
     const jobNormalizedName = payload.normalizedJobName || normalizeName(payload.jobTitle);
 
     return prisma.$transaction(async (tx) => {
+
+        if (payload.families.length != 5) {
+            throw new Error(`A job must be linked to exactly 5 CompetenciesFamily (found: ${payload.families.length})`);
+        }
+
         const job = await tx.job.upsert({
             where: {normalizedName: jobNormalizedName},
             update: {
@@ -348,20 +353,9 @@ export const createJobWithCompetencies = async (payload: any) => {
             },
         });
 
-        // delete old relations
-        await tx.job.update({
-            where: {id: job.id},
-            data: {
-                competenciesFamilies: {
-                    set: [],
-                },
-                competencies: {
-                    set: [],
-                },
-            },
-        });
-
         const familyIds = new Set<string>();
+        const subFamilyIds = new Set<string>();
+        const competencyIds = new Set<string>();
 
         for (const family of payload.families ?? []) {
             const familyNormalizedName = normalizeName(family.name);
@@ -369,17 +363,26 @@ export const createJobWithCompetencies = async (payload: any) => {
             const familyRecord = await tx.competenciesFamily.upsert({
                 where: {normalizedName: familyNormalizedName},
                 update: {name: family.name},
-                create:
-
-                    {
+                create: {
                         name: family.name,
                         normalizedName: familyNormalizedName,
                     },
             });
+            // delete old relations
+            await tx.competenciesFamily.update({
+                where: {id: familyRecord.id},
+                data: {
+                    children: {
+                        set: [],
+                    },
+                    competencies: {
+                        set: [],
+                    }
+                },
+            });
 
-            if (!familyRecord.parentId) {
-                familyIds.add(familyRecord.id);
-            }
+
+            familyIds.add(familyRecord.id);
 
             for (const subFamily of family.subFamilies ?? []) {
                 const subFamilyNormalized = normalizeName(subFamily.name);
@@ -393,7 +396,17 @@ export const createJobWithCompetencies = async (payload: any) => {
                     },
                 });
 
-                // familyIds.add(subFamilyRecord.id);
+                // delete old relations
+                await tx.competenciesFamily.update({
+                    where: {id: subFamilyRecord.id},
+                    data: {
+                        competencies: {
+                            set: [],
+                        }
+                    },
+                });
+
+                subFamilyIds.add(subFamilyRecord.id);
 
                 for (const competency of subFamily.competencies ?? []) {
                     const normalizedCompetencyName = competency.slug || normalizeName(competency.name);
@@ -424,20 +437,35 @@ export const createJobWithCompetencies = async (payload: any) => {
                             jobs: {connect: {id: job.id}},
                         },
                     });
+                    competencyIds.add(competencyRecord.id);
                 }
             }
         }
 
-        if (familyIds.size > 0) {
-            await tx.job.update({
-                where: {id: job.id},
-                data: {
-                    competenciesFamilies: {
-                        connect: Array.from(familyIds).map((id) => ({id})),
-                    },
+        // delete old relations
+        await tx.job.update({
+            where: {id: job.id},
+            data: {
+                competenciesFamilies: {
+                    set: [],
                 },
-            });
-        }
+                competencies: {
+                    set: [],
+                },
+            },
+        });
+
+        await tx.job.update({
+            where: {id: job.id},
+            data: {
+                competenciesFamilies: {
+                    connect: Array.from(familyIds).map((id) => ({id})),
+                },
+                competencies: {
+                    connect: Array.from(competencyIds).map((id) => ({id})),
+                }
+            },
+        });
 
         const jobWithRelations = await tx.job.findUnique({
             where: {id: job.id},
