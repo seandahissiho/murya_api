@@ -96,7 +96,7 @@ enum UserQuizStatus {
   EXPIRED
 }
 
-enum UserQuizType {
+enum QuizType {
   POSITIONING
   DAILY
 }
@@ -356,6 +356,8 @@ model Quiz {
   description String?
   level       Level          @default(EASY)
   questions   QuizQuestion[]
+  type        QuizType       @default(POSITIONING)
+  isActive    Boolean        @default(true)
   createdAt   DateTime       @default(now()) @db.Timestamp(0)
   updatedAt   DateTime       @updatedAt @db.Timestamp(0)
   job         Job            @relation("JobQuizzes", fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
@@ -364,7 +366,7 @@ model Quiz {
 
 model QuizQuestion {
   id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  quizId             String           @db.Uuid
+  quizId             String?          @db.Uuid
   competencyId       String           @db.Uuid
   text               String
   timeLimitInSeconds Int              @default(30)
@@ -377,7 +379,7 @@ model QuizQuestion {
   createdAt          DateTime         @default(now()) @db.Timestamp(0)
   updatedAt          DateTime         @updatedAt @db.Timestamp(0)
   userAnswers        UserQuizAnswer[]
-  quiz               Quiz             @relation(fields: [quizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  quiz               Quiz?            @relation(fields: [quizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   competency         Competency       @relation("CompetencyQuizQuestions", fields: [competencyId], references: [id])
   responses          QuizResponse[]
 
@@ -390,7 +392,7 @@ model QuizResponse {
   text          String
   metadata      Json?
   isCorrect     Boolean                @default(false)
-  index         Int
+  index         Int                    @default(0)
   createdAt     DateTime               @default(now()) @db.Timestamp(0)
   updatedAt     DateTime               @updatedAt @db.Timestamp(0)
   // Relations
@@ -578,7 +580,8 @@ model UserQuiz {
   id                  String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userJobId           String                     @db.Uuid
   quizId              String                     @db.Uuid // Quiz.id is String @default(uuid())
-  type                UserQuizType               @default(DAILY)
+  type                QuizType                   @default(DAILY)
+  isActive            Boolean                    @default(true)
   status              UserQuizStatus             @default(ASSIGNED)
   index               Int
   assignedAt          DateTime                   @default(now()) @db.Timestamp(0)

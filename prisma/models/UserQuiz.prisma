@@ -2,7 +2,8 @@ model UserQuiz {
   id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userJobId         String         @db.Uuid
   quizId            String         @db.Uuid // Quiz.id is String @default(uuid())
-  type              UserQuizType   @default(DAILY)
+  type              QuizType       @default(DAILY)
+  isActive          Boolean        @default(true)
   status            UserQuizStatus @default(ASSIGNED)
   index             Int
   assignedAt        DateTime       @default(now()) @db.Timestamp(0)

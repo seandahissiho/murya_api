@@ -120,3 +120,25 @@ export const createJobWithCompetencies = async (req: Request, res: Response, nex
         });
     }
 };
+
+export const savePositioningQuizzesForJob = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const payload = req.body;
+        if (!payload?.jobTitle) {
+            return sendResponse(res, 400, {error: 'Le champ "jobTitle" est requis.'});
+        }
+
+        if (!payload?.normalizedJobName && req.params.normalizedJobName) {
+            payload.normalizedJobName = req.params.normalizedJobName;
+        }
+
+        const result = await jobService.savePositioningQuizzesForJob(payload);
+        return sendResponse(res, 201, {data: result});
+    } catch (err) {
+        console.error('savePositioningQuizzesForJob error:', err);
+        return sendResponse(res, 500, {
+            error: "Une erreur s'est produite lors de l'enregistrement des quizzes de positionnement.",
+            message: err instanceof Error ? err.message : 'Unknown error'
+        });
+    }
+};

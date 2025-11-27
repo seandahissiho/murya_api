@@ -80,7 +80,7 @@ enum UserQuizStatus {
   EXPIRED
 }
 
-enum UserQuizType {
+enum QuizType {
   POSITIONING
   DAILY
 }

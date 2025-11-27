@@ -1,7 +1,6 @@
-import {PrismaClient} from '@prisma/client';
+import {CompetencyType, Level, QuizType} from '@prisma/client';
 import {resolveFields} from '../i18n/translate';
 import {prisma} from "../config/db";
-import {CompetencyType, Level} from '@prisma/client';
 import slugify from "slugify";
 
 /**
@@ -80,6 +79,7 @@ export const searchJobs = async (
         },
     };
 };
+
 /**
  * Récupère les détails d’un job, avec ses familles de compétences et compétences,
  * tout en appliquant les traductions selon la langue demandée.
@@ -258,6 +258,40 @@ export interface JobCompetencyPayload {
     families?: CompetencyFamilyDto[];
 }
 
+export interface PositioningQuizResponsePayload {
+    text: string;
+    isCorrect: boolean;
+    metadata?: any;
+    index: number;
+}
+
+export interface PositioningQuizQuestionPayload {
+    id: string;
+    text: string;
+    competencySlug: string;
+    difficulty: string;
+    timeLimitInSeconds: number;
+    points: number;
+    mediaUrl?: string | null;
+    metadata?: any;
+    index: number;
+    responses: PositioningQuizResponsePayload[];
+}
+
+export interface PositioningQuizPayload {
+    index: number;
+    title: string;
+    description?: string;
+    questions: PositioningQuizQuestionPayload[];
+}
+
+export interface PositioningQuizImportPayload {
+    jobTitle: string;
+    normalizedJobName?: string;
+    quizzes: PositioningQuizPayload[];
+}
+
+
 const normalizeName = (value: string) =>
     slugify(value, {lower: true, strict: true, trim: true, locale: 'fr'});
 
@@ -272,6 +306,29 @@ const mapAcquisitionToLevel = (level?: string): Level => {
     if (normalized === 'difficile') return Level.HARD;
     if (normalized === 'expert') return Level.EXPERT;
     return Level.MEDIUM;
+};
+
+const difficultyToLevel = (difficulty?: string): Level => {
+    const normalized = difficulty?.toUpperCase();
+    if (normalized === 'EASY') return Level.EASY;
+    if (normalized === 'MEDIUM') return Level.MEDIUM;
+    if (normalized === 'HARD' || normalized === 'DIFFICULT') return Level.HARD;
+    if (normalized === 'EXPERT') return Level.EXPERT;
+    return Level.MEDIUM;
+};
+
+const pickHighestLevel = (levels: Level[]): Level => {
+    const weights: Record<Level, number> = {
+        [Level.EASY]: 1,
+        [Level.MEDIUM]: 2,
+        [Level.HARD]: 3,
+        [Level.EXPERT]: 4,
+        [Level.MIX]: 0,
+    };
+
+    return levels.reduce<Level>((best, current) => {
+        return weights[current] > weights[best] ? current : best;
+    }, Level.EASY);
 };
 
 export const createJobWithCompetencies = async (payload: any) => {
@@ -315,12 +372,14 @@ export const createJobWithCompetencies = async (payload: any) => {
                 create:
 
                     {
-                    name: family.name,
-                    normalizedName: familyNormalizedName,
-                },
+                        name: family.name,
+                        normalizedName: familyNormalizedName,
+                    },
             });
 
-            familyIds.add(familyRecord.id);
+            if (!familyRecord.parentId) {
+                familyIds.add(familyRecord.id);
+            }
 
             for (const subFamily of family.subFamilies ?? []) {
                 const subFamilyNormalized = normalizeName(subFamily.name);
@@ -334,7 +393,7 @@ export const createJobWithCompetencies = async (payload: any) => {
                     },
                 });
 
-                familyIds.add(subFamilyRecord.id);
+                // familyIds.add(subFamilyRecord.id);
 
                 for (const competency of subFamily.competencies ?? []) {
                     const normalizedCompetencyName = competency.slug || normalizeName(competency.name);
@@ -401,3 +460,129 @@ export const getJobDetailsByName = async (normalizedJobName: string, lang: strin
 
     return await getJobDetails(job.id, lang);
 }
+
+const normalizeCompetencySlug = (slug: string) => normalizeName(slug.replace(/_/g, '-'));
+
+export const savePositioningQuizzesForJob = async (payload: PositioningQuizImportPayload) => {
+    const normalizedJobName = payload.normalizedJobName || normalizeName(payload.jobTitle);
+
+    return prisma.$transaction(async (tx) => {
+        const job = await tx.job.findUnique(
+            {where: {normalizedName: normalizedJobName}},
+        );
+        if (!job) {
+            throw new Error(`Job not found: ${normalizedJobName}`);
+        }
+
+        // set old positionning quizzes to inactive if they are linked to the job
+        await tx.quiz.updateMany({
+            where: {
+                jobId: job.id,
+                type: QuizType.POSITIONING,
+            },
+            data: {
+                isActive: false,
+            },
+        });
+
+        // await tx.quiz.deleteMany({where: {jobId: job.id}});
+
+        const competencySlugs = new Set<string>();
+        for (const quiz of payload.quizzes ?? []) {
+            for (const question of quiz.questions ?? []) {
+                competencySlugs.add(normalizeCompetencySlug(question.competencySlug));
+                competencySlugs.add(normalizeName(question.competencySlug));
+            }
+        }
+
+        const competencies = competencySlugs.size
+            ? await tx.competency.findMany({
+                where: {jobs: {some: {id: job.id}}},
+            })
+            : [];
+
+        const competencyMap = new Map<string, string>();
+        competencies.forEach((c) => competencyMap.set(c.normalizedName, c.id));
+
+        const resolveCompetencyId = (slug: string): string | undefined => {
+            return competencyMap.get(slug);
+            // const normalizedSlug = normalizeCompetencySlug(slug);
+            // const fallbackSlug = normalizeName(slug);
+            // return competencyMap.get(slug) || competencyMap.get(slug);
+        };
+
+        const createdQuizzes = [];
+
+        const sortedQuizzes = [...(payload.quizzes ?? [])].sort((a, b) => a.index - b.index);
+
+        for (const quizPayload of sortedQuizzes) {
+            const questionLevels = quizPayload.questions.map((q) => difficultyToLevel(q.difficulty));
+            const quizLevel = pickHighestLevel(questionLevels);
+
+            const data = {
+                jobId: job.id,
+                title: quizPayload.title,
+                description: quizPayload.description ?? '',
+                level: quizLevel,
+                questions: {
+                    create: quizPayload.questions
+                        .sort((a, b) => a.index - b.index)
+                        .map((question) => {
+                            const competencyId = resolveCompetencyId(question.competencySlug);
+                            if (!competencyId) {
+                                throw new Error(
+                                    `Compétence introuvable pour le slug "${question.competencySlug}"`,
+                                );
+                            }
+
+                            return {
+                                text: question.text,
+                                competencyId,
+                                timeLimitInSeconds: question.timeLimitInSeconds,
+                                points: question.points,
+                                level: difficultyToLevel(question.difficulty),
+                                mediaUrl: question.mediaUrl ?? '',
+                                index: question.index,
+                                metadata: question.metadata ?? undefined,
+                                responses: {
+                                    create: question.responses
+                                        .sort((a, b) => a.index - b.index)
+                                        .map((response) => ({
+                                            text: response.text,
+                                            metadata: response.metadata ?? undefined,
+                                            isCorrect: response.isCorrect,
+                                            index: response.index,
+                                        })),
+                                },
+                            };
+                        }),
+                },
+            };
+
+            const createdQuiz = await tx.quiz.create({
+                data: data,
+                include: {
+                    questions: {
+                        include: {
+                            responses: true,
+                        },
+                    },
+                },
+            });
+
+            createdQuizzes.push(createdQuiz);
+        }
+
+        // link quizzes to job
+        await tx.job.update({
+            where: {id: job.id},
+            data: {
+                quizzes: {
+                    connect: createdQuizzes.map((q) => ({id: q.id})),
+                },
+            },
+        });
+
+        return {job, quizzes: createdQuizzes};
+    });
+};

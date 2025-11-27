@@ -5,6 +5,8 @@ model Quiz {
   description String?
   level       Level          @default(EASY)
   questions   QuizQuestion[]
+  type        QuizType       @default(POSITIONING)
+  isActive    Boolean        @default(true)
   createdAt   DateTime       @default(now()) @db.Timestamp(0)
   updatedAt   DateTime       @updatedAt @db.Timestamp(0)
 

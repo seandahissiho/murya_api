@@ -1,4 +1,4 @@
-import {Prisma, Quiz, UserJobStatus, UserQuiz, UserQuizStatus, UserQuizType} from '@prisma/client';
+import {Prisma, Quiz, UserJobStatus, UserQuiz, UserQuizStatus, QuizType} from '@prisma/client';
 import {prisma} from "../config/db";
 
 // getCurrentUserJob
@@ -34,20 +34,23 @@ export async function getUserJob(jobId: string, userId: any) {
 
 
 export const retrievePositioningQuizForJob = async (userJob: any, userId: string): Promise<Quiz> => {
-    const job = await prisma.userJob.findUnique({
+    const userJobUpToDate = await prisma.userJob.findUnique({
         where: {id: userJob.id},
         select: {
             id: true,
-            quizzes: true,
+            quizzes: {
+                where: {type: QuizType.POSITIONING, isActive: true},
+                include: {}
+            },
         },
     });
-    if (!job) {
+    if (!userJobUpToDate) {
         throw new Error('Job not found');
     }
 
     // const quizzes = job.q || [];
 
-    const quizzes = job.quizzes || [];
+    const quizzes = userJobUpToDate.quizzes || [];
     const currentIndex = userJob.completedQuizzes || 0;
     if (currentIndex >= quizzes.length) {
         throw new Error('No more positioning quizzes available for this job');
@@ -107,9 +110,10 @@ export const retrieveDailyQuizForJob = async (jobId: string, userId: string): Pr
                                     points: true,
                                 }
                             },
-                        }
+                        },
+                        orderBy: {createdAt: 'asc'},
                     }
-                }
+                },
             }
         ))?.quizzes;
         if (!jobQuizzes || jobQuizzes.length === 0) {
@@ -129,7 +133,7 @@ export const retrieveDailyQuizForJob = async (jobId: string, userId: string): Pr
                     data: {
                         userJobId: userJob.id,
                         quizId: quiz.id,
-                        type: UserQuizType.POSITIONING,
+                        type: QuizType.POSITIONING,
                         status: UserQuizStatus.ASSIGNED,
                         index: index++,
                         maxScore: quiz.questions.reduce((sum, q) => sum + q.points, 0),
@@ -157,7 +161,7 @@ export const retrieveDailyQuizForJob = async (jobId: string, userId: string): Pr
 
     // If positioning quiz is completed, return the generated daily quiz for the job
     const dailyQuiz = userJob.quizzes.find(
-        (uq: UserQuiz) => uq.type === UserQuizType.DAILY && uq.status === UserQuizStatus.ASSIGNED
+        (uq: UserQuiz) => uq.type === QuizType.DAILY && uq.status === UserQuizStatus.ASSIGNED
     );
     if (!dailyQuiz) {
         return null;
