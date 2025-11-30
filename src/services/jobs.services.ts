@@ -1,12 +1,11 @@
 import {CompetencyType, Level, QuizType} from '@prisma/client';
 import {resolveFields} from '../i18n/translate';
 import {prisma} from "../config/db";
-import slugify from "slugify";
 
 /**
  * Recherche de jobs avec support multilingue (lang = 'fr' ou 'en').
  */
-interface SearchOptions {
+export interface SearchOptions {
     page?: number;
     perPage?: number;
     lang?: string;
@@ -24,7 +23,7 @@ export const searchJobs = async (
     const where: any = {
         OR: [
             {title: {contains: query, mode: 'insensitive'}},
-            {normalizedName: {contains: query, mode: 'insensitive'}},
+            {slug: {contains: query, mode: 'insensitive'}},
             {description: {contains: query, mode: 'insensitive'}},
             {
                 jobFamily: {
@@ -253,7 +252,7 @@ export interface CompetencyFamilyDto {
 
 export interface JobCompetencyPayload {
     jobTitle: string;
-    normalizedJobName?: string;
+    slug?: string;
     jobDescription?: string;
     families?: CompetencyFamilyDto[];
 }
@@ -287,13 +286,86 @@ export interface PositioningQuizPayload {
 
 export interface PositioningQuizImportPayload {
     jobTitle: string;
-    normalizedJobName?: string;
+    slug?: string;
     quizzes: PositioningQuizPayload[];
 }
 
+type CompetencyCandidate = {
+    name: string;
+    normalizedName: string;
+    source: 'payload' | 'database';
+    context?: string;
+};
 
-const normalizeName = (value: string) =>
-    slugify(value, {lower: true, strict: true, trim: true, locale: 'fr'});
+type NearDuplicateWarning = {
+    first: CompetencyCandidate;
+    second: CompetencyCandidate;
+    similarity: number;
+};
+
+const levenshteinDistance = (a: string, b: string): number => {
+    const dp: number[][] = Array.from({length: a.length + 1}, (_, i) =>
+        Array.from({length: b.length + 1}, (_, j) => (i === 0 ? j : j === 0 ? i : 0)),
+    );
+
+    for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+            const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+            dp[i][j] = Math.min(
+                dp[i - 1][j] + 1,
+                dp[i][j - 1] + 1,
+                dp[i - 1][j - 1] + cost,
+            );
+        }
+    }
+
+    return dp[a.length][b.length];
+};
+
+const similarityScore = (a: string, b: string): number => {
+    const maxLength = Math.max(a.length, b.length);
+    if (maxLength === 0) return 1;
+
+    const distance = levenshteinDistance(a, b);
+    return 1 - distance / maxLength;
+};
+
+const detectNearDuplicateCompetencies = (
+    payloadCompetencies: CompetencyCandidate[],
+    existingCompetencies: CompetencyCandidate[],
+    threshold: number = 0.82,
+): NearDuplicateWarning[] => {
+    const warnings: NearDuplicateWarning[] = [];
+
+    const checkPair = (first: CompetencyCandidate, second: CompetencyCandidate) => {
+        if (first.normalizedName === second.normalizedName) return;
+        const score = similarityScore(first.normalizedName, second.normalizedName);
+        if (score >= threshold) {
+            warnings.push({
+                first,
+                second,
+                similarity: Number(score.toFixed(2)),
+            });
+        }
+    };
+
+    // Compare payload entries with each other.
+    for (let i = 0; i < payloadCompetencies.length; i++) {
+        for (let j = i + 1; j < payloadCompetencies.length; j++) {
+            checkPair(payloadCompetencies[i], payloadCompetencies[j]);
+        }
+    }
+
+    // Compare payload entries with existing database competencies.
+    for (const payload of payloadCompetencies) {
+        for (const existing of existingCompetencies) {
+            checkPair(payload, existing);
+        }
+    }
+
+    return warnings;
+};
+
 
 const mapKindToType = (kind?: string): CompetencyType => {
     if (kind?.toLowerCase() === 'savoiretre') return CompetencyType.SOFT_SKILL;
@@ -332,86 +404,130 @@ const pickHighestLevel = (levels: Level[]): Level => {
 };
 
 export const createJobWithCompetencies = async (payload: any) => {
-    const jobNormalizedName = payload.normalizedJobName || normalizeName(payload.jobTitle);
+    const jobSlug = payload.slug;
+
+    const job = await prisma.job.upsert({
+        where: {slug: jobSlug},
+        update: {
+            title: payload.jobTitle,
+            description: payload.jobDescription,
+            // disconnect all relations first
+            competenciesFamilies: {
+                set: [],
+            },
+            competencies: {
+                set: [],
+            }
+        },
+        create: {
+            title: payload.jobTitle,
+            slug: jobSlug,
+            description: payload.jobDescription,
+        },
+    });
+
 
     return prisma.$transaction(async (tx) => {
+
+        const payloadCompetencies: CompetencyCandidate[] = [];
+        for (const family of payload.families ?? []) {
+            for (const subFamily of family.subFamilies ?? []) {
+                for (const competency of subFamily.competencies ?? []) {
+                    const normalizedCompetencyName = competency.slug;
+                    payloadCompetencies.push({
+                        name: competency.name,
+                        normalizedName: normalizedCompetencyName,
+                        source: 'payload',
+                        context: `${family.name} > ${subFamily.name}`,
+                    });
+                }
+            }
+        }
+
+        const existingCompetencies = await tx.competency.findMany({
+            select: {id: true, name: true, slug: true},
+        });
+
+        const nearDuplicateWarnings = detectNearDuplicateCompetencies(
+            payloadCompetencies,
+            existingCompetencies.map((comp) => ({
+                name: comp.name,
+                normalizedName: comp.slug,
+                source: 'database',
+            })),
+        );
+
+        if (nearDuplicateWarnings.length) {
+            console.warn(
+                'Near-duplicate competencies detected (similarity >= 0.82):',
+                nearDuplicateWarnings,
+            );
+        }
+
 
         if (payload.families.length != 5) {
             throw new Error(`A job must be linked to exactly 5 CompetenciesFamily (found: ${payload.families.length})`);
         }
 
-        const job = await tx.job.upsert({
-            where: {normalizedName: jobNormalizedName},
-            update: {
-                title: payload.jobTitle,
-                description: payload.jobDescription,
-            },
-            create: {
-                title: payload.jobTitle,
-                normalizedName: jobNormalizedName,
-                description: payload.jobDescription,
-            },
-        });
 
         const familyIds = new Set<string>();
         const subFamilyIds = new Set<string>();
         const competencyIds = new Set<string>();
 
         for (const family of payload.families ?? []) {
-            const familyNormalizedName = normalizeName(family.name);
+            const familySlug = family.slug;
 
             const familyRecord = await tx.competenciesFamily.upsert({
-                where: {normalizedName: familyNormalizedName},
-                update: {name: family.name},
+                where: {slug: familySlug},
+                update: {
+                    name: family.name,
+                    jobs: {
+                        connect: {id: job.id},
+                    },
+                },
                 create: {
-                        name: family.name,
-                        normalizedName: familyNormalizedName,
+                    name: family.name,
+                    slug: familySlug,
+                    jobs: {
+                        connect: {id: job.id},
                     },
-            });
-            // delete old relations
-            await tx.competenciesFamily.update({
-                where: {id: familyRecord.id},
-                data: {
-                    children: {
-                        set: [],
-                    },
-                    competencies: {
-                        set: [],
-                    }
                 },
             });
 
 
             familyIds.add(familyRecord.id);
 
+            const familyCompetencyIds = new Set<string>();
+            const familySubFamilyIds = new Set<string>();
             for (const subFamily of family.subFamilies ?? []) {
-                const subFamilyNormalized = normalizeName(subFamily.name);
+                const subFamilyNormalized = subFamily.slug;
                 const subFamilyRecord = await tx.competenciesFamily.upsert({
-                    where: {normalizedName: subFamilyNormalized},
-                    update: {name: subFamily.name, parentId: familyRecord.id},
+                    where: {slug: subFamilyNormalized},
+                    update: {
+                        name: subFamily.name,
+                        parentId: familyRecord.id,
+                        childrenJobs: {
+                            connect: {id: job.id},
+                        }
+                    },
                     create: {
                         name: subFamily.name,
-                        normalizedName: subFamilyNormalized,
+                        slug: subFamilyNormalized,
                         parentId: familyRecord.id,
-                    },
-                });
-
-                // delete old relations
-                await tx.competenciesFamily.update({
-                    where: {id: subFamilyRecord.id},
-                    data: {
-                        competencies: {
-                            set: [],
+                        childrenJobs: {
+                            connect: {id: job.id},
                         }
                     },
                 });
 
+                familySubFamilyIds.add(subFamilyRecord.id);
                 subFamilyIds.add(subFamilyRecord.id);
 
+                const subFamilyCompetencyIds = new Set<string>();
                 for (const competency of subFamily.competencies ?? []) {
-                    const normalizedCompetencyName = competency.slug || normalizeName(competency.name);
+                    const normalizedCompetencyName = competency.slug;
                     const competencyRecord = await tx.competency.upsert({
-                        where: {normalizedName: normalizedCompetencyName},
+                        where: {slug: normalizedCompetencyName},
                         update: {
                             name: competency.name,
                             type: mapKindToType(competency.kind),
@@ -419,7 +535,7 @@ export const createJobWithCompetencies = async (payload: any) => {
                         },
                         create: {
                             name: competency.name,
-                            normalizedName: normalizedCompetencyName,
+                            slug: normalizedCompetencyName,
                             type: mapKindToType(competency.kind),
                             level: mapAcquisitionToLevel(competency.acquisitionLevel),
                         },
@@ -437,23 +553,42 @@ export const createJobWithCompetencies = async (payload: any) => {
                             jobs: {connect: {id: job.id}},
                         },
                     });
+                    subFamilyCompetencyIds.add(competencyRecord.id)
+                    familyCompetencyIds.add(competencyRecord.id);
                     competencyIds.add(competencyRecord.id);
                 }
-            }
-        }
 
-        // delete old relations
-        await tx.job.update({
-            where: {id: job.id},
-            data: {
-                competenciesFamilies: {
-                    set: [],
+                // connect competencies to subFamily
+                await tx.competenciesFamily.update({
+                    where: {id: subFamilyRecord.id},
+                    data: {
+                        competencies: {
+                            connect: Array.from(subFamilyCompetencyIds).map((id) => ({id})),
+                        },
+                    },
+                });
+            }
+
+            // connect sub-families to family
+            await tx.competenciesFamily.update({
+                where: {id: familyRecord.id},
+                data: {
+                    children: {
+                        connect: Array.from(familySubFamilyIds).map((id) => ({id})),
+                    },
                 },
-                competencies: {
-                    set: [],
+            });
+
+            // connect competencies to family
+            await tx.competenciesFamily.update({
+                where: {id: familyRecord.id},
+                data: {
+                    competencies: {
+                        connect: Array.from(familyCompetencyIds).map((id) => ({id})),
+                    },
                 },
-            },
-        });
+            });
+        }
 
         await tx.job.update({
             where: {id: job.id},
@@ -471,6 +606,7 @@ export const createJobWithCompetencies = async (payload: any) => {
             where: {id: job.id},
             include: {
                 competenciesFamilies: true,
+                competenciesSubfamilies: true,
                 competencies: true,
             },
         });
@@ -478,9 +614,9 @@ export const createJobWithCompetencies = async (payload: any) => {
     });
 };
 
-export const getJobDetailsByName = async (normalizedJobName: string, lang: string = 'en') => {
+export const getJobDetailsByName = async (slug: string, lang: string = 'en') => {
     const job = await prisma.job.findUnique({
-        where: {normalizedName: normalizedJobName},
+        where: {slug: slug},
         select: {id: true},
     });
 
@@ -489,17 +625,15 @@ export const getJobDetailsByName = async (normalizedJobName: string, lang: strin
     return await getJobDetails(job.id, lang);
 }
 
-const normalizeCompetencySlug = (slug: string) => normalizeName(slug.replace(/_/g, '-'));
-
 export const savePositioningQuizzesForJob = async (payload: PositioningQuizImportPayload) => {
-    const normalizedJobName = payload.normalizedJobName || normalizeName(payload.jobTitle);
+    const slug = payload.slug;
 
     return prisma.$transaction(async (tx) => {
         const job = await tx.job.findUnique(
-            {where: {normalizedName: normalizedJobName}},
+            {where: {slug: slug}},
         );
         if (!job) {
-            throw new Error(`Job not found: ${normalizedJobName}`);
+            throw new Error(`Job not found: ${slug}`);
         }
 
         // set old positionning quizzes to inactive if they are linked to the job
@@ -518,8 +652,7 @@ export const savePositioningQuizzesForJob = async (payload: PositioningQuizImpor
         const competencySlugs = new Set<string>();
         for (const quiz of payload.quizzes ?? []) {
             for (const question of quiz.questions ?? []) {
-                competencySlugs.add(normalizeCompetencySlug(question.competencySlug));
-                competencySlugs.add(normalizeName(question.competencySlug));
+                competencySlugs.add(question.competencySlug);
             }
         }
 
@@ -530,13 +663,10 @@ export const savePositioningQuizzesForJob = async (payload: PositioningQuizImpor
             : [];
 
         const competencyMap = new Map<string, string>();
-        competencies.forEach((c) => competencyMap.set(c.normalizedName, c.id));
+        competencies.forEach((c) => competencyMap.set(c.slug, c.id));
 
         const resolveCompetencyId = (slug: string): string | undefined => {
             return competencyMap.get(slug);
-            // const normalizedSlug = normalizeCompetencySlug(slug);
-            // const fallbackSlug = normalizeName(slug);
-            // return competencyMap.get(slug) || competencyMap.get(slug);
         };
 
         const createdQuizzes = [];

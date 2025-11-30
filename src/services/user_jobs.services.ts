@@ -592,7 +592,7 @@ type UserJobCompetencyProfile = {
     job: {
         id: string;
         title: string;
-        normalizedName: string;
+        slug: string;
         description: string | null;
         competencyFamilies: {
             id: string;
@@ -616,7 +616,7 @@ type UserJobCompetencyProfile = {
         competencyId: string;
         competencyFamiliesIds: string[];
         name: string;
-        normalizedName: string;
+        slug: string;
         type: string; // "HARD_SKILL" | "SOFT_SKILL"
         level: string; // enum Level
         percentage: number;
@@ -661,7 +661,7 @@ export const getUserJobCompetencyProfile = async (
                 select: {
                     id: true,
                     title: true,
-                    normalizedName: true,
+                    slug: true,
                     description: true,
                     competenciesFamilies: {
                         select: {id: true, name: true},
@@ -686,7 +686,7 @@ export const getUserJobCompetencyProfile = async (
                 select: {
                     id: true,
                     name: true,
-                    normalizedName: true,
+                    slug: true,
                     type: true,
                     level: true,
                     families: {
@@ -717,7 +717,7 @@ export const getUserJobCompetencyProfile = async (
             competencyId: ujc.competencyId,
             competencyFamiliesIds: ujc.competency.families.map(f => f.id),
             name: ujc.competency.name,
-            normalizedName: ujc.competency.normalizedName,
+            slug: ujc.competency.slug,
             type: ujc.competency.type,
             level: ujc.competency.level, // niveau théorique de la compétence
             percentage: ujc.percentage,
@@ -758,7 +758,7 @@ export const getUserJobCompetencyProfile = async (
         job: {
             id: userJob.job.id,
             title: userJob.job.title,
-            normalizedName: userJob.job.normalizedName,
+            slug: userJob.job.slug,
             description: userJob.job.description,
             competencyFamilies: userJob.job.competenciesFamilies.map((f) => ({
                 id: f.id,

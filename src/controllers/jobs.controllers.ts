@@ -53,7 +53,7 @@ export const getJobDetails = async (req: Request, res: Response, next: NextFunct
 
 export const getJobDetailsByName = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const name = req.params.normalizedJobName;
+        const name = req.params.slug;
         if (!name) {
             return sendResponse(res, 400, {error: 'Le nom normalisé du job est requis.'});
         }
@@ -128,8 +128,8 @@ export const savePositioningQuizzesForJob = async (req: Request, res: Response, 
             return sendResponse(res, 400, {error: 'Le champ "jobTitle" est requis.'});
         }
 
-        if (!payload?.normalizedJobName && req.params.normalizedJobName) {
-            payload.normalizedJobName = req.params.normalizedJobName;
+        if (!payload?.slug && req.params.slug) {
+            payload.slug = req.params.slug;
         }
 
         const result = await jobService.savePositioningQuizzesForJob(payload);

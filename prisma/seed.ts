@@ -517,10 +517,10 @@ async function createBiLangTranslation(
 }
 
 async function upsertFamily(nameFr: string, parentId?: string | null) {
-    const normalizedName = slugify(nameFr);
+    const slug = slugify(nameFr);
     const base = {
         name: nameFr,
-        normalizedName,
+        slug,
         description: "",
         parentId: parentId ?? null,
         updatedAt: new Date(),
@@ -538,28 +538,28 @@ async function upsertFamily(nameFr: string, parentId?: string | null) {
 }
 
 async function upsertCompetencyWithScores(nameFr: string, s: Scores, kind: string, level: Level) {
-    const normalizedName = slugify(nameFr);
+    const slug = slugify(nameFr);
     const competency = await prisma.competency.upsert({
         where: {name: nameFr},
         update: {
-            normalizedName,
-            beginnerScore: s.beginner,
-            intermediateScore: s.intermediate,
-            advancedScore: s.advanced,
-            expertScore: s.expert,
-            maxScore: s.max,
+            slug,
+            // beginnerScore: s.beginner,
+            // intermediateScore: s.intermediate,
+            // advancedScore: s.advanced,
+            // expertScore: s.expert,
+            // maxScore: s.max,
             updatedAt: new Date(),
             type: kind === 'Savoir-faire' ? CompetencyType.HARD_SKILL : CompetencyType.SOFT_SKILL,
             level: level,
         },
         create: {
             name: nameFr,
-            normalizedName,
-            beginnerScore: s.beginner,
-            intermediateScore: s.intermediate,
-            advancedScore: s.advanced,
-            expertScore: s.expert,
-            maxScore: s.max,
+            slug,
+            // beginnerScore: s.beginner,
+            // intermediateScore: s.intermediate,
+            // advancedScore: s.advanced,
+            // expertScore: s.expert,
+            // maxScore: s.max,
             type: kind === 'Savoir-faire' ? CompetencyType.HARD_SKILL : CompetencyType.SOFT_SKILL,
             createdAt: new Date(),
             updatedAt: new Date(),
@@ -576,10 +576,10 @@ async function upsertCompetencyWithScores(nameFr: string, s: Scores, kind: strin
 // async function upsertJobFamily(nameFr: string) {
 //     const jf = await prisma.jobFamily.upsert({
 //         where: {name: nameFr},
-//         update: {normalizedName: slugify(nameFr), updatedAt: new Date()},
+//         update: {slug: slugify(nameFr), updatedAt: new Date()},
 //         create: {
 //             name: nameFr,
-//             normalizedName: slugify(nameFr),
+//             slug: slugify(nameFr),
 //             createdAt: new Date(),
 //             updatedAt: new Date(),
 //         },
@@ -597,7 +597,7 @@ async function upsertJob(jobFamilyId: string, titleEn: string, descriptionFr?: s
         return prisma.job.update({
             where: {id: existing.id},
             data: {
-                normalizedName: slugify(titleEn),
+                slug: slugify(titleEn),
                 description: descriptionFr ?? existing.description,
                 isActive: true,
                 updatedAt: new Date(),
@@ -608,7 +608,7 @@ async function upsertJob(jobFamilyId: string, titleEn: string, descriptionFr?: s
         data: {
             jobFamilyId,
             title: titleEn, // stocké en EN
-            normalizedName: slugify(titleEn),
+            slug: slugify(titleEn),
             description: descriptionFr ?? null, // FR stocké en base
             isActive: true,
             popularity: 0,

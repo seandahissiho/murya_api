@@ -9,10 +9,10 @@ interface CompetencyDto {
     slug: string;
     acquisitionLevel: string;   // e.g. "Facile", "Moyen", "Difficile", "Expert"
     description: string;
-    beginnerScore?: number;
-    intermediateScore?: number;
-    advancedScore?: number;
-    expertScore?: number;
+    // beginnerScore?: number;
+    // intermediateScore?: number;
+    // advancedScore?: number;
+    // expertScore?: number;
 }
 
 interface SubFamilyDto {
@@ -30,7 +30,7 @@ interface FamilyDto {
 interface JobDto {
     jobTitle: string;
     jobDescription: string;
-    normalizedJobName: string;
+    slug: string;
     families: FamilyDto[];
     positioningQuizzes: string[];
 }
@@ -127,46 +127,46 @@ async function persistCompetencyFamiliesAndCompetencies(job: JobDto) {
     const comp: any[] = [];
     for (const family of job.families) {
         const familyRecord = await prisma.competenciesFamily.upsert({
-            where: {normalizedName: family.slug},
+            where: {slug: family.slug},
             update: {name: family.name},
             create: {
                 name: family.name,
-                normalizedName: family.slug,
+                slug: family.slug,
             },
         });
         for (const subFamily of family.subFamilies) {
             const subFamilyRecord = await prisma.competenciesFamily.upsert({
-                where: {normalizedName: subFamily.slug},
+                where: {slug: subFamily.slug},
                 update: {name: subFamily.name, parentId: familyRecord.id},
                 create: {
                     name: subFamily.name,
-                    normalizedName: subFamily.slug,
+                    slug: subFamily.slug,
                     parentId: familyRecord.id,
                 },
             });
             for (const competency of subFamily.competencies) {
                 const compRecord = await prisma.competency.upsert({
-                    where: {normalizedName: competency.slug},
+                    where: {slug: competency.slug},
                     update: {
                         name: competency.name,
                         type: competency.kind === "SavoirFaire" ? CompetencyType.HARD_SKILL : CompetencyType.SOFT_SKILL,
-                        beginnerScore: competency.beginnerScore,
-                        intermediateScore: competency.intermediateScore,
-                        advancedScore: competency.advancedScore,
-                        expertScore: competency.expertScore,
-                        maxScore: 5,
+                        // beginnerScore: competency.beginnerScore,
+                        // intermediateScore: competency.intermediateScore,
+                        // advancedScore: competency.advancedScore,
+                        // expertScore: competency.expertScore,
+                        // maxScore: 5,
                         families: {connect: [{id: subFamilyRecord.id}]},
                         level: levelMapper(competency.acquisitionLevel),
                     },
                     create: {
                         name: competency.name,
-                        normalizedName: competency.slug,
+                        slug: competency.slug,
                         type: competency.kind === "SavoirFaire" ? CompetencyType.HARD_SKILL : CompetencyType.SOFT_SKILL,
-                        beginnerScore: competency.beginnerScore,
-                        intermediateScore: competency.intermediateScore,
-                        advancedScore: competency.advancedScore,
-                        expertScore: competency.expertScore,
-                        maxScore: 5.0,
+                        // beginnerScore: competency.beginnerScore,
+                        // intermediateScore: competency.intermediateScore,
+                        // advancedScore: competency.advancedScore,
+                        // expertScore: competency.expertScore,
+                        // maxScore: 5.0,
                         families: {connect: [{id: subFamilyRecord.id}]},
                         level: levelMapper(competency.acquisitionLevel),
                     },
@@ -178,7 +178,7 @@ async function persistCompetencyFamiliesAndCompetencies(job: JobDto) {
                 where: {id: subFamilyRecord.id},
                 data: {
                     competencies: {
-                        connect: subFamily.competencies.map(c => ({normalizedName: c.slug})),
+                        connect: subFamily.competencies.map(c => ({slug: c.slug})),
                     },
                 },
             });
@@ -199,7 +199,7 @@ async function persistCompetencyFamiliesAndCompetencies(job: JobDto) {
                     where: {id: familyRecord.id},
                     data: {
                         competencies: {
-                            connect: {normalizedName: competency.slug},
+                            connect: {slug: competency.slug},
                         },
                     },
                 });
@@ -213,19 +213,19 @@ async function persistCompetencyFamiliesAndCompetencies(job: JobDto) {
 async function persistJobAndQuizzesToDatabase(job: JobDto, quizzes: QuizDto[]) {
 
     // delete all quizzes linked to this job
-    await prisma.job.deleteMany({where: {normalizedName: job.normalizedJobName}});
+    await prisma.job.deleteMany({where: {slug: job.slug}});
 
     const {comp, families} = await persistCompetencyFamiliesAndCompetencies(job);
 
     let job2 = await prisma.job.upsert({
-        where: {normalizedName: job.normalizedJobName},
+        where: {slug: job.slug},
         update: {
             title: job.jobTitle,
             description: job.jobDescription,
         },
         create: {
             title: job.jobTitle,
-            normalizedName: job.normalizedJobName,
+            slug: job.slug,
             description: job.jobDescription,
             competencies: {connect: comp.map((c: any) => ({id: c.id}))},
             competenciesFamilies: {
@@ -250,7 +250,7 @@ async function persistJobAndQuizzesToDatabase(job: JobDto, quizzes: QuizDto[]) {
         for (const question of quiz.questions) {
             const linkedCompetency = await prisma.competency.findFirst({
                 where: {
-                    normalizedName: question.competencySlug
+                    slug: question.competencySlug
                 },
             });
             if (!linkedCompetency) {
