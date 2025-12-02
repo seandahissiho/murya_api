@@ -186,7 +186,7 @@ async function persistCompetencyFamiliesAndCompetencies(job: JobDto) {
             await prisma.competenciesFamily.update({
                 where: {id: familyRecord.id},
                 data: {
-                    children: {
+                    subFamilies: {
                         connect: {id: subFamilyRecord.id},
                     },
                 },

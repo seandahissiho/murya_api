@@ -15,7 +15,8 @@ export const retrieveCurrentUserJob = async (req: Request, res: Response, next: 
 
         const userJob = await jobService.getCurrentUserJob(userId);
         if (!userJob) {
-            return sendResponse(res, 404, {error: 'Aucun job utilisateur actuel trouvé.'});
+            return sendResponse(res, 200, {data: null});
+            // return sendResponse(res, 404, {error: 'Aucun job utilisateur actuel trouvé.'});
         }
 
         return sendResponse(res, 200, {data: userJob});

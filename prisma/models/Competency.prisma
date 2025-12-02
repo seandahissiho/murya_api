@@ -1,16 +1,20 @@
 model Competency {
-  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name                String               @unique(map: "competency_name") @db.VarChar(255)
-  slug                String               @unique @db.VarChar(255)
-  description         String?              @db.Text
-  type                CompetencyType
-  level               Level                @default(EASY)
-  createdAt           DateTime             @default(now()) @db.Timestamp(0)
-  updatedAt           DateTime             @default(now()) @updatedAt @db.Timestamp(0)
-  jobs                Job[]                @relation("JobCompetencies")
-  families            CompetenciesFamily[] @relation("CompetencyFamilies")
-  quizQuestions       QuizQuestion[]       @relation("CompetencyQuizQuestions")
-  userJobCompetencies UserJobCompetency[]
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String         @unique(map: "competency_name") @db.VarChar(255)
+  slug        String         @unique @db.VarChar(255)
+  description String?        @db.Text
+  type        CompetencyType
+  level       Level          @default(EASY)
+  createdAt   DateTime       @default(now()) @db.Timestamp(0)
+  updatedAt   DateTime       @default(now()) @updatedAt @db.Timestamp(0)
+
+  // Relations
+  jobs                     Job[]                    @relation("JobCompetencies")
+  families                 CompetenciesFamily[]     @relation("CompetencyFamilies")
+  subFamilies              CompetenciesSubFamily[]  @relation("CompetenciesSubFamilies")
+  quizQuestions            QuizQuestion[]           @relation("CompetencyQuizQuestions")
+  userJobCompetencies      UserJobCompetency[]
+  jobSubfamilyCompetencies JobSubfamilyCompetency[]
 
   @@index([name], map: "idx_competency_name")
 }

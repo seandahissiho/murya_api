@@ -73,6 +73,26 @@ enum UserJobStatus {
   PAST // job they had in the past
 }
 
+enum LeagueTier {
+  IRON // Fer
+  BRONZE // Bronze
+  SILVER // Argent
+  GOLD // Or
+  PLATINUM // Platine
+  EMERALD // Émeraude
+  DIAMOND // Diamant
+  MASTER // Maître
+  GRANDMASTER // Grand Maître
+  CHALLENGER // Challenger
+}
+
+enum JobProgressionLevel {
+  JUNIOR
+  MIDLEVEL
+  SENIOR
+  EXPERT
+}
+
 enum UserQuizStatus {
   ASSIGNED
   STARTED

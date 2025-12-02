@@ -1,8 +1,8 @@
 import path from "path";
 import fs from "fs";
 import * as XLSX from "xlsx";
-import {CompetencyType, Job} from "@prisma/client";
-import { prisma } from "../src/config/db";
+import {Competency, CompetencyType, Job} from "@prisma/client";
+import {prisma} from "../src/config/db";
 
 const OUTPUT_DIR = path.join(__dirname, "..", "data_center");
 const OUTPUT_XLSX_PATH = path.join(OUTPUT_DIR, "jobs_with_competencies.xlsx");
@@ -30,14 +30,15 @@ function makeExcelSheetName(jobTitle: string, index: number): string {
 
 async function exportJobsToCSVAndXLSX(jobObjects: any[]) {
     // S’assurer que le dossier de sortie existe
-    await fs.promises.mkdir(OUTPUT_DIR, { recursive: true });
+    await fs.promises.mkdir(OUTPUT_DIR, {recursive: true});
 
     // Header commun
     const headerRow = [
         "Famille de compétences",
         "Sous-famille de compétences",
         "Compétences",
-        "Type"
+        "Type",
+        "Niveau d'acquisition"
     ];
 
     // On prépare les données pour le classeur Excel
@@ -55,12 +56,23 @@ async function exportJobsToCSVAndXLSX(jobObjects: any[]) {
         for (const family of jobObject.competenciesFamilies ?? []) {
             const familyName = family.name;
 
-            for (const subFamily of family.children ?? []) {
+            const countCompetenciesInFamily = family.subFamilies?.reduce((count: number, subFamily: any) => {
+                return count + (subFamily.jobSubfamilyCompetencies?.length || 0);
+            }, 0) || 0;
+
+            if (countCompetenciesInFamily !== 10) {
+                continue;
+            }
+
+            for (const subFamily of family.subFamilies ?? []) {
                 const subFamilyName = subFamily.name;
 
-                for (const competency of subFamily.competencies ?? []) {
+
+                for (const jobSubfamilyCompetency of subFamily.jobSubfamilyCompetencies ?? []) {
+                    const competency: Competency = jobSubfamilyCompetency.competency;
                     const competencyName = competency.name;
                     const competencyType = competency.type == CompetencyType.HARD_SKILL ? "Savoir-faire" : "Savoir-être";
+                    const competencyLevel = competency.level;
 
                     const rowCells = [
                         // jobTitle,
@@ -68,6 +80,7 @@ async function exportJobsToCSVAndXLSX(jobObjects: any[]) {
                         subFamilyName,
                         competencyName,
                         competencyType,
+                        competencyLevel
                     ];
 
                     // CSV
@@ -119,26 +132,29 @@ async function fetchJobsFromDatabase(): Promise<any[]> {
     const jobs: any[] = [];
     for (const baseJob of baseJobs) {
         const jobWithCompetencies = await prisma.job.findUnique({
-            where: { id: baseJob.id },
+            where: {id: baseJob.id},
             include: {
                 competenciesFamilies: {
                     include: {
-                        children: {
+                        subFamilies: {
                             where: {
-                                childrenJobs: {
-                                    some: { id: baseJob.id },
+                                jobSubfamilyCompetencies: {
+                                    some: {jobId: baseJob.id},
                                 },
                             },
                             include: {
-                                competencies: {
-                                    where: {
-                                        jobs: {
-                                            some: { id: baseJob.id },
-                                        },
-                                    },
+                                jobSubfamilyCompetencies: {
+                                    where: {jobId: baseJob.id},
+                                    include: {competency: true},
                                 },
                             },
                         },
+                    },
+                },
+                competenciesSubfamilies: true,
+                competencies: {
+                    include: {
+                        families: true,
                     },
                 },
             },
@@ -146,6 +162,15 @@ async function fetchJobsFromDatabase(): Promise<any[]> {
         if (jobWithCompetencies) {
             jobs.push(jobWithCompetencies);
         }
+        const competenciesForThisJob = await prisma.competency.findMany({
+            where: {
+                jobs: {
+                    some: {id: baseJob.id},
+                },
+            }
+        });
+
+        console.log(`Job "${baseJob.title}" has ${competenciesForThisJob.length} competencies directly associated.`);
     }
 
     return jobs;

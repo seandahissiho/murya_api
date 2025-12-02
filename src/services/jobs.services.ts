@@ -91,8 +91,7 @@ export const getJobDetails = async (jobId: string, lang: string = 'en') => {
             competenciesFamilies: {
                 include: {
                     competencies: true,
-                    parent: true,
-                    children: true,
+                    subFamilies: true,
                 },
             },
             competencies: {
@@ -100,12 +99,12 @@ export const getJobDetails = async (jobId: string, lang: string = 'en') => {
                     families: {
                         include: {
                             competencies: true,
-                            parent: true,
-                            children: true,
+                            subFamilies: true,
                         },
                     },
                 },
             },
+            kiviats: true,
         },
     });
 
@@ -144,8 +143,7 @@ export const getJobDetails = async (jobId: string, lang: string = 'en') => {
 
             return {
                 ...locFam,
-                parent: fam.parent,
-                children: fam.children,
+                subFamilies: fam.subFamilies,
                 competencies: fam.competencies,
             };
         }),
@@ -164,11 +162,25 @@ export const getJobDetails = async (jobId: string, lang: string = 'en') => {
         }),
     );
 
+    // Localiser les Kiviats
+    const localizedKiviats = await Promise.all(
+        job.kiviats.map(async (kiviat) => {
+            return await resolveFields({
+                entity: 'JobKiviat',
+                entityId: kiviat.id,
+                fields: ['level'],
+                lang,
+                base: kiviat,
+            });
+        }),
+    );
+
     return {
         ...localizedJob,
         jobFamily: localizedJobFamily,
         competenciesFamilies: localizedFamilies,
         competencies: localizedCompetencies,
+        kiviats: localizedKiviats,
     };
 };
 
@@ -406,27 +418,6 @@ const pickHighestLevel = (levels: Level[]): Level => {
 export const createJobWithCompetencies = async (payload: any) => {
     const jobSlug = payload.slug;
 
-    const job = await prisma.job.upsert({
-        where: {slug: jobSlug},
-        update: {
-            title: payload.jobTitle,
-            description: payload.jobDescription,
-            // disconnect all relations first
-            competenciesFamilies: {
-                set: [],
-            },
-            competencies: {
-                set: [],
-            }
-        },
-        create: {
-            title: payload.jobTitle,
-            slug: jobSlug,
-            description: payload.jobDescription,
-        },
-    });
-
-
     return prisma.$transaction(async (tx) => {
 
         const payloadCompetencies: CompetencyCandidate[] = [];
@@ -469,6 +460,29 @@ export const createJobWithCompetencies = async (payload: any) => {
             throw new Error(`A job must be linked to exactly 5 CompetenciesFamily (found: ${payload.families.length})`);
         }
 
+        const job = await tx.job.upsert({
+            where: {slug: jobSlug},
+            update: {
+                title: payload.jobTitle,
+                description: payload.jobDescription,
+                // disconnect all relations first
+                competenciesFamilies: {
+                    set: [],
+                },
+                competenciesSubfamilies: {
+                    set: [],
+                },
+                competencies: {
+                    set: [],
+                }
+            },
+            create: {
+                title: payload.jobTitle,
+                slug: jobSlug,
+                description: payload.jobDescription,
+            },
+        });
+
 
         const familyIds = new Set<string>();
         const subFamilyIds = new Set<string>();
@@ -501,22 +515,16 @@ export const createJobWithCompetencies = async (payload: any) => {
             const familySubFamilyIds = new Set<string>();
             for (const subFamily of family.subFamilies ?? []) {
                 const subFamilyNormalized = subFamily.slug;
-                const subFamilyRecord = await tx.competenciesFamily.upsert({
+                const subFamilyRecord = await tx.competenciesSubFamily.upsert({
                     where: {slug: subFamilyNormalized},
                     update: {
                         name: subFamily.name,
-                        parentId: familyRecord.id,
-                        childrenJobs: {
-                            connect: {id: job.id},
-                        }
+                        familyId: familyRecord.id,
                     },
                     create: {
                         name: subFamily.name,
                         slug: subFamilyNormalized,
-                        parentId: familyRecord.id,
-                        childrenJobs: {
-                            connect: {id: job.id},
-                        }
+                        familyId: familyRecord.id,
                     },
                 });
 
@@ -547,10 +555,32 @@ export const createJobWithCompetencies = async (payload: any) => {
                             families: {
                                 connect: [
                                     {id: familyRecord.id},
+                                ],
+                            },
+                            subFamilies: {
+                                connect: [
                                     {id: subFamilyRecord.id},
                                 ],
                             },
                             jobs: {connect: {id: job.id}},
+                            jobSubfamilyCompetencies: {
+                                upsert: {
+                                    where: {
+                                        jobId_competencyId: {
+                                            jobId: job.id,
+                                            competencyId: competencyRecord.id,
+                                        }
+                                    },
+                                    update: {
+                                        jobId: job.id,
+                                        subFamilyId: subFamilyRecord.id,
+                                    },
+                                    create: {
+                                        jobId: job.id,
+                                        subFamilyId: subFamilyRecord.id,
+                                    }
+                                },
+                            }
                         },
                     });
                     subFamilyCompetencyIds.add(competencyRecord.id)
@@ -559,7 +589,7 @@ export const createJobWithCompetencies = async (payload: any) => {
                 }
 
                 // connect competencies to subFamily
-                await tx.competenciesFamily.update({
+                await tx.competenciesSubFamily.update({
                     where: {id: subFamilyRecord.id},
                     data: {
                         competencies: {
@@ -573,7 +603,7 @@ export const createJobWithCompetencies = async (payload: any) => {
             await tx.competenciesFamily.update({
                 where: {id: familyRecord.id},
                 data: {
-                    children: {
+                    subFamilies: {
                         connect: Array.from(familySubFamilyIds).map((id) => ({id})),
                     },
                 },
@@ -595,6 +625,9 @@ export const createJobWithCompetencies = async (payload: any) => {
             data: {
                 competenciesFamilies: {
                     connect: Array.from(familyIds).map((id) => ({id})),
+                },
+                competenciesSubfamilies: {
+                    connect: Array.from(subFamilyIds).map((id) => ({id})),
                 },
                 competencies: {
                     connect: Array.from(competencyIds).map((id) => ({id})),

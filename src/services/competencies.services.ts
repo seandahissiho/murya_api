@@ -47,16 +47,16 @@ export const searchCompetencies = async (
 
 export const getCompetenciesFamiliesAndSubFamilies = async (lang: string = 'en') => {
     const families = await prisma.competenciesFamily.findMany({
-        // where children is not empty
+        // where subFamilies is not empty
         where: {
-            children: {
+            subFamilies: {
                 some: {},
             }
         },
         select: {
             name: true,
             slug: true,
-            children: {
+            subFamilies: {
                 select: {
                     name: true,
                     slug: true,
@@ -85,8 +85,8 @@ export const getCompetenciesFamiliesAndSubFamilies = async (lang: string = 'en')
                 base: family,
             });
 
-            localizedFamily.children = await Promise.all(
-                family.children.map(async (subFamily: any) => {
+            localizedFamily.subFamilies = await Promise.all(
+                family.subFamilies.map(async (subFamily: any) => {
                     const localizedSubFamily = await resolveFields({
                         entity: 'CompetenciesSubFamily',
                         entityId: subFamily.id,
