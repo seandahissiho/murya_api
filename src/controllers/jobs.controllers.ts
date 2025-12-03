@@ -27,6 +27,20 @@ export const searchJobs = async (req: Request, res: Response, next: NextFunction
     }
 };
 
+export const getJobsFamiliesAndSubFamilies = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const lang = await detectLanguage(req);
+        const data = await jobService.getJobsFamiliesAndSubFamilies(lang);
+        return sendResponse(res, 200, {data});
+    } catch (err) {
+        return sendResponse(res, 500, {
+            error: "Une erreur s'est produite lors de la récupération des familles et sous-familles.",
+            message: err instanceof Error ? err.message : 'Unknown error'
+        });
+    }
+}
+
+
 export const getJobDetails = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const jobId = req.params.id;

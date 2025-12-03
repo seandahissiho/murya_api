@@ -51,7 +51,11 @@ export const retrievePositioningQuizForJob = async (userJob: any, userId: string
     // const quizzes = job.q || [];
 
     const quizzes = userJobUpToDate.quizzes || [];
-    const currentIndex = userJob.completedQuizzes || 0;
+    const completionCount = await prisma.userQuiz.count({
+        where: {userJobId: userJob.id, status: UserQuizStatus.COMPLETED},
+        skip: 0,
+    });
+    const currentIndex = (completionCount || userJob.completedQuizzes || 0);
     if (currentIndex >= quizzes.length) {
         throw new Error('No more positioning quizzes available for this job');
     }
@@ -154,7 +158,11 @@ export const retrieveDailyQuizForJob = async (jobId: string, userId: string): Pr
         }
     }
 
-    const completedPositioningQuiz = userJob.completedQuizzes >= 5;
+    const completionCount = await prisma.userQuiz.count({
+        where: {userJobId: userJob.id, status: UserQuizStatus.COMPLETED},
+        skip: 0,
+    });
+    const completedPositioningQuiz = completionCount >= 5;
     if (!completedPositioningQuiz) {
         return await retrievePositioningQuizForJob(userJob, userId);
     }

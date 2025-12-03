@@ -79,6 +79,72 @@ export const searchJobs = async (
     };
 };
 
+export const getJobsFamiliesAndSubFamilies = async ({page = 1, perPage = 20, lang = 'en'}: SearchOptions) => {
+    const skip = (page - 1) * perPage;
+    const [jobs, total] = await Promise.all([
+        prisma.job.findMany({
+            orderBy: {title: 'asc'},
+            skip,
+            take: perPage,
+            include: {
+                competenciesFamilies: true,
+                competenciesSubfamilies: true,
+                competencies: true,
+            }
+        }),
+        prisma.job.count({}),
+    ]);
+
+    const localizedJobs = await Promise.all(
+        jobs.map(async (job) => {
+            const localizedJob = await resolveFields({
+                entity: 'Job',
+                entityId: job.id,
+                fields: ['title', 'description'],
+                lang,
+                base: job,
+            });
+
+            const localizedCompetenciesFamilies = await resolveFields({
+                entity: 'CompetenciesFamily',
+                entityId: job.id,
+                fields: ['name', 'description'],
+                lang,
+                base: job.competenciesFamilies,
+            });
+
+            const localizedCompetenciesSubfamilies = await resolveFields({
+                entity: 'CompetenciesSubFamily',
+                entityId: job.id,
+                fields: ['name', 'description'],
+                lang,
+                base: job.competenciesSubfamilies,
+            });
+
+            const localizedCompetencies = await resolveFields({
+                entity: 'Competency',
+                entityId: job.id,
+                fields: ['name'],
+                lang,
+                base: job.competencies,
+            });
+
+
+            return {...localizedJob, competenciesFamilies: localizedCompetenciesFamilies, competenciesSubfamilies: localizedCompetenciesSubfamilies, competencies: localizedCompetencies};
+        }),
+    );
+
+    return {
+        items: localizedJobs,
+        pagination: {
+            page,
+            perPage,
+            total,
+            totalPages: Math.ceil(total / perPage),
+        },
+    };
+}
+
 /**
  * Récupère les détails d’un job, avec ses familles de compétences et compétences,
  * tout en appliquant les traductions selon la langue demandée.
