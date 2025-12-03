@@ -53,7 +53,6 @@ export const retrievePositioningQuizForJob = async (userJob: any, userId: string
     const quizzes = userJobUpToDate.quizzes || [];
     const completionCount = await prisma.userQuiz.count({
         where: {userJobId: userJob.id, status: UserQuizStatus.COMPLETED},
-        skip: 0,
     });
     const currentIndex = (completionCount || userJob.completedQuizzes || 0);
     if (currentIndex >= quizzes.length) {
