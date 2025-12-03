@@ -1,27 +1,29 @@
 model User {
-  id                         String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  firstname                  String?
-  lastname                   String?
-  email                      String?                 @db.VarChar(255)
-  phone                      String?                 @db.VarChar(30)
-  deviceId                   String?                 @db.VarChar(255)
-  password                   String? // mot de passe haché
-  diamonds                   Int                     @default(0) // nombre de diamants de l'utilisateur
-  isActive                   Boolean                 @default(true) // utilisateur actif ou non
-  isAdmin                    Boolean                 @default(false) // utilisateur admin
-  createdAt                  DateTime                @default(now()) @db.Timestamp(0)
-  lastLogin                  DateTime?               @db.Timestamp(0) // date de dernière connexion
-  avatarUrl                  String?
-  birthDate                  DateTime?               @db.Timestamp(0)
-  genre                      Genre?                  @default(UNDEFINED) // genre de l'utilisateur
-  roleId                     String                  @db.Uuid // identifiant du rôle de l'utilisateur
-  refreshToken               String? // token de rafraîchissement pour l'authentification
-  addressId                  String?                 @db.Uuid // ID de l'adresse associée
-  preferredLangCode          String?                 @db.VarChar(16)
-  createdById                String?                 @db.Uuid // identifiant de l'utilisateur qui a créé ce compte
-  updatedById                String?                 @db.Uuid // identifiant de l'utilisateur qui a mis à jour ce compte
-  role                       Role                    @relation(fields: [roleId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_role_id")
-  preferredLang              Language?               @relation(name: "UserPreferredLanguage", fields: [preferredLangCode], references: [code], onUpdate: Cascade, onDelete: SetNull)
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firstname         String?
+  lastname          String?
+  email             String?   @db.VarChar(255)
+  phone             String?   @db.VarChar(30)
+  deviceId          String?   @db.VarChar(255)
+  password          String? // mot de passe haché
+  diamonds          Int       @default(0) // nombre de diamants de l'utilisateur
+  isActive          Boolean   @default(true) // utilisateur actif ou non
+  isAdmin           Boolean   @default(false) // utilisateur admin
+  createdAt         DateTime  @default(now()) @db.Timestamp(0)
+  updatedAt         DateTime  @default(now()) @updatedAt @db.Timestamp(0)
+  lastLogin         DateTime? @db.Timestamp(0) // date de dernière connexion
+  avatarUrl         String?
+  birthDate         DateTime? @db.Timestamp(0)
+  genre             Genre?    @default(UNDEFINED) // genre de l'utilisateur
+  roleId            String    @db.Uuid // identifiant du rôle de l'utilisateur
+  refreshToken      String? // token de rafraîchissement pour l'authentification
+  addressId         String?   @db.Uuid // ID de l'adresse associée
+  preferredLangCode String?   @db.VarChar(16)
+  createdById       String?   @db.Uuid // identifiant de l'utilisateur qui a créé ce compte
+  updatedById       String?   @db.Uuid // identifiant de l'utilisateur qui a mis à jour ce compte
+  role              Role      @relation(fields: [roleId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_role_id")
+  preferredLang     Language? @relation(name: "UserPreferredLanguage", fields: [preferredLangCode], references: [code], onUpdate: Cascade, onDelete: SetNull)
+
   // utilisateur qui a créé ou mis à jour ce compte
   createdBy                  User?                   @relation(name: "UserCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_created_by")
   updatedBy                  User?                   @relation(name: "UserUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_updated_by")
@@ -48,13 +50,10 @@ model User {
   // ressources d'apprentissage créées et mises à jour par cet utilisateur
   learningResourcesCreatedBy LearningResource[]      @relation(name: "LearningResourceCreatedBy")
   learningResourcesUpdatedBy LearningResource[]      @relation(name: "LearningResourceUpdatedBy")
+  companies                  CompanyUser[]
 
   @@unique([email], map: "unique_email_not_null")
   @@unique([phone], map: "unique_phone_not_null")
   @@unique([deviceId], map: "unique_device_not_null")
   @@index([preferredLangCode])
-  // Partial unique indexes (PostgreSQL only)
-  @@index([email])
-  @@index([phone])
-  @@index([deviceId])
 }

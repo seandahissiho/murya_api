@@ -1,4 +1,4 @@
-import {Prisma, Quiz, UserJobStatus, UserQuiz, UserQuizStatus, QuizType} from '@prisma/client';
+import {Prisma, Quiz, QuizType, UserJobStatus, UserQuiz, UserQuizStatus, JobProgressionLevel} from '@prisma/client';
 import {prisma} from "../config/db";
 
 // getCurrentUserJob
@@ -7,12 +7,14 @@ export async function getCurrentUserJob(userId: any) {
         where: {userId, status: UserJobStatus.CURRENT},
         include: {
             job: true,
+            kiviats: {
+                include: {
+                    competenciesFamily: true,
+                    histories: {orderBy: {createdAt: 'asc'}},
+                },
+            },
         },
     });
-
-    if (!userJob) {
-        throw new Error('Current UserJob not found');
-    }
 
     return userJob;
 }
@@ -33,7 +35,7 @@ export async function getUserJob(jobId: string, userId: any) {
 }
 
 
-export const retrievePositioningQuizForJob = async (userJob: any, userId: string): Promise<Quiz> => {
+export const retrievePositioningQuizForJob = async (userJob: any): Promise<Quiz> => {
     const userJobUpToDate = await prisma.userJob.findUnique({
         where: {id: userJob.id},
         select: {
@@ -47,10 +49,19 @@ export const retrievePositioningQuizForJob = async (userJob: any, userId: string
     if (!userJobUpToDate) {
         throw new Error('Job not found');
     }
+    let quizzes: any = userJobUpToDate.quizzes || [];
+
+    if (quizzes.length === 0) {
+        await createUserQuizzesForJob(userJob.id, userJob.jobId, userJob.userId);
+        quizzes = await prisma.userQuiz.findMany({
+            where: {userJobId: userJob.id, type: QuizType.POSITIONING, isActive: true},
+            select: {quizId: true, index: true},
+        });
+    }
+
 
     // const quizzes = job.q || [];
 
-    const quizzes = userJobUpToDate.quizzes || [];
     const completionCount = await prisma.userQuiz.count({
         where: {userJobId: userJob.id, status: UserQuizStatus.COMPLETED},
     });
@@ -59,7 +70,7 @@ export const retrievePositioningQuizForJob = async (userJob: any, userId: string
         throw new Error('No more positioning quizzes available for this job');
     }
 
-    const positioningQuiz = quizzes.find((q) => q.index === currentIndex);
+    const positioningQuiz = quizzes.find((q: any) => q.index === currentIndex);
 
     if (!positioningQuiz) {
         throw new Error('Positioning quiz not found for the current index');
@@ -84,6 +95,63 @@ export const retrievePositioningQuizForJob = async (userJob: any, userId: string
     }) as Quiz;
 };
 
+async function createUserQuizzesForJob(userJobId: string, jobId: string, userId: string) {
+    const jobQuizzes = (await prisma.job.findUnique({
+            where: {id: jobId},
+            select: {
+                quizzes: {
+                    select: {
+                        id: true,
+                        questions: {
+                            select: {
+                                points: true,
+                            }
+                        },
+                    },
+                    orderBy: {createdAt: 'asc'},
+                }
+            },
+        }
+    ))?.quizzes;
+    if (!jobQuizzes || jobQuizzes.length === 0) {
+        throw new Error('No quizzes available for this job');
+    }
+
+    // check if user has any assigned quizzes for this job
+    let userQuizzes = await prisma.userQuiz.findMany({
+        where: {userJobId: userJobId},
+    });
+
+    if (userQuizzes.length === 0) {
+        // create the userQuiz entries
+        let index = 0;
+        for (const quiz of jobQuizzes) {
+            const userQuiz = await prisma.userQuiz.create({
+                data: {
+                    userJobId: userJobId,
+                    quizId: quiz.id,
+                    type: QuizType.POSITIONING,
+                    status: UserQuizStatus.ASSIGNED,
+                    index: index++,
+                    maxScore: quiz.questions.reduce((sum, q) => sum + q.points, 0),
+                }
+            });
+            userQuizzes.push(userQuiz);
+        }
+        // link the userQuizzes to userJob
+        await prisma.userJob.update({
+            where: {userId_jobId: {userId, jobId}},
+            data: {
+                quizzes: {
+                    connect: userQuizzes.map((uq) => ({id: uq.id})),
+                },
+            },
+            select: {quizzes: true, completedQuizzes: true, id: true},
+        });
+    }
+
+}
+
 // retrieveDailyQuizForJob
 export const retrieveDailyQuizForJob = async (jobId: string, userId: string): Promise<Quiz | undefined | null> => {
 
@@ -91,70 +159,19 @@ export const retrieveDailyQuizForJob = async (jobId: string, userId: string): Pr
     // check if user has completed the positioning quiz for the job, if not, return then positioningQuiz
     let userJob: any = await prisma.userJob.findUnique({
         where: {userId_jobId: {userId, jobId}},
-        select: {quizzes: true, completedQuizzes: true, id: true},
+        select: {quizzes: true, completedQuizzes: true, id: true, jobId: true, userId: true},
     });
     if (!userJob) {
         // create the userJob entry?
         userJob = await prisma.userJob.create({
             data: {userId, jobId},
+            select: {quizzes: true, completedQuizzes: true, id: true, jobId: true, userId: true},
         });
         if (!userJob) {
             throw new Error('Failed to create userJob entry');
         }
 
-        const jobQuizzes = (await prisma.job.findUnique({
-                where: {id: jobId},
-                select: {
-                    quizzes: {
-                        select: {
-                            id: true,
-                            questions: {
-                                select: {
-                                    points: true,
-                                }
-                            },
-                        },
-                        orderBy: {createdAt: 'asc'},
-                    }
-                },
-            }
-        ))?.quizzes;
-        if (!jobQuizzes || jobQuizzes.length === 0) {
-            throw new Error('No quizzes available for this job');
-        }
-
-        // check if user has any assigned quizzes for this job
-        let userQuizzes = await prisma.userQuiz.findMany({
-            where: {userJobId: userJob.id},
-        });
-
-        if (userQuizzes.length === 0) {
-            // create the userQuiz entries
-            let index = 0;
-            for (const quiz of jobQuizzes) {
-                const userQuiz = await prisma.userQuiz.create({
-                    data: {
-                        userJobId: userJob.id,
-                        quizId: quiz.id,
-                        type: QuizType.POSITIONING,
-                        status: UserQuizStatus.ASSIGNED,
-                        index: index++,
-                        maxScore: quiz.questions.reduce((sum, q) => sum + q.points, 0),
-                    }
-                });
-                userQuizzes.push(userQuiz);
-            }
-            // link the userQuizzes to userJob
-            userJob = await prisma.userJob.update({
-                where: {userId_jobId: {userId, jobId}},
-                data: {
-                    quizzes: {
-                        connect: userQuizzes.map((uq) => ({id: uq.id})),
-                    },
-                },
-                select: {quizzes: true, completedQuizzes: true, id: true},
-            });
-        }
+        await createUserQuizzesForJob(userJob.id, jobId, userId);
     }
 
     const completionCount = await prisma.userQuiz.count({
@@ -163,7 +180,7 @@ export const retrieveDailyQuizForJob = async (jobId: string, userId: string): Pr
     });
     const completedPositioningQuiz = completionCount >= 5;
     if (!completedPositioningQuiz) {
-        return await retrievePositioningQuizForJob(userJob, userId);
+        return await retrievePositioningQuizForJob(userJob);
     }
 
     // If positioning quiz is completed, return the generated daily quiz for the job
@@ -264,7 +281,7 @@ export const saveUserQuizAnswers = async (
         // 0. Récupérer le UserJob
         const userJob = await tx.userJob.findUnique({
             where: {userId_jobId: {userId, jobId}},
-            select: {id: true},
+            select: {id: true, jobId: true, job: {select: {competenciesFamilies: true}}},
         });
         if (!userJob) {
             throw new Error("Job introuvable pour cet utilisateur.");
@@ -281,7 +298,11 @@ export const saveUserQuizAnswers = async (
                         questions: {
                             include: {
                                 responses: true,
-                                // pas besoin d'inclure competency ici, competencyId est déjà un champ scalaire de QuizQuestion
+                                competency: {
+                                    include: {
+                                        families: true,
+                                    },
+                                },
                             },
                         },
                     },
@@ -295,7 +316,7 @@ export const saveUserQuizAnswers = async (
 
         // Map questionId -> QuizQuestion
         const questionMap = new Map(
-            userQuiz.quiz.questions.map((q) => [q.id, q])
+            userQuiz.quiz.questions.map((q: any) => [q.id, q])
         );
 
         // 2. Supprimer les anciennes réponses
@@ -306,11 +327,11 @@ export const saveUserQuizAnswers = async (
         let totalScore = 0;
         let bonusPoints = 0;
         const maxScore = userQuiz.quiz.questions.reduce(
-            (sum, q) => sum + q.points,
+            (sum: any, q: any) => sum + q.points,
             0
         );
         const maxScoreWithBonus = userQuiz.quiz.questions.reduce(
-            (sum, q) => sum + q.points + q.timeLimitInSeconds,
+            (sum: any, q: any) => sum + q.points + q.timeLimitInSeconds,
             0
         );
 
@@ -319,10 +340,11 @@ export const saveUserQuizAnswers = async (
             string,
             { score: number; maxScore: number }
         >();
+        const familyAgg = new Map<string, { score: number; maxScore: number }>();
 
         // 3. Créer les réponses
         for (const rawAnswer of answers) {
-            const question = questionMap.get(rawAnswer.questionId);
+            const question: any = questionMap.get(rawAnswer.questionId);
             if (!question) {
                 throw new Error(`Question inconnue: ${rawAnswer.questionId}`);
             }
@@ -337,14 +359,14 @@ export const saveUserQuizAnswers = async (
                 question.type === "multiple_choice" ||
                 question.type === "true_false"
             ) {
-                const correctResponses = question.responses.filter((r) => r.isCorrect);
-                const correctIds = correctResponses.map((r) => r.id);
+                const correctResponses = question.responses.filter((r: any) => r.isCorrect);
+                const correctIds = correctResponses.map((r: any) => r.id);
 
                 const selectedSet = new Set(responseIds);
                 const correctSet = new Set(correctIds);
 
                 const sameSize = selectedSet.size === correctSet.size;
-                const allCorrectIncluded = correctIds.every((id) =>
+                const allCorrectIncluded = correctIds.every((id: any) =>
                     selectedSet.has(id)
                 );
 
@@ -371,6 +393,15 @@ export const saveUserQuizAnswers = async (
                 // maxScore de la question = ses points, indépendamment de la réponse
                 current.maxScore += question.points;
                 competencyAgg.set(competencyId, current);
+
+
+                const families = question.competency?.families ?? [];
+                for (const family of families) {
+                    const existingFamilyAgg = familyAgg.get(family.id) ?? {score: 0, maxScore: 0};
+                    existingFamilyAgg.score += score;
+                    existingFamilyAgg.maxScore += question.points;
+                    familyAgg.set(family.id, existingFamilyAgg);
+                }
             }
 
             // 3.2 Créer UserQuizAnswer
@@ -483,6 +514,84 @@ export const saveUserQuizAnswers = async (
             },
         });
 
+        // 7. Mettre à jour les JobKiviats utilisateur + historique
+        const allFamilies = userJob.job.competenciesFamilies;
+        for (const family of allFamilies) {
+            const familyId = family.id;
+            const currentAgg = familyAgg.get(familyId) ?? {score: 0, maxScore: 0};
+            const familyPercentage = currentAgg.maxScore > 0 ? (currentAgg.score / currentAgg.maxScore) * 100 : 0;
+            const value = Math.max(0, Math.min(5, familyPercentage / 20));
+            const JuniorValue = (await tx.jobKiviat.findUnique({
+                where: {
+                    jobId_competenciesFamilyId_level: {
+                        jobId: userJob.jobId,
+                        competenciesFamilyId: familyId,
+                        level: JobProgressionLevel.JUNIOR,
+                    },
+                },
+                select: {value: true},
+            })).value;
+            const MidLevelValue = (await tx.jobKiviat.findUnique({
+                where: {
+                    jobId_competenciesFamilyId_level: {
+                        jobId: userJob.jobId,
+                        competenciesFamilyId: familyId,
+                        level: JobProgressionLevel.MIDLEVEL,
+                    },
+                },
+                select: {value: true},
+            })).value;
+            const SeniorValue = (await tx.jobKiviat.findUnique({
+                where: {
+                    jobId_competenciesFamilyId_level: {
+                        jobId: userJob.jobId,
+                        competenciesFamilyId: familyId,
+                        level: JobProgressionLevel.SENIOR,
+                    },
+                },
+                select: {value: true},
+            })).value;
+
+            const level: JobProgressionLevel = value <= JuniorValue ? JobProgressionLevel.JUNIOR
+                : value <= MidLevelValue ? JobProgressionLevel.MIDLEVEL
+                    : value <= SeniorValue ? JobProgressionLevel.SENIOR
+                        : JobProgressionLevel.EXPERT;
+
+            const userJobKiviat = await tx.userJobKiviat.upsert({
+                where: {
+                    userJobId_competenciesFamilyId: {
+                        userJobId: userJob.id,
+                        competenciesFamilyId: familyId,
+                    },
+                },
+                update: {
+                    value,
+                    level,
+                },
+                create: {
+                    userJobId: userJob.id,
+                    competenciesFamilyId: familyId,
+                    value,
+                    level,
+                },
+                include: {histories: false},
+            });
+
+            await tx.userJobKiviatHistory.create({
+                data: {
+                    value,
+                    percentage: familyPercentage,
+                    createdAt: updatedUserQuiz.completedAt ?? doneAt,
+                    userJobKiviat: {
+                        connect: {id: userJobKiviat.id},
+                    },
+                    userQuiz: {
+                        connect: {id: updatedUserQuiz.id},
+                    }
+                },
+            });
+        }
+
         return updatedUserQuiz;
     });
 
@@ -511,11 +620,7 @@ export type GetRankingForJobParams = {
     to?: string;
 };
 
-export async function getRankingForJob({
-                                           jobId,
-                                           from,
-                                           to,
-                                       }: GetRankingForJobParams): Promise<UserJobRankingRow[]> {
+export async function getRankingForJob({jobId, from, to,}: GetRankingForJobParams): Promise<UserJobRankingRow[]> {
     // fragments pour la période
     const fromFilter =
         from ? Prisma.sql`AND uq."completedAt" >= ${from}::timestamp` : Prisma.empty;
@@ -640,7 +745,148 @@ type UserJobCompetencyProfile = {
             percentage: number;
         }>;
     }>;
+    kiviats: any; // à typer plus précisément si besoin
 };
+
+// ce qui part en JSON vers le front
+export type JobKiviatDto = {
+    id: string;
+    jobId: string | null;
+    userJobId: string | null;
+    competenciesFamilyId: string;
+    level: string; // JobProgressionLevel en string
+    value: any;
+    job?: any | null;
+    userJob?: any | null;
+    competenciesFamily?: any | null;
+};
+
+// Map<int, List<JobKiviat>> -> côté JSON : Record<number, JobKiviatDto[]>
+export type JobKiviatSnapshotsDto = {
+    [index: number]: JobKiviatDto[];
+};
+
+export async function getLastKiviatSnapshotsForUserJob(
+    userJobId: string,
+    jobId: string,
+    count = 5, // nombre de kiviats à renvoyer
+): Promise<JobKiviatSnapshotsDto> {
+    // 1) Familles du job dans un ordre fixe
+    const families = await prisma.competenciesFamily.findMany({
+        where: {
+            jobs: {
+                some: { id: jobId },
+            },
+        },
+        orderBy: { slug: "asc" },
+    });
+
+    if (families.length === 0) {
+        return {};
+    }
+
+    // 2) Historiques Kiviat pour ce userJob + ces familles
+    const histories = await prisma.userJobKiviatHistory.findMany({
+        where: {
+            userJobKiviat: {
+                userJobId,
+                competenciesFamilyId: { in: families.map((f) => f.id) },
+            },
+        },
+        include: {
+            userJobKiviat: {
+                include: {
+                    competenciesFamily: true,
+                    userJob: {
+                        include: {
+                            job: true,
+                        },
+                    },
+                },
+            },
+        },
+        orderBy: { createdAt: "desc" },
+        // maximum théorique si tout est complet : count kiviats * 5 familles
+        take: count * families.length,
+    });
+
+    if (histories.length === 0) {
+        return {};
+    }
+
+    type HistoryWithIncludes = (typeof histories)[number];
+
+    // 3) Grouper les lignes par userQuizId
+    const byQuizId = new Map<
+        string,
+        { createdAt: Date; rows: HistoryWithIncludes[] }
+    >();
+
+    for (const h of histories) {
+        const quizId = h.userQuizId;
+        const existing = byQuizId.get(quizId);
+
+        if (existing) {
+            existing.rows.push(h);
+            // on garde la date la plus récente pour trier
+            if (h.createdAt > existing.createdAt) {
+                existing.createdAt = h.createdAt;
+            }
+        } else {
+            byQuizId.set(quizId, {
+                createdAt: h.createdAt,
+                rows: [h],
+            });
+        }
+    }
+
+    // 4) Trier les snapshots (plus récents en premier) et garder les `count` derniers
+    const sortedSnapshots = Array.from(byQuizId.entries())
+        .sort((a, b) => b[1].createdAt.getTime() - a[1].createdAt.getTime())
+        .slice(0, count);
+
+    const result: JobKiviatSnapshotsDto = {};
+
+    // 5) Pour chaque snapshot, construire la liste [JobKiviat1..5] dans l'ordre des familles
+    sortedSnapshots.forEach(([quizId, snapshot], index) => {
+        const rowsByFamilyId = new Map<
+            string,
+            HistoryWithIncludes
+        >(
+            snapshot.rows.map((r) => [r.userJobKiviat.competenciesFamilyId, r]),
+        );
+
+        const list: JobKiviatDto[] = [];
+
+        for (const family of families) {
+            const row = rowsByFamilyId.get(family.id);
+            if (!row) {
+                // si une famille manque pour ce quiz, soit tu la skip,
+                // soit tu pousses une valeur neutre (à toi de décider)
+                continue;
+            }
+
+            const ujk = row.userJobKiviat;
+            const userJob = ujk.userJob;
+
+            list.push({
+                id: row.id, // on utilise l'ID d'historique comme identifiant
+                jobId: userJob?.jobId ?? null,
+                userJobId: ujk.userJobId,
+                competenciesFamilyId: ujk.competenciesFamilyId,
+                level: ujk.level, // JobProgressionLevel en string
+                value: row.value,
+                job: userJob?.job ?? null,
+                userJob: userJob ?? null,
+                competenciesFamily: ujk.competenciesFamily ?? null,
+            });
+        }
+
+        result[index] = list;
+    });
+
+    return result;
+}
 
 export const getUserJobCompetencyProfile = async (
     userId: string,
@@ -674,6 +920,11 @@ export const getUserJobCompetencyProfile = async (
                         select: {id: true, name: true},
                     },
                 },
+            },
+            kiviats: {
+                select: {
+                    histories: {}
+                }
             },
         },
     });
@@ -786,9 +1037,8 @@ export const getUserJobCompetencyProfile = async (
             lastQuizAt,
         },
         competencies,
+        kiviats: (await getLastKiviatSnapshotsForUserJob(userJob.id, jobId)),
     };
 
     return profile;
 };
-
-

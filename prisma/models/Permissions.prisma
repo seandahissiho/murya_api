@@ -4,7 +4,7 @@ model Permissions {
   entity    permissions_entity
   action    permissions_action
   createdAt DateTime           @default(now()) @db.Timestamp(0)
-  updatedAt DateTime?          @db.Timestamp(0)
+  updatedAt DateTime           @default(now()) @updatedAt @db.Timestamp(0)
   role      Role?              @relation(fields: [roleId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "permissions_role_id_foreign")
 
   @@unique([roleId, action, entity], map: "unique_role_action_entity")

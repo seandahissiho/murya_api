@@ -22,9 +22,9 @@ model UserQuiz {
   quiz                Quiz                       @relation(fields: [quizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   answers             UserQuizAnswer[]
   competencyHistories UserJobCompetencyHistory[]
+  kiviatHistories     UserJobKiviatHistory[]
 
   @@unique([userJobId, quizId], map: "unique_user_quiz_user_job_quiz")
-  @@index([userJobId], map: "idx_user_quiz_user_job")
   @@index([quizId], map: "idx_user_quiz_quiz")
-  @@index([type, status, assignedAt])
+  @@index([userJobId, status, type, assignedAt], map: "idx_user_quiz_core")
 }

@@ -4,7 +4,6 @@ model UserJob {
   jobId            String        @db.Uuid
   status           UserJobStatus @default(TARGET)
   // Optional: manual level or seniority (1–5 for example)
-  level            Level         @default(EASY)
   note             String?       @db.Text
   // Aggregated stats for fast dashboards (optional but useful)
   totalScore       Int           @default(0) // sum of all quiz totalScore
@@ -25,10 +24,44 @@ model UserJob {
   competencies      UserJobCompetency[]
   learningResources LearningResource[]
   leagueHistories   UserJobLeagueHistory[]
+  kiviats           UserJobKiviat[]
 
   @@unique([userId, jobId], map: "unique_user_job")
   @@index([userId], map: "idx_user_job_user")
   @@index([jobId], map: "idx_user_job_job")
+  @@index([userId, status], map: "idx_user_job_user_status")
+}
+
+model UserJobKiviat {
+  id                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userJobId            String              @db.Uuid
+  competenciesFamilyId String              @db.Uuid
+  level                JobProgressionLevel
+  value                Decimal             @db.Decimal(2, 1) // 1.0, 1.5, ..., 5.0 max si tu contrôles côté app
+  createdAt            DateTime            @default(now()) @db.Timestamp(0)
+  updatedAt            DateTime            @default(now()) @updatedAt @db.Timestamp(0)
+
+  userJob            UserJob                @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  competenciesFamily CompetenciesFamily     @relation(fields: [competenciesFamilyId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  histories          UserJobKiviatHistory[]
+
+  @@unique([userJobId, competenciesFamilyId], map: "unique_user_job_kiviat")
+  @@index([userJobId], map: "idx_user_job_kiviat_user_job")
+}
+
+model UserJobKiviatHistory {
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userJobKiviatId String               @db.Uuid
+  userQuizId      String               @db.Uuid
+  level           JobProgressionLevel?
+  value           Decimal              @db.Decimal(2, 1) // 1.0, 1.5, ..., 5.0 max si tu contrôles côté app
+  percentage      Float
+  createdAt       DateTime             @default(now()) @db.Timestamp(0)
+  userJobKiviat   UserJobKiviat        @relation(fields: [userJobKiviatId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  userQuiz        UserQuiz             @relation(fields: [userQuizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@index([userJobKiviatId, createdAt], map: "idx_user_job_kiviat_history")
+  @@index([userQuizId], map: "idx_user_job_kiviat_history_quiz")
 }
 
 model UserJobLeagueHistory {

@@ -17,5 +17,4 @@ model CompetenciesSubFamily {
 
   // Unicité dans le scope d'une famille
   @@unique([familyId, name], map: "uq_subfamily_family_name")
-  @@unique([familyId, slug], map: "uq_subfamily_family_slug")
 }

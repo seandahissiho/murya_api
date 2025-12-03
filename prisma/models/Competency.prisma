@@ -1,6 +1,6 @@
 model Competency {
   id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name        String         @unique(map: "competency_name") @db.VarChar(255)
+  name        String         @db.VarChar(255)
   slug        String         @unique @db.VarChar(255)
   description String?        @db.Text
   type        CompetencyType

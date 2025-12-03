@@ -2,7 +2,6 @@ model Notification {
   id                     String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   title                  String                  @db.VarChar(255)
   content                String?                 @db.Text
-  is_read                Boolean                 @default(false) @db.Boolean
   is_important           Boolean                 @default(false) @db.Boolean
   category               NotificationCategory    @default(OTHER)
   createdAt              DateTime                @default(now()) @db.Timestamp(0)

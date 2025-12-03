@@ -45,7 +45,7 @@ export const searchJobs = async (
     ]);
 
     const localizedJobs = await Promise.all(
-        jobs.map(async (job) => {
+        jobs.map(async (job: any) => {
             const localizedJob = await resolveFields({
                 entity: 'Job',
                 entityId: job.id,

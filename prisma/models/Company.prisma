@@ -1,26 +1,39 @@
 model Company {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name        String   @unique(map: "company_name") @db.VarChar(255)
-  nameShort   String?  @db.VarChar(50) // nom court de l'entreprise
-  logoUrl     String?  @db.VarChar(255) // URL du logo de
-  email       String?  @unique(map: "company_email") @db.VarChar(255) // email unique pour les entreprises
-  phone       String?  @db.VarChar(50) // téléphone de l'entreprise
-  phone2      String?  @db.VarChar(50) // téléphone secondaire de l'entreprise
-  phone3      String?  @db.VarChar(50) // téléphone tertiaire
-  website     String?  @db.VarChar(255) // site web de l'entreprise
-  siret       String?  @unique(map: "company_siret") @db.VarChar(14) // SIRET de l'entreprise
-  siretValid  Boolean? @default(false) // true si le SIRET est valide
-  ifu         String?  @unique(map: "company_ifu") @db.VarChar(13) // Identifiant fiscal unique
-  emcfNumber  String?  @unique(map: "company_emcf_number") @db.VarChar(20) // Numéro EMCF (si applicable)
-  description String?  @db.Text
-  addressId   String?  @db.Uuid // ID de l'adresse associée
-  createdById String   @db.Uuid // ID de l'utilisateur qui a créé l'entreprise
-  updatedById String?  @db.Uuid // ID de l'utilisateur qui a mis à jour l'entreprise
-  createdAt   DateTime @default(now()) @db.Timestamp(0)
-  updatedAt   DateTime @default(now()) @updatedAt @db.Timestamp(0)
-  isCompany   Boolean  @default(true) // true = entreprise, false = personne physique
-  isClient    Boolean  @default(true) // true = client, false = not a client
-  address     Address? @relation(fields: [addressId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_companies_address_id")
-  createdBy   User     @relation(name: "ClientCompanyCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_companies_created_by")
-  updatedBy   User?    @relation(name: "ClientCompanyUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_companies_updated_by")
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String        @unique(map: "company_name") @db.VarChar(255)
+  nameShort   String?       @db.VarChar(50) // nom court de l'entreprise
+  logoUrl     String?       @db.VarChar(255) // URL du logo de
+  email       String?       @unique(map: "company_email") @db.VarChar(255) // email unique pour les entreprises
+  phone       String?       @db.VarChar(50) // téléphone de l'entreprise
+  phone2      String?       @db.VarChar(50) // téléphone secondaire de l'entreprise
+  phone3      String?       @db.VarChar(50) // téléphone tertiaire
+  website     String?       @db.VarChar(255) // site web de l'entreprise
+  siret       String?       @unique(map: "company_siret") @db.VarChar(14) // SIRET de l'entreprise
+  siretValid  Boolean?      @default(false) // true si le SIRET est valide
+  ifu         String?       @unique(map: "company_ifu") @db.VarChar(13) // Identifiant fiscal unique
+  emcfNumber  String?       @unique(map: "company_emcf_number") @db.VarChar(20) // Numéro EMCF (si applicable)
+  description String?       @db.Text
+  addressId   String?       @db.Uuid // ID de l'adresse associée
+  createdById String        @db.Uuid // ID de l'utilisateur qui a créé l'entreprise
+  updatedById String?       @db.Uuid // ID de l'utilisateur qui a mis à jour l'entreprise
+  createdAt   DateTime      @default(now()) @db.Timestamp(0)
+  updatedAt   DateTime      @default(now()) @updatedAt @db.Timestamp(0)
+  isCompany   Boolean       @default(true) // true = entreprise, false = personne physique
+  isClient    Boolean       @default(true) // true = client, false = not a client
+  address     Address?      @relation(fields: [addressId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_companies_address_id")
+  createdBy   User          @relation(name: "ClientCompanyCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_companies_created_by")
+  updatedBy   User?         @relation(name: "ClientCompanyUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_companies_updated_by")
+  users       CompanyUser[]
+}
+
+model CompanyUser {
+  companyId String  @db.Uuid
+  userId    String  @db.Uuid
+  role      String? @db.VarChar(64) // "ADMIN", "MEMBER", ...
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, userId])
+  @@index([userId])
 }

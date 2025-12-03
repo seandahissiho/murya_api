@@ -36,7 +36,8 @@ model JobKiviat {
   jobId                String              @db.Uuid
   competenciesFamilyId String              @db.Uuid
   level                JobProgressionLevel
-  value                Float // attendu: 1.0 à 5.0
+  value                Decimal             @db.Decimal(2, 1) // 1.0, 1.5, ..., 5.0 max si tu contrôles côté app
+  updatedAt            DateTime            @default(now()) @updatedAt @db.Timestamp(0)
 
   // Relations
   job                Job                @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "FK_job_kiviat_job_id")

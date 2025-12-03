@@ -7,8 +7,9 @@ model CompetenciesFamily {
   updatedAt   DateTime @default(now()) @updatedAt @db.Timestamp(0)
 
   // Relations
-  subFamilies  CompetenciesSubFamily[]
-  competencies Competency[]            @relation("CompetencyFamilies")
-  jobs         Job[]                   @relation("JobCompetenciesFamilies")
-  kiviats      JobKiviat[]
+  subFamilies    CompetenciesSubFamily[]
+  competencies   Competency[]            @relation("CompetencyFamilies")
+  jobs           Job[]                   @relation("JobCompetenciesFamilies")
+  kiviats        JobKiviat[]
+  userJobKiviats UserJobKiviat[]
 }

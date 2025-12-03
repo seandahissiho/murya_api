@@ -6,7 +6,6 @@ model UploadedFile {
   file_url    String   @db.VarChar(1024)
   mimeType    String   @db.VarChar(128)
   size        Int // size in bytes
-  content     Bytes // actual binary blob storage
   createdAt   DateTime @default(now()) @db.Timestamp(0)
   updatedAt   DateTime @default(now()) @updatedAt @db.Timestamp(0)
   // Relations
