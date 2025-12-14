@@ -7,16 +7,23 @@ import {sendResponse} from "../utils/helpers";
 export const register = async (req: Request<any, any, RegisterDto>, res: Response, next: NextFunction) => {
     try {
         const dto = req.body;
-        try {
-            await authService.register(
-                dto.email,
-                dto.phone,
-                dto.deviceId,
-                dto.password,
-            );
-        } catch (err) {
-            console.log(err);
+
+        const hasDeviceOnly = !!dto.deviceId && !dto.password;
+        const hasCredentials = (!!dto.email || !!dto.phone) && !!dto.password;
+
+        if (!hasDeviceOnly && !hasCredentials) {
+            return sendResponse(res, 400, {
+                error: "Fournissez soit un deviceId, soit email/phone + mot de passe pour l'inscription.",
+            });
         }
+
+        await authService.register(
+            dto.email,
+            dto.phone,
+            dto.deviceId,
+            dto.password,
+        );
+
         const {access_token, refresh_token} = await authService.login(dto.email, dto.phone, dto.deviceId, dto.password);
 
         sendResponse(
@@ -43,6 +50,16 @@ export const register = async (req: Request<any, any, RegisterDto>, res: Respons
 export const login = async (req: Request<any, any, LoginDto>, res: Response, next: NextFunction) => {
     try {
         const {email, password, phone, deviceId} = req.body;
+
+        const hasDeviceOnly = !!deviceId && !password;
+        const hasCredentials = (!!email || !!phone) && !!password;
+
+        if (!hasDeviceOnly && !hasCredentials) {
+            return sendResponse(res, 400, {
+                error: "Fournissez soit un deviceId, soit email/phone + mot de passe pour la connexion.",
+            });
+        }
+
         const {access_token, refresh_token} = await authService.login(email, phone, deviceId, password);
 
         return sendResponse(
@@ -90,7 +107,7 @@ export const retrieve = async (req: Request, res: Response, next: NextFunction) 
     }
 };
 
-// POST /auth/refresh
+    // POST /auth/refresh
 export const refresh = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const {refresh_token} = req.body;
@@ -101,14 +118,14 @@ export const refresh = async (req: Request, res: Response, next: NextFunction) =
             });
         }
 
-        const {access_token, user} = await authService.refresh(refresh_token);
+        const {access_token, refresh_token: rotated_refresh_token, user} = await authService.refresh(refresh_token);
 
         return sendResponse(
             res,
             200,
             {
                 message: "Jetons rafraîchis avec succès",
-                data: {access_token, refresh_token, user}
+                data: {access_token, refresh_token: rotated_refresh_token, user}
             }
         );
     } catch (err) {

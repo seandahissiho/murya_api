@@ -1,8 +1,28 @@
-import {Prisma, Quiz, QuizType, UserJobStatus, UserQuiz, UserQuizStatus, JobProgressionLevel} from '@prisma/client';
+import {
+    Prisma,
+    Quiz,
+    QuizType,
+    UserJobStatus,
+    UserQuiz,
+    UserQuizStatus,
+    JobProgressionLevel,
+    QuizQuestionType,
+    Level,
+    LeagueTier,
+} from '@prisma/client';
 import {prisma} from "../config/db";
+import {resolveFields} from "../i18n/translate";
+import {buildGenerateQuizInput} from "./quiz_gen/build-generate-quiz-input";
+import {enqueueQuizGenerationJob, getRedisClient} from "../config/redis";
+
+const isSameDay = (a: Date, b: Date) => {
+    return a.getUTCFullYear() === b.getUTCFullYear()
+        && a.getUTCMonth() === b.getUTCMonth()
+        && a.getUTCDate() === b.getUTCDate();
+};
 
 // getCurrentUserJob
-export async function getCurrentUserJob(userId: any) {
+export async function getCurrentUserJob(userId: any, lang: string = 'en') {
     const userJob = await prisma.userJob.findFirst({
         where: {userId, status: UserJobStatus.CURRENT},
         include: {
@@ -16,10 +36,33 @@ export async function getCurrentUserJob(userId: any) {
         },
     });
 
-    return userJob;
+    if (!userJob) return null;
+
+    const localizedJob = await resolveFields({
+        entity: 'Job',
+        entityId: userJob.job.id,
+        fields: ['title', 'description'],
+        lang,
+        base: userJob.job,
+    });
+
+    const kiviats = await Promise.all(
+        userJob.kiviats.map(async (k) => {
+            const localizedFamily = await resolveFields({
+                entity: 'CompetenciesFamily',
+                entityId: k.competenciesFamily.id,
+                fields: ['name', 'description'],
+                lang,
+                base: k.competenciesFamily,
+            });
+            return {...k, competenciesFamily: localizedFamily};
+        })
+    );
+
+    return {...userJob, job: localizedJob, kiviats};
 }
 
-export async function getUserJob(jobId: string, userId: any) {
+export async function getUserJob(jobId: string, userId: any, lang: string = 'en') {
     const userJob = await prisma.userJob.findUnique({
         where: {userId_jobId: {userId, jobId}},
         include: {
@@ -31,7 +74,15 @@ export async function getUserJob(jobId: string, userId: any) {
         throw new Error('UserJob not found');
     }
 
-    return userJob;
+    const localizedJob = await resolveFields({
+        entity: 'Job',
+        entityId: userJob.job.id,
+        fields: ['title', 'description'],
+        lang,
+        base: userJob.job,
+    });
+
+    return {...userJob, job: localizedJob};
 }
 
 
@@ -63,7 +114,7 @@ export const retrievePositioningQuizForJob = async (userJob: any): Promise<Quiz>
     // const quizzes = job.q || [];
 
     const completionCount = await prisma.userQuiz.count({
-        where: {userJobId: userJob.id, status: UserQuizStatus.COMPLETED},
+        where: {userJobId: userJob.id, status: UserQuizStatus.COMPLETED, type: QuizType.POSITIONING},
     });
     const currentIndex = (completionCount || userJob.completedQuizzes || 0);
     if (currentIndex >= quizzes.length) {
@@ -100,6 +151,7 @@ async function createUserQuizzesForJob(userJobId: string, jobId: string, userId:
             where: {id: jobId},
             select: {
                 quizzes: {
+                    where: {type: QuizType.POSITIONING},
                     select: {
                         id: true,
                         questions: {
@@ -153,7 +205,7 @@ async function createUserQuizzesForJob(userJobId: string, jobId: string, userId:
 }
 
 // retrieveDailyQuizForJob
-export const retrieveDailyQuizForJob = async (jobId: string, userId: string): Promise<Quiz | undefined | null> => {
+export const retrieveDailyQuizForJob = async (jobId: string, userId: string, lang: string = 'en'): Promise<Quiz | undefined | null> => {
 
 
     // check if user has completed the positioning quiz for the job, if not, return then positioningQuiz
@@ -175,12 +227,28 @@ export const retrieveDailyQuizForJob = async (jobId: string, userId: string): Pr
     }
 
     const completionCount = await prisma.userQuiz.count({
-        where: {userJobId: userJob.id, status: UserQuizStatus.COMPLETED},
+        where: {userJobId: userJob.id, status: UserQuizStatus.COMPLETED, type: QuizType.POSITIONING},
         skip: 0,
     });
     const completedPositioningQuiz = completionCount >= 5;
     if (!completedPositioningQuiz) {
         return await retrievePositioningQuizForJob(userJob);
+    }
+
+    // Bloquer un second DAILY le même jour
+    const lastCompletedDaily = await prisma.userQuiz.findFirst({
+        where: {
+            userJobId: userJob.id,
+            type: QuizType.DAILY,
+            status: UserQuizStatus.COMPLETED,
+            completedAt: {not: null},
+        },
+        orderBy: {completedAt: 'desc'},
+        select: {completedAt: true},
+    });
+
+    if (lastCompletedDaily?.completedAt && isSameDay(lastCompletedDaily.completedAt, new Date())) {
+        return null;
     }
 
     // If positioning quiz is completed, return the generated daily quiz for the job
@@ -270,14 +338,295 @@ async function updateUserJobStats(userJobId: string, doneAt: string) {
     });
 }
 
+type GeneratedQuizResponseDto = {
+    text: string;
+    isCorrect: boolean;
+    index?: number;
+    metadata?: any;
+};
+
+type GeneratedQuizQuestionDto = {
+    text: string;
+    competencySlug: string;
+    difficulty?: string;
+    type?: string;
+    timeLimitInSeconds?: number;
+    points?: number;
+    mediaUrl?: string | null;
+    metadata?: any;
+    index?: number;
+    responses: GeneratedQuizResponseDto[];
+};
+
+type GeneratedQuizDto = {
+    title: string;
+    description?: string;
+    level?: string;
+    questions: GeneratedQuizQuestionDto[];
+};
+
+const mapDifficultyToLevel = (difficulty?: string): Level => {
+    const normalized = difficulty?.toUpperCase();
+    if (normalized === 'EASY') return Level.EASY;
+    if (normalized === 'MEDIUM') return Level.MEDIUM;
+    if (normalized === 'HARD' || normalized === 'DIFFICULT') return Level.HARD;
+    if (normalized === 'EXPERT') return Level.EXPERT;
+    return Level.MEDIUM;
+};
+
+const mapQuestionType = (value?: string): QuizQuestionType => {
+    switch ((value ?? '').toLowerCase()) {
+        case 'multiple_choice':
+        case 'multiple-choice':
+            return QuizQuestionType.multiple_choice;
+        case 'true_false':
+        case 'true-false':
+            return QuizQuestionType.true_false;
+        case 'short_answer':
+            return QuizQuestionType.short_answer;
+        case 'fill_in_the_blank':
+        case 'fill-in-the-blank':
+            return QuizQuestionType.fill_in_the_blank;
+        default:
+            return QuizQuestionType.single_choice;
+    }
+};
+
+const mapLeagueTierToProgressionLevel = (tier: LeagueTier | null | undefined): JobProgressionLevel => {
+    switch (tier) {
+        case LeagueTier.IRON:
+        case LeagueTier.BRONZE:
+            return JobProgressionLevel.JUNIOR;
+        case LeagueTier.SILVER:
+        case LeagueTier.GOLD:
+            return JobProgressionLevel.MIDLEVEL;
+        case LeagueTier.PLATINUM:
+        case LeagueTier.EMERALD:
+        case LeagueTier.DIAMOND:
+            return JobProgressionLevel.SENIOR;
+        case LeagueTier.MASTER:
+        case LeagueTier.GRANDMASTER:
+        case LeagueTier.CHALLENGER:
+            return JobProgressionLevel.EXPERT;
+        default:
+            return JobProgressionLevel.MIDLEVEL;
+    }
+};
+
+export async function generateAndPersistDailyQuiz(userId: string, jobId: string, userJobId: string) {
+    const agentUrl = process.env.QUIZ_GENERATION_URL || process.env.QUIZ_AGENT_URL;
+    if (!agentUrl) {
+        throw new Error('QUIZ_GENERATION_URL (ou QUIZ_AGENT_URL) non configuré');
+    }
+
+    const existingAssigned = await prisma.userQuiz.findFirst({
+        where: {userJobId, type: QuizType.DAILY, status: UserQuizStatus.ASSIGNED},
+        select: {id: true},
+    });
+    if (existingAssigned) {
+        return existingAssigned;
+    }
+
+    const userJob = await prisma.userJob.findUnique({
+        where: {id: userJobId},
+        select: {leagueTier: true},
+    });
+    if (!userJob) {
+        throw new Error('UserJob introuvable pour la génération');
+    }
+
+    const payload = await buildGenerateQuizInput({
+        userId,
+        jobId,
+        generationParameters: {
+            numberOfQuestions: 10,
+            allowedQuestionTypes: [
+                QuizQuestionType.single_choice,
+            ],
+            focusWeakCompetenciesRatio: 0.6,
+            includeStrongForReviewRatio: 0.2,
+            avoidQuestionIds: [],
+            targetJobProgressionLevel: mapLeagueTierToProgressionLevel(userJob.leagueTier),
+        },
+    });
+
+    const response = await fetch(`${agentUrl}/generate-quiz`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+        throw new Error(`Echec de génération de quiz (status ${response.status})`);
+    }
+
+    const body = await response.json();
+    const generated: GeneratedQuizDto = body?.quiz ?? body;
+
+    if (!generated || !generated.questions?.length) {
+        throw new Error('Réponse de génération invalide (questions absentes)');
+    }
+
+    const job = await prisma.job.findUnique({
+        where: {id: jobId},
+        include: {competencies: true},
+    });
+    if (!job) {
+        throw new Error('Job introuvable pour la génération');
+    }
+
+    const competencyMap = new Map<string, string>();
+    job.competencies.forEach((c) => competencyMap.set(c.slug, c.id));
+
+    const quiz = await prisma.quiz.create({
+        data: {
+            jobId,
+            title: generated.title,
+            description: generated.description ?? '',
+            level: mapDifficultyToLevel(generated.level),
+            type: QuizType.DAILY,
+            questions: {
+                create: generated.questions.map((q) => {
+                    const competencyId = competencyMap.get(q.competencySlug);
+                    if (!competencyId) {
+                        throw new Error(`Compétence inconnue pour le slug "${q.competencySlug}"`);
+                    }
+                    return {
+                        text: q.text,
+                        competencyId,
+                        timeLimitInSeconds: q.timeLimitInSeconds ?? 30,
+                        points: q.points ?? 1,
+                        level: mapDifficultyToLevel(q.difficulty),
+                        type: mapQuestionType(q.type),
+                        mediaUrl: q.mediaUrl ?? '',
+                        index: q.index ?? 0,
+                        metadata: q.metadata ?? undefined,
+                        responses: {
+                            create: q.responses.map((r, idx) => ({
+                                text: r.text,
+                                metadata: r.metadata ?? undefined,
+                                isCorrect: r.isCorrect,
+                                index: r.index ?? idx,
+                            })),
+                        },
+                    };
+                }),
+            },
+        },
+        include: {
+            questions: {
+                include: {responses: true, competency: true},
+                orderBy: {index: 'asc'},
+            },
+        },
+    });
+
+    const maxIndex = await prisma.userQuiz.aggregate({
+        _max: {index: true},
+        where: {userJobId},
+    });
+    const nextIndex = (maxIndex._max.index ?? -1) + 1;
+
+    const maxScore = quiz.questions.reduce((sum, q) => sum + q.points, 0);
+    const maxScoreWithBonus = quiz.questions.reduce((sum, q) => sum + q.points + q.timeLimitInSeconds, 0);
+
+    const userQuiz = await prisma.userQuiz.create({
+        data: {
+            userJobId,
+            quizId: quiz.id,
+            type: QuizType.DAILY,
+            status: UserQuizStatus.ASSIGNED,
+            index: nextIndex,
+            maxScore,
+            maxScoreWithBonus,
+        },
+        include: {
+            quiz: {
+                include: {
+                    questions: {
+                        include: {
+                            responses: true,
+                            competency: true,
+                        },
+                        orderBy: {index: 'asc'},
+                    },
+                },
+            },
+        },
+    });
+
+    return userQuiz;
+}
+
+export async function generateAdaptiveQuizForUserJob(userId: string, jobId: string, userJobId: string) {
+    if (getRedisClient()) {
+        try {
+            const enqueued = await enqueueQuizGenerationJob({userId, jobId, userJobId});
+            if (enqueued) {
+                return null;
+            }
+        } catch (err) {
+            console.error('Failed to enqueue quiz generation job, fallback to inline generation', err);
+        }
+    }
+
+    return await generateAndPersistDailyQuiz(userId, jobId, userJobId);
+}
+
+
+async function generateNextQuiz(updatedUserQuiz: any, userJobId: string, userId: string, jobId: string) {
+    let shouldGeneratePersonalizedQuiz = false;
+
+    const pendingNextQuiz = await prisma.userQuiz.findFirst({
+        where: {
+            userJobId,
+            isActive: true,
+            status: UserQuizStatus.ASSIGNED,
+            index: {gt: updatedUserQuiz.index},
+        },
+        orderBy: {index: 'asc'},
+    });
+
+    if (updatedUserQuiz.type === QuizType.POSITIONING) {
+        const hasRemainingPositioningQuiz = await prisma.userQuiz.findFirst({
+            where: {
+                userJobId,
+                type: QuizType.POSITIONING,
+                isActive: true,
+                status: UserQuizStatus.ASSIGNED,
+                index: {gt: updatedUserQuiz.index},
+            },
+        });
+
+        if (!hasRemainingPositioningQuiz && !pendingNextQuiz) {
+            shouldGeneratePersonalizedQuiz = true;
+        }
+    } else {
+        shouldGeneratePersonalizedQuiz = !pendingNextQuiz;
+    }
+
+    if (shouldGeneratePersonalizedQuiz) {
+        try {
+            await generateAdaptiveQuizForUserJob(userId, jobId, userJobId);
+        } catch (e) {
+            console.error('Failed to generate next quiz', e);
+        }
+    }
+
+    return updatedUserQuiz;
+}
+
 export const saveUserQuizAnswers = async (
     jobId: string,
     userQuizId: string,
     userId: string,
     answers: AnswerInput[],
     doneAt: string,
+    lang: string = 'en',
 ) => {
-    const result = await prisma.$transaction(async (tx: any) => {
+    const {updatedUserQuiz, userJobId} = await prisma.$transaction(async (tx: any) => {
         // 0. Récupérer le UserJob
         const userJob = await tx.userJob.findUnique({
             where: {userId_jobId: {userId, jobId}},
@@ -592,10 +941,10 @@ export const saveUserQuizAnswers = async (
             });
         }
 
-        return updatedUserQuiz;
+        return {updatedUserQuiz, userJobId: userJob.id};
     });
 
-    return result;
+    return await generateNextQuiz(updatedUserQuiz, userJobId, userId, jobId);
 };
 
 
@@ -618,6 +967,7 @@ export type GetRankingForJobParams = {
     jobId: string;
     from?: string;
     to?: string;
+    lang?: string;
 };
 
 export async function getRankingForJob({jobId, from, to,}: GetRankingForJobParams): Promise<UserJobRankingRow[]> {
@@ -890,7 +1240,8 @@ export async function getLastKiviatSnapshotsForUserJob(
 
 export const getUserJobCompetencyProfile = async (
     userId: string,
-    jobId: string
+    jobId: string,
+    lang: string = 'en'
 ): Promise<UserJobCompetencyProfile> => { // si tu veux typer strictement
 // ) => {
     // 1. Récupérer le UserJob + user + job (et vérifier qu’il existe)
@@ -988,6 +1339,40 @@ export const getUserJobCompetencyProfile = async (
         };
     });
 
+    const localizedCompetencies = await Promise.all(
+        competencies.map(async (c) => {
+            const loc = await resolveFields({
+                entity: 'Competency',
+                entityId: c.competencyId,
+                fields: ['name', 'description'],
+                lang,
+                base: {name: c.name, description: null},
+            });
+            return {...c, name: loc.name};
+        })
+    );
+
+    const localizedJob = await resolveFields({
+        entity: 'Job',
+        entityId: userJob.job.id,
+        fields: ['title', 'description'],
+        lang,
+        base: userJob.job,
+    });
+
+    const localizedFamilies = await Promise.all(
+        userJob.job.competenciesFamilies.map(async (f) => {
+            const loc = await resolveFields({
+                entity: 'CompetenciesFamily',
+                entityId: f.id,
+                fields: ['name', 'description'],
+                lang,
+                base: f,
+            });
+            return {id: f.id, name: loc.name};
+        })
+    );
+
     // 4. Construire un petit résumé global pour le dashboard
     const totalCompetencies = competencies.length;
 
@@ -1015,13 +1400,10 @@ export const getUserJobCompetencyProfile = async (
         userJobId: userJob.id,
         job: {
             id: userJob.job.id,
-            title: userJob.job.title,
-            slug: userJob.job.slug,
-            description: userJob.job.description,
-            competencyFamilies: userJob.job.competenciesFamilies.map((f) => ({
-                id: f.id,
-                name: f.name,
-            })),
+            title: localizedJob.title,
+            slug: localizedJob.slug,
+            description: localizedJob.description,
+            competencyFamilies: localizedFamilies,
         },
         user: {
             id: userJob.user.id,
@@ -1036,7 +1418,7 @@ export const getUserJobCompetencyProfile = async (
             weakCount,
             lastQuizAt,
         },
-        competencies,
+        competencies: localizedCompetencies,
         kiviats: (await getLastKiviatSnapshotsForUserJob(userJob.id, jobId)),
     };
 

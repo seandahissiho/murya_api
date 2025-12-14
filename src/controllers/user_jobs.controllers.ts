@@ -13,7 +13,8 @@ export const retrieveCurrentUserJob = async (req: Request, res: Response, next: 
             return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
         }
 
-        const userJob = await jobService.getCurrentUserJob(userId);
+        const lang = await detectLanguage(req);
+        const userJob = await jobService.getCurrentUserJob(userId, lang);
         if (!userJob) {
             return sendResponse(res, 200, {data: null});
             // return sendResponse(res, 404, {error: 'Aucun job utilisateur actuel trouvé.'});
@@ -54,6 +55,7 @@ export const getJobLeaderboard = async (req: Request, res: Response, next: NextF
             jobId,
             from: fromParam,
             to: toParam,
+            lang: await detectLanguage(req),
         });
 
         return sendResponse(res, 200, {
@@ -97,7 +99,7 @@ export const retrieveDailyQuizForJob = async (req: Request, res: Response, next:
             return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
         }
 
-        const quiz = await jobService.retrieveDailyQuizForJob(jobId, userId);
+        const quiz = await jobService.retrieveDailyQuizForJob(jobId, userId, await detectLanguage(req));
         if (!quiz) {
             return sendResponse(res, 404, {error: 'Quiz quotidien non trouvé pour ce job.'});
         }
@@ -136,7 +138,7 @@ export const saveDailyQuizAnswers = async (req: Request, res: Response, next: Ne
             return sendResponse(res, 400, {error: 'Les réponses du quiz sont requises et doivent être un tableau.'});
         }
 
-        const result = await jobService.saveUserQuizAnswers(jobId, quizId, userId, answers, doneAt);
+        const result = await jobService.saveUserQuizAnswers(jobId, quizId, userId, answers, doneAt, await detectLanguage(req));
         return sendResponse(res, 200, {data: result});
     } catch (err) {
         console.error('saveDailyQuizAnswers error:', err);
@@ -160,7 +162,7 @@ export const getUserJob = async (req: Request, res: Response, next: NextFunction
             return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
         }
 
-        const userJob = await jobService.getUserJob(jobId, userId);
+        const userJob = await jobService.getUserJob(jobId, userId, await detectLanguage(req));
         if (!userJob) {
             return sendResponse(res, 404, {error: 'Job utilisateur non trouvé.'});
         }
@@ -181,7 +183,7 @@ export const getUserJobCompetencyProfileHandler = async (req: Request, res: Resp
     const jobId = req.params.jobId as string; // ou query/body
 
     try {
-        const profile = await jobService.getUserJobCompetencyProfile(userId, jobId);
+        const profile = await jobService.getUserJobCompetencyProfile(userId, jobId, await detectLanguage(req));
         sendResponse(res, 200, {data: profile});
     } catch (e: any) {
         console.error(e);

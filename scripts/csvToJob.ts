@@ -219,7 +219,7 @@ function retrieveCsvContent(csvPathBase: string) {
 }
 
 if (require.main === module) {
-    const csvPath = `data/jobs/product_manager/product_manager.csv`;
+    const csvPath = `data/jobs/technicien_cybersecurite/technicien_cybersecurite.csv`;
 
     const csvContent = retrieveCsvContent(csvPath);
     const jobCorpus = buildJobCorpusFromCsv(csvContent, "");

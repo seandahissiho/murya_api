@@ -26,6 +26,15 @@ export const register = async (
     deviceId?: string,
     rawPassword?: string,
 ): Promise<User> => {
+    if (!email && !phone && deviceId) {
+        const exist = await prisma.user.findUnique({
+            where: {deviceId: deviceId as string},
+        });
+        if (exist) {
+            return exist;
+        }
+    }
+
     const hash = rawPassword ? await bcrypt.hash(rawPassword, SALT_ROUNDS) : null;
     return prisma.user.create({
         data: {
@@ -55,21 +64,42 @@ export const login = async (
     if (!email && !phone && !deviceId) {
         throw new Error('Email, téléphone ou deviceId requis pour la connexion');
     }
-    let whereClause: any = {};
-    if (email) whereClause.email = email;
-    if (phone) whereClause.phone = phone;
-    if (deviceId) whereClause.deviceId = deviceId;
 
-    let user = await prisma.user.findUnique({
-        where: whereClause
-    });
+    const wantsDeviceLogin = !!deviceId && !rawPassword;
 
-    if (!user) throw new Error('Identifiants invalides');
-    const valid = await bcrypt.compare(rawPassword ?? '', user.password ?? '?$Sm@S@M6QQ$xDp?hdYSC!!?sh633o7SgHEz9oG');
-    if (!valid && rawPassword) throw new Error('Identifiants invalides');
+    let user;
 
+    if (wantsDeviceLogin) {
+        user = await prisma.user.findUnique({
+            where: {deviceId: deviceId as string},
+        });
+        if (!user) {
+            throw new Error('Identifiants invalides');
+        }
+    } else {
+        if (!rawPassword || (!email && !phone)) {
+            throw new Error('Email ou téléphone + mot de passe requis pour la connexion');
+        }
 
-    // Generate Access Token
+        user = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    email ? {email} : undefined,
+                    phone ? {phone} : undefined,
+                ].filter(Boolean) as any,
+            },
+        });
+
+        if (!user || !user.password) {
+            throw new Error('Identifiants invalides');
+        }
+
+        const valid = await bcrypt.compare(rawPassword, user.password);
+        if (!valid) {
+            throw new Error('Identifiants invalides');
+        }
+    }
+
     const access_token = jwt.sign(
         {userId: user.id, userRole: user.roleId, isAdmin: user.isAdmin},
         process.env.JWT_SECRET as string,
@@ -82,7 +112,6 @@ export const login = async (
         throw new Error('Failed to generate access token');
     }
 
-    // Generate Refresh Token
     const refresh_token = jwt.sign(
         {userId: user.id, userRole: user.roleId, isAdmin: user.isAdmin},
         process.env.JWT_REFRESH_SECRET as string,
@@ -95,21 +124,13 @@ export const login = async (
         throw new Error('Failed to generate refresh token');
     }
 
-    // Store Refresh Token in the Database
-    // Mettre à jour la date du dernier login
     await prisma.user.update({
         where: {id: user.id},
         data: {
             refreshToken: refresh_token,
-            lastLogin: new Date() // Mettre à jour la date du dernier login
+            lastLogin: new Date()
         },
     });
-
-    // 2) Once login is successful, trigger daily quiz creation
-    // quizAssignmentService.assignQuizzesForUserOnLogin(user.id).then(r => {
-    //     // Quizzes assigned
-    //     console.log(`Daily quizzes assigned for user ${user.id} on login.`);
-    // });
 
     return {access_token, refresh_token}
 };
@@ -134,7 +155,7 @@ async function checkEmailExistsAndIsActive(param: any) {
     return true;
 }
 
-export const refresh = async (refreshToken: string): Promise<{ access_token: string; user: User }> => {
+export const refresh = async (refreshToken: string): Promise<{ access_token: string; user: User; refresh_token: string }> => {
     const payload: any = jwt.verify(
         refreshToken,
         process.env.JWT_REFRESH_SECRET as string,
@@ -156,7 +177,6 @@ export const refresh = async (refreshToken: string): Promise<{ access_token: str
         throw new Error('Votre compte n\'est pas activé');
     }
 
-    // Generate a new Access Token
     const newAccessToken = jwt.sign(
         {userId: user.id, userRole: user.role.id, isAdmin: user.isAdmin},
         process.env.JWT_SECRET as string,
@@ -165,15 +185,22 @@ export const refresh = async (refreshToken: string): Promise<{ access_token: str
         },
     );
 
-    if (!newAccessToken) {
-        throw new Error('Failed to generate new access token');
-    }
+    const newRefreshToken = jwt.sign(
+        {userId: user.id, userRole: user.role.id, isAdmin: user.isAdmin},
+        process.env.JWT_REFRESH_SECRET as string,
+        {
+            expiresIn: REFRESH_TOKEN_EXPIRY,
+        },
+    );
 
-    // quizAssignmentService.assignQuizzesForUserOnLogin(user.id).then(r => {
-    //     // Quizzes assigned
-    //     console.log(`Daily quizzes assigned for user ${user.id} on login.`);
-    // });
+    await prisma.user.update({
+        where: {id: user.id},
+        data: {
+            refreshToken: newRefreshToken,
+            lastLogin: new Date(),
+        },
+    });
 
-    return {access_token: newAccessToken, user};
+    return {access_token: newAccessToken, user, refresh_token: newRefreshToken};
 
 }

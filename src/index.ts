@@ -6,6 +6,8 @@ import cors from "cors";
 import router from "./routes/index.routes";
 import path from "path";
 // import {parseDateStrings} from "./utils/parseDateStrings";
+import {initRedis} from "./config/redis";
+import {startQuizGenerationWorker} from "./services/quiz_generation.worker";
 
 dotenv.config();
 
@@ -40,6 +42,13 @@ app.get("/", (_, res) => res.json({ ok: true }));
 
 app.listen(port, () => {
     console.log(`Server listening on http://localhost:${port}`);
+    initRedis().then((client) => {
+        if (client) {
+            startQuizGenerationWorker();
+        }
+    }).catch((err) => {
+        console.error('Failed to initialize Redis', err);
+    });
     // Optional: run once at boot (useful after restarts)
     // (Comment out if you strictly want it only at 08:00)
 

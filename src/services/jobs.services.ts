@@ -21,6 +21,9 @@ export const searchJobs = async (
     const skip = (page - 1) * perPage;
 
     const where: any = {
+        AND: [
+            {isActive: true},
+        ],
         OR: [
             {title: {contains: query, mode: 'insensitive'}},
             {slug: {contains: query, mode: 'insensitive'}},

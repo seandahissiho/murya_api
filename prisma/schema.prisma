@@ -1,0 +1,762 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  // directUrl  = env("DIRECT_URL") // direct (migrations)
+  extensions = [pgcrypto] // or [uuid‑ossp]
+}
+
+enum permissions_action {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+}
+
+enum permissions_entity {
+  USER
+}
+
+enum NotificationCategory {
+  SYSTEM
+  USER
+  PAYMENT
+  PURCHASE
+  SALE
+  HR
+  MARKETING
+  FINANCE
+  ADMINISTRATION
+  LEGAL
+  SUPPORT
+  SECURITY
+  MAINTENANCE
+  REPORT
+  ALERT
+  EVENT
+  REMINDER
+  FEEDBACK
+  OTHER
+}
+
+enum NotificationType {
+  INFO
+  WARNING
+  ERROR
+  SUCCESS
+}
+
+enum Genre {
+  MALE
+  FEMALE
+  UNDEFINED
+}
+
+enum CompetencyType {
+  // savoir-faire
+  HARD_SKILL
+  // savoir-être
+  SOFT_SKILL
+}
+
+enum Level {
+  EASY
+  MEDIUM
+  HARD
+  EXPERT
+  MIX
+}
+
+enum QuizQuestionType {
+  single_choice
+  multiple_choice
+  true_false
+  short_answer
+  fill_in_the_blank
+}
+
+enum UserJobStatus {
+  TARGET // a job the user is preparing for
+  CURRENT // job they currently have
+  PAST // job they had in the past
+}
+
+enum LeagueTier {
+  IRON // Fer
+  BRONZE // Bronze
+  SILVER // Argent
+  GOLD // Or
+  PLATINUM // Platine
+  EMERALD // Émeraude
+  DIAMOND // Diamant
+  MASTER // Maître
+  GRANDMASTER // Grand Maître
+  CHALLENGER // Challenger
+}
+
+enum JobProgressionLevel {
+  JUNIOR
+  MIDLEVEL
+  SENIOR
+  EXPERT
+}
+
+enum UserQuizStatus {
+  ASSIGNED
+  STARTED
+  COMPLETED
+  EXPIRED
+}
+
+enum QuizType {
+  POSITIONING
+  DAILY
+}
+
+enum LearningResourceType {
+  ARTICLE
+  PODCAST
+  VIDEO
+}
+
+enum LearningResourceScope {
+  JOB_DEFAULT // Ressource par défaut liée au Job (visible pour tous les UserJob du job)
+  USER_JOB // Ressource personnalisée pour un UserJob précis
+}
+
+enum LearningResourceSource {
+  SYSTEM_DEFAULT // créée à la main / seed
+  AI_GENERATED // générée par l'IA
+  EXTERNAL_LINK // lien externe (YouTube, podcast hébergé ailleurs, etc.)
+}
+
+model Address {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ref         String    @unique
+  name        String?   @unique
+  shortName   String?
+  street      String
+  zip         String?
+  city        String
+  countryId   String // ← Foreign key column
+  status      Int       @default(1) // 1 = actif, 0 = inactif
+  isVirtual   Boolean?  @default(false) // false = interne, true = externe
+  createdAt   DateTime  @default(now()) @db.Timestamp(0)
+  updatedAt   DateTime  @default(now()) @updatedAt @db.Timestamp(0)
+  createdById String?   @db.Uuid // identifiant de l'utilisateur qui a créé cette adresse
+  updatedById String?   @db.Uuid // identifiant de l'utilisateur qui a mis à jour cette adresse
+  // Metadata for auditing
+  // Relations
+  country     Country   @relation(fields: [countryId], references: [isoCode], onUpdate: Cascade, onDelete: NoAction) // ← Relation to Country model
+  companies   Company[] // Entreprises associées à cette adresse
+  users       User[] // Utilisateurs associés à cette adresse
+  createdBy   User?     @relation(name: "AddressCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_addresses_created_by")
+  updatedBy   User?     @relation(name: "AddressUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_addresses_updated_by")
+
+  @@unique([street, zip, city, countryId], map: "unique_address")
+}
+
+model Company {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String        @unique(map: "company_name") @db.VarChar(255)
+  nameShort   String?       @db.VarChar(50) // nom court de l'entreprise
+  logoUrl     String?       @db.VarChar(255) // URL du logo de
+  email       String?       @unique(map: "company_email") @db.VarChar(255) // email unique pour les entreprises
+  phone       String?       @db.VarChar(50) // téléphone de l'entreprise
+  phone2      String?       @db.VarChar(50) // téléphone secondaire de l'entreprise
+  phone3      String?       @db.VarChar(50) // téléphone tertiaire
+  website     String?       @db.VarChar(255) // site web de l'entreprise
+  siret       String?       @unique(map: "company_siret") @db.VarChar(14) // SIRET de l'entreprise
+  siretValid  Boolean?      @default(false) // true si le SIRET est valide
+  ifu         String?       @unique(map: "company_ifu") @db.VarChar(13) // Identifiant fiscal unique
+  emcfNumber  String?       @unique(map: "company_emcf_number") @db.VarChar(20) // Numéro EMCF (si applicable)
+  description String?       @db.Text
+  addressId   String?       @db.Uuid // ID de l'adresse associée
+  createdById String        @db.Uuid // ID de l'utilisateur qui a créé l'entreprise
+  updatedById String?       @db.Uuid // ID de l'utilisateur qui a mis à jour l'entreprise
+  createdAt   DateTime      @default(now()) @db.Timestamp(0)
+  updatedAt   DateTime      @default(now()) @updatedAt @db.Timestamp(0)
+  isCompany   Boolean       @default(true) // true = entreprise, false = personne physique
+  isClient    Boolean       @default(true) // true = client, false = not a client
+  address     Address?      @relation(fields: [addressId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_companies_address_id")
+  createdBy   User          @relation(name: "ClientCompanyCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_companies_created_by")
+  updatedBy   User?         @relation(name: "ClientCompanyUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_companies_updated_by")
+  users       CompanyUser[]
+}
+
+model CompanyUser {
+  companyId String  @db.Uuid
+  userId    String  @db.Uuid
+  role      String? @db.VarChar(64) // "ADMIN", "MEMBER", ...
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([companyId, userId])
+  @@index([userId])
+}
+
+model CompetenciesFamily {
+  id             String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String                  @unique(map: "competencies_family_name") @db.VarChar(255)
+  slug           String                  @unique @db.VarChar(255)
+  description    String?                 @db.Text
+  createdAt      DateTime                @default(now()) @db.Timestamp(0)
+  updatedAt      DateTime                @default(now()) @updatedAt @db.Timestamp(0)
+  // Relations
+  subFamilies    CompetenciesSubFamily[]
+  competencies   Competency[]            @relation("CompetencyFamilies")
+  jobs           Job[]                   @relation("JobCompetenciesFamilies")
+  kiviats        JobKiviat[]
+  userJobKiviats UserJobKiviat[]
+}
+
+model CompetenciesSubFamily {
+  id                       String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                     String                   @db.VarChar(255)
+  slug                     String                   @unique @db.VarChar(255)
+  description              String?                  @db.Text
+  familyId                 String                   @db.Uuid
+  createdAt                DateTime                 @default(now()) @db.Timestamp(0)
+  updatedAt                DateTime                 @default(now()) @updatedAt @db.Timestamp(0)
+  // Famille parente
+  family                   CompetenciesFamily       @relation(fields: [familyId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_competencies_subfamily_family_id")
+  // Relations métier
+  competencies             Competency[]             @relation("CompetenciesSubFamilies")
+  jobs                     Job[]                    @relation("JobCompetenciesSubfamilies")
+  jobSubfamilyCompetencies JobSubfamilyCompetency[]
+
+  // Unicité dans le scope d'une famille
+  @@unique([familyId, name], map: "uq_subfamily_family_name")
+}
+
+model Competency {
+  id                       String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                     String                   @db.VarChar(255)
+  slug                     String                   @unique @db.VarChar(255)
+  description              String?                  @db.Text
+  type                     CompetencyType
+  level                    Level                    @default(EASY)
+  createdAt                DateTime                 @default(now()) @db.Timestamp(0)
+  updatedAt                DateTime                 @default(now()) @updatedAt @db.Timestamp(0)
+  // Relations
+  jobs                     Job[]                    @relation("JobCompetencies")
+  families                 CompetenciesFamily[]     @relation("CompetencyFamilies")
+  subFamilies              CompetenciesSubFamily[]  @relation("CompetenciesSubFamilies")
+  quizQuestions            QuizQuestion[]           @relation("CompetencyQuizQuestions")
+  userJobCompetencies      UserJobCompetency[]
+  jobSubfamilyCompetencies JobSubfamilyCompetency[]
+
+  @@index([name], map: "idx_competency_name")
+}
+
+model Country {
+  // id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String
+  isoCode     String    @id @unique // Code ISO du pays (optionnel)
+  iso3Code    String?   @unique // Code ISO3 du pays (optionnel)
+  phoneCode   String?   @unique // Indicatif téléphonique du pays (optionnel)
+  createdAt   DateTime  @default(now()) @db.Timestamp(0)
+  updatedAt   DateTime  @default(now()) @updatedAt @db.Timestamp(0)
+  // Relations
+  addresses   Address[] // Adresses associées à ce pays
+  createdById String?   @db.Uuid // ID de l'utilisateur qui a créé le pays
+  updatedById String?   @db.Uuid // ID de l'utilisateur qui a mis à jour le pays
+  createdBy   User?     @relation(name: "CountryCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_countries_created_by")
+  updatedBy   User?     @relation(name: "CountryUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_countries_updated_by")
+
+  @@index([name], map: "idx_countries_name")
+}
+
+model Job {
+  id                       String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobFamilyId              String?                  @db.Uuid
+  title                    String                   @db.VarChar(255)
+  slug                     String                   @unique @db.VarChar(255)
+  description              String?                  @db.Text
+  createdAt                DateTime                 @default(now()) @db.Timestamp(0)
+  updatedAt                DateTime                 @default(now()) @updatedAt @db.Timestamp(0)
+  isActive                 Boolean                  @default(true)
+  popularity               Int                      @default(0)
+  backgroundColor          String                   @default("#FFFFFFFF") @db.VarChar(9)
+  foregroundColor          String                   @default("#FFFFFFFF") @db.VarChar(9)
+  textColor                String                   @default("#FFFFFFFF") @db.VarChar(9)
+  overlayColor             String                   @default("#FFFFFFFF") @db.VarChar(9)
+  imageIndex               Int                      @default(0)
+  quizzes                  Quiz[]                   @relation("JobQuizzes")
+  // Relations
+  jobFamily                JobFamily?               @relation(fields: [jobFamilyId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_jobs_job_family_id")
+  competencies             Competency[]             @relation("JobCompetencies")
+  competenciesFamilies     CompetenciesFamily[]     @relation("JobCompetenciesFamilies")
+  competenciesSubfamilies  CompetenciesSubFamily[]  @relation("JobCompetenciesSubfamilies")
+  userJobs                 UserJob[]
+  learningResources        LearningResource[]
+  jobSubfamilyCompetencies JobSubfamilyCompetency[]
+  kiviats                  JobKiviat[]
+
+  @@index([jobFamilyId])
+}
+
+model JobKiviat {
+  id                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobId                String              @db.Uuid
+  competenciesFamilyId String              @db.Uuid
+  level                JobProgressionLevel
+  value                Decimal             @db.Decimal(2, 1) // 1.0, 1.5, ..., 5.0 max si tu contrôles côté app
+  updatedAt            DateTime            @default(now()) @updatedAt @db.Timestamp(0)
+  // Relations
+  job                  Job                 @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "FK_job_kiviat_job_id")
+  competenciesFamily   CompetenciesFamily  @relation(fields: [competenciesFamilyId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "FK_job_kiviat_family_id")
+
+  @@unique([jobId, competenciesFamilyId, level], map: "UQ_job_kiviat_job_family_level")
+  @@index([jobId], map: "IDX_job_kiviat_job_id")
+  @@index([competenciesFamilyId], map: "IDX_job_kiviat_family_id")
+}
+
+model JobFamily {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name      String   @unique(map: "job_family_name") @db.VarChar(255)
+  slug      String   @unique @db.VarChar(255)
+  createdAt DateTime @default(now()) @db.Timestamp(0)
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamp(0)
+  jobs      Job[]
+}
+
+model JobSubfamilyCompetency {
+  jobId        String                @db.Uuid
+  subFamilyId  String                @db.Uuid
+  competencyId String                @db.Uuid
+  job          Job                   @relation(fields: [jobId], references: [id])
+  subFamily    CompetenciesSubFamily @relation(fields: [subFamilyId], references: [id])
+  competency   Competency            @relation(fields: [competencyId], references: [id])
+
+  @@id([jobId, subFamilyId, competencyId])
+  // Interdit une compétence dans 2 sous-familles pour un même job :
+  @@unique([jobId, competencyId])
+}
+
+model Language {
+  code           String  @id @db.VarChar(16) // ex: "en", "fr", "fr-FR"
+  name           String
+  isDefault      Boolean @default(false)
+  usersPreferred User[]  @relation("UserPreferredLanguage")
+}
+
+model LearningResource {
+  id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  // Scope & typage
+  scope             LearningResourceScope  @default(USER_JOB)
+  type              LearningResourceType   @default(ARTICLE)
+  source            LearningResourceSource @default(AI_GENERATED)
+  // Liens métier
+  jobId             String?                @db.Uuid // pour les ressources par défaut (et/ou redondance pour les ressources user)
+  userJobId         String?                @db.Uuid // pour les ressources personnalisées
+  // Contenu
+  title             String                 @db.VarChar(255)
+  slug              String?                @unique @db.VarChar(255)
+  description       String?                @db.Text
+  content           String?                @db.Text // article, script de podcast, transcript de vidéo, etc.
+  mediaUrl          String?                @db.VarChar(1024) // URL audio/vidéo si besoin
+  thumbnailUrl      String?                @db.VarChar(1024)
+  languageCode      String?                @db.VarChar(16)
+  estimatedDuration Int? // en secondes
+  metadata          Json? // pour stocker n’importe quel extra (IDs IA, tags, etc.)
+  // Audit
+  createdAt         DateTime               @default(now()) @db.Timestamp(0)
+  updatedAt         DateTime               @default(now()) @updatedAt @db.Timestamp(0)
+  createdById       String?                @db.Uuid
+  updatedById       String?                @db.Uuid
+  // Relations
+  job               Job?                   @relation(fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  userJob           UserJob?               @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  createdBy         User?                  @relation(name: "LearningResourceCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: SetNull)
+  updatedBy         User?                  @relation(name: "LearningResourceUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: SetNull)
+
+  @@index([jobId], map: "idx_learning_resource_job")
+  @@index([userJobId], map: "idx_learning_resource_user_job")
+  @@index([scope, type], map: "idx_learning_resource_scope_type")
+}
+
+model Notification {
+  id                     String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title                  String                  @db.VarChar(255)
+  content                String?                 @db.Text
+  is_important           Boolean                 @default(false) @db.Boolean
+  category               NotificationCategory    @default(OTHER)
+  createdAt              DateTime                @default(now()) @db.Timestamp(0)
+  updatedAt              DateTime                @default(now()) @updatedAt @db.Timestamp(0)
+  notificationRecipients NotificationRecipient[]
+}
+
+model NotificationRecipient {
+  notificationId String       @db.Uuid
+  userId         String       @db.Uuid
+  notification   Notification @relation(fields: [notificationId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "notifications_recipients_ibfk_1")
+  user           User         @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "notifications_recipients_ibfk_2")
+  is_read        Boolean      @default(false) @db.Boolean
+
+  @@id([notificationId, userId])
+  @@index([userId], map: "userId")
+}
+
+model NotificationTemplate {
+  id        String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  key       String               @unique @db.VarChar(255) // e.g. "USER.WELCOME"
+  category  NotificationCategory @default(OTHER)
+  type      NotificationType     @default(INFO)
+  createdAt DateTime             @default(now()) @db.Timestamp(0)
+  updatedAt DateTime             @default(now()) @updatedAt @db.Timestamp(0)
+}
+
+model Permissions {
+  id        String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  roleId    String?            @db.Uuid
+  entity    permissions_entity
+  action    permissions_action
+  createdAt DateTime           @default(now()) @db.Timestamp(0)
+  updatedAt DateTime           @default(now()) @updatedAt @db.Timestamp(0)
+  role      Role?              @relation(fields: [roleId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "permissions_role_id_foreign")
+
+  @@unique([roleId, action, entity], map: "unique_role_action_entity")
+  @@index([roleId], map: "permissions_role_id_index")
+}
+
+model Quiz {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobId       String         @db.Uuid
+  title       String?
+  description String?
+  level       Level          @default(EASY)
+  questions   QuizQuestion[]
+  type        QuizType       @default(POSITIONING)
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now()) @db.Timestamp(0)
+  updatedAt   DateTime       @updatedAt @db.Timestamp(0)
+  job         Job            @relation("JobQuizzes", fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  quizzes     UserQuiz[]
+}
+
+model QuizQuestion {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quizId             String?          @db.Uuid
+  competencyId       String           @db.Uuid
+  text               String
+  timeLimitInSeconds Int              @default(30)
+  points             Int              @default(1)
+  level              Level
+  type               QuizQuestionType @default(single_choice)
+  mediaUrl           String           @default("")
+  index              Int              @default(0)
+  metadata           Json?
+  createdAt          DateTime         @default(now()) @db.Timestamp(0)
+  updatedAt          DateTime         @updatedAt @db.Timestamp(0)
+  userAnswers        UserQuizAnswer[]
+  quiz               Quiz?            @relation(fields: [quizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  competency         Competency       @relation("CompetencyQuizQuestions", fields: [competencyId], references: [id])
+  responses          QuizResponse[]
+
+  @@index([quizId])
+}
+
+model QuizResponse {
+  id            String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questionId    String                 @db.Uuid
+  text          String
+  metadata      Json?
+  isCorrect     Boolean                @default(false)
+  index         Int                    @default(0)
+  createdAt     DateTime               @default(now()) @db.Timestamp(0)
+  updatedAt     DateTime               @updatedAt @db.Timestamp(0)
+  // Relations
+  question      QuizQuestion           @relation(fields: [questionId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  answerOptions UserQuizAnswerOption[]
+
+  @@index([questionId])
+}
+
+model Role {
+  id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name        String        @unique(map: "role_name") @db.VarChar(255)
+  createdAt   DateTime      @default(now()) @db.Timestamp(0)
+  updatedAt   DateTime      @default(now()) @updatedAt @db.Timestamp(0)
+  permissions Permissions[]
+  users       User[]
+}
+
+model Translation {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity    String   @db.VarChar(64) // "Job", "JobFamily", "Competency", etc.
+  entityId  String   @db.Uuid
+  field     String   @db.VarChar(64) // "title", "description", ...
+  langCode  String   @db.VarChar(16) // "fr", "en"
+  value     String   @db.Text
+  createdAt DateTime @default(now()) @db.Timestamp(0)
+  updatedAt DateTime @default(now()) @updatedAt @db.Timestamp(0)
+
+  @@unique([entity, entityId, field, langCode], map: "unique_translation_row")
+  @@index([langCode], map: "idx_translation_lang")
+  @@index([entity, field], map: "idx_translation_entity_field")
+}
+
+model UploadedFile {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  createdById String?  @db.Uuid
+  updatedById String?  @db.Uuid
+  file_name   String?  @db.VarChar(255)
+  file_url    String   @db.VarChar(1024)
+  mimeType    String   @db.VarChar(128)
+  size        Int // size in bytes
+  createdAt   DateTime @default(now()) @db.Timestamp(0)
+  updatedAt   DateTime @default(now()) @updatedAt @db.Timestamp(0)
+  // Relations
+  createdBy   User?    @relation(name: "UploadedFileCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_uploaded_files_created_by_id")
+  updatedBy   User?    @relation(name: "UploadedFileUploadedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_uploaded_files_updated_by_id")
+
+  @@index([createdById], map: "uploaded_files_created_by_id_index")
+  @@index([updatedById], map: "uploaded_files_updated_by_id_index")
+}
+
+model User {
+  id                         String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  firstname                  String?
+  lastname                   String?
+  email                      String?                 @db.VarChar(255)
+  phone                      String?                 @db.VarChar(30)
+  deviceId                   String?                 @db.VarChar(255)
+  password                   String? // mot de passe haché
+  diamonds                   Int                     @default(0) // nombre de diamants de l'utilisateur
+  isActive                   Boolean                 @default(true) // utilisateur actif ou non
+  isAdmin                    Boolean                 @default(false) // utilisateur admin
+  createdAt                  DateTime                @default(now()) @db.Timestamp(0)
+  updatedAt                  DateTime                @default(now()) @updatedAt @db.Timestamp(0)
+  lastLogin                  DateTime?               @db.Timestamp(0) // date de dernière connexion
+  avatarUrl                  String?
+  birthDate                  DateTime?               @db.Timestamp(0)
+  genre                      Genre?                  @default(UNDEFINED) // genre de l'utilisateur
+  roleId                     String                  @db.Uuid // identifiant du rôle de l'utilisateur
+  refreshToken               String? // token de rafraîchissement pour l'authentification
+  addressId                  String?                 @db.Uuid // ID de l'adresse associée
+  preferredLangCode          String?                 @db.VarChar(16)
+  createdById                String?                 @db.Uuid // identifiant de l'utilisateur qui a créé ce compte
+  updatedById                String?                 @db.Uuid // identifiant de l'utilisateur qui a mis à jour ce compte
+  role                       Role                    @relation(fields: [roleId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_role_id")
+  preferredLang              Language?               @relation(name: "UserPreferredLanguage", fields: [preferredLangCode], references: [code], onUpdate: Cascade, onDelete: SetNull)
+  // utilisateur qui a créé ou mis à jour ce compte
+  createdBy                  User?                   @relation(name: "UserCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_created_by")
+  updatedBy                  User?                   @relation(name: "UserUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_updated_by")
+  // notifications envoyées à cet utilisateur
+  notificationRecipients     NotificationRecipient[]
+  // fichiers téléchargés par cet utilisateur
+  uploadedFilesCreatedBy     UploadedFile[]          @relation(name: "UploadedFileCreatedBy")
+  uploadedFilesUpdatedBy     UploadedFile[]          @relation(name: "UploadedFileUploadedBy")
+  // adresse associée à cet utilisateur
+  address                    Address?                @relation(fields: [addressId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_users_address_id")
+  // utilisateurs créés et mis à jour par cet utilisateur
+  usersCreated               User[]                  @relation(name: "UserCreatedBy")
+  usersUpdated               User[]                  @relation(name: "UserUpdatedBy")
+  // pays créés et mis à jour par cet utilisateur
+  countriesCreated           Country[]               @relation(name: "CountryCreatedBy")
+  countriesUpdated           Country[]               @relation(name: "CountryUpdatedBy")
+  // adresses créées et mises à jour par cet utilisateur
+  addressesCreated           Address[]               @relation(name: "AddressCreatedBy")
+  addressesUpdated           Address[]               @relation(name: "AddressUpdatedBy")
+  // clients créés et mis à jour par cet utilisateur
+  clientCompaniesCreated     Company[]               @relation(name: "ClientCompanyCreatedBy")
+  clientCompaniesUpdated     Company[]               @relation(name: "ClientCompanyUpdatedBy")
+  userJobs                   UserJob[]
+  // ressources d'apprentissage créées et mises à jour par cet utilisateur
+  learningResourcesCreatedBy LearningResource[]      @relation(name: "LearningResourceCreatedBy")
+  learningResourcesUpdatedBy LearningResource[]      @relation(name: "LearningResourceUpdatedBy")
+  companies                  CompanyUser[]
+
+  @@unique([email], map: "unique_email_not_null")
+  @@unique([phone], map: "unique_phone_not_null")
+  @@unique([deviceId], map: "unique_device_not_null")
+  @@index([preferredLangCode])
+}
+
+model UserJob {
+  id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String                 @db.Uuid
+  jobId             String                 @db.Uuid
+  status            UserJobStatus          @default(TARGET)
+  // Optional: manual level or seniority (1–5 for example)
+  note              String?                @db.Text
+  // Aggregated stats for fast dashboards (optional but useful)
+  totalScore        Int                    @default(0) // sum of all quiz totalScore
+  maxScoreSum       Int                    @default(0) // sum of all quiz maxScore
+  completedQuizzes  Int                    @default(0)
+  lastQuizAt        DateTime?              @db.Timestamp(0)
+  leagueTier        LeagueTier             @default(IRON)
+  leaguePoints      Int                    @default(0) // points internes pour montée/descente
+  lastLeagueChange  DateTime?              @db.Timestamp(0)
+  winningStreak     Int                    @default(0) // nombre de quiz gagnés consécutivement
+  createdAt         DateTime               @default(now()) @db.Timestamp(0)
+  updatedAt         DateTime               @default(now()) @updatedAt @db.Timestamp(0)
+  user              User                   @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  job               Job                    @relation(fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  quizzes           UserQuiz[]
+  competencies      UserJobCompetency[]
+  learningResources LearningResource[]
+  leagueHistories   UserJobLeagueHistory[]
+  kiviats           UserJobKiviat[]
+
+  @@unique([userId, jobId], map: "unique_user_job")
+  @@index([userId], map: "idx_user_job_user")
+  @@index([jobId], map: "idx_user_job_job")
+  @@index([userId, status], map: "idx_user_job_user_status")
+}
+
+model UserJobKiviat {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userJobId            String                 @db.Uuid
+  competenciesFamilyId String                 @db.Uuid
+  level                JobProgressionLevel
+  value                Decimal                @db.Decimal(2, 1) // 1.0, 1.5, ..., 5.0 max si tu contrôles côté app
+  createdAt            DateTime               @default(now()) @db.Timestamp(0)
+  updatedAt            DateTime               @default(now()) @updatedAt @db.Timestamp(0)
+  userJob              UserJob                @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  competenciesFamily   CompetenciesFamily     @relation(fields: [competenciesFamilyId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  histories            UserJobKiviatHistory[]
+
+  @@unique([userJobId, competenciesFamilyId], map: "unique_user_job_kiviat")
+  @@index([userJobId], map: "idx_user_job_kiviat_user_job")
+}
+
+model UserJobKiviatHistory {
+  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userJobKiviatId String               @db.Uuid
+  userQuizId      String               @db.Uuid
+  level           JobProgressionLevel?
+  value           Decimal              @db.Decimal(2, 1) // 1.0, 1.5, ..., 5.0 max si tu contrôles côté app
+  percentage      Float
+  createdAt       DateTime             @default(now()) @db.Timestamp(0)
+  userJobKiviat   UserJobKiviat        @relation(fields: [userJobKiviatId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  userQuiz        UserQuiz             @relation(fields: [userQuizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@index([userJobKiviatId, createdAt], map: "idx_user_job_kiviat_history")
+  @@index([userQuizId], map: "idx_user_job_kiviat_history_quiz")
+}
+
+model UserJobLeagueHistory {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userJobId   String      @db.Uuid
+  fromTier    LeagueTier?
+  toTier      LeagueTier
+  deltaPoints Int         @default(0) // variation de leaguePoints
+  reason      String?     @db.VarChar(255) // "QUIZ_WON", "QUIZ_LOST", "MANUAL_ADJUSTMENT", etc.
+  createdAt   DateTime    @default(now()) @db.Timestamp(0)
+  userJob     UserJob     @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@index([userJobId, createdAt], map: "idx_league_history_user_job")
+}
+
+model UserJobCompetency {
+  id            String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userJobId     String                     @db.Uuid
+  competencyId  String                     @db.Uuid
+  // Stats globales pour ce couple (User, Job, Competency)
+  currentScore  Float                      @default(0) // score actuel (pondéré ou moyenne)
+  maxScore      Float                      @default(0) // max théorique cumulé
+  percentage    Float                      @default(0) // currentScore / maxScore * 100
+  attemptsCount Int                        @default(0) // nombre de quiz qui ont alimenté cette compétence
+  bestScore     Float                      @default(0) // meilleur score pour cette compétence
+  lastQuizAt    DateTime?                  @db.Timestamp(0)
+  // Optionnel : niveau dérivé des scores (si tu veux mapper vers EASY/MEDIUM/HARD/EXPERT)
+  level         Level?
+  createdAt     DateTime                   @default(now()) @db.Timestamp(0)
+  updatedAt     DateTime                   @default(now()) @updatedAt @db.Timestamp(0)
+  // Relations
+  userJob       UserJob                    @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  competency    Competency                 @relation(fields: [competencyId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  histories     UserJobCompetencyHistory[]
+
+  @@unique([userJobId, competencyId], map: "unique_user_job_competency")
+  @@index([userJobId], map: "idx_ujc_user_job")
+  @@index([competencyId], map: "idx_ujc_competency")
+}
+
+model UserJobCompetencyHistory {
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userJobCompetencyId String            @db.Uuid
+  userQuizId          String            @db.Uuid
+  // Score pour CETTE compétence dans CE quiz précis
+  score               Float             @default(0)
+  maxScore            Float             @default(0)
+  percentage          Float             @default(0)
+  // Optionnel : snapshot du niveau à ce moment là
+  level               Level?
+  createdAt           DateTime          @default(now()) @db.Timestamp(0)
+  // Relations
+  userJobCompetency   UserJobCompetency @relation(fields: [userJobCompetencyId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  userQuiz            UserQuiz          @relation(fields: [userQuizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@index([userJobCompetencyId, createdAt], map: "idx_ujc_history_timeline")
+  @@index([userQuizId], map: "idx_ujc_history_user_quiz")
+}
+
+model UserQuiz {
+  id                  String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userJobId           String                     @db.Uuid
+  quizId              String                     @db.Uuid // Quiz.id is String @default(uuid())
+  type                QuizType                   @default(DAILY)
+  isActive            Boolean                    @default(true)
+  status              UserQuizStatus             @default(ASSIGNED)
+  index               Int
+  assignedAt          DateTime                   @default(now()) @db.Timestamp(0)
+  startedAt           DateTime?                  @db.Timestamp(0)
+  completedAt         DateTime?                  @db.Timestamp(0)
+  totalScore          Int                        @default(0)
+  bonusPoints         Int                        @default(0)
+  maxScore            Int                        @default(0)
+  maxScoreWithBonus   Int                        @default(0)
+  percentage          Float?                     @default(0)
+  createdAt           DateTime                   @default(now()) @db.Timestamp(0)
+  updatedAt           DateTime                   @default(now()) @updatedAt @db.Timestamp(0)
+  // Relations
+  userJob             UserJob                    @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  quiz                Quiz                       @relation(fields: [quizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  answers             UserQuizAnswer[]
+  competencyHistories UserJobCompetencyHistory[]
+  kiviatHistories     UserJobKiviatHistory[]
+
+  @@unique([userJobId, quizId], map: "unique_user_quiz_user_job_quiz")
+  @@index([quizId], map: "idx_user_quiz_quiz")
+  @@index([userJobId, status, type, assignedAt], map: "idx_user_quiz_core")
+}
+
+model UserQuizAnswer {
+  id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userQuizId     String                 @db.Uuid
+  questionId     String                 @db.Uuid // QuizQuestion.id (String)
+  timeToAnswer   Int
+  freeTextAnswer String?
+  isCorrect      Boolean                @default(false)
+  score          Int?                   @default(0)
+  createdAt      DateTime               @default(now()) @db.Timestamp(0)
+  updatedAt      DateTime               @default(now()) @updatedAt @db.Timestamp(0)
+  userQuiz       UserQuiz               @relation(fields: [userQuizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  question       QuizQuestion           @relation(fields: [questionId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  options        UserQuizAnswerOption[]
+
+  @@index([userQuizId], map: "idx_user_quiz_answer_user_quiz")
+  @@index([questionId], map: "idx_user_quiz_answer_question")
+}
+
+model UserQuizAnswerOption {
+  userQuizAnswerId String         @db.Uuid
+  responseId       String         @db.Uuid // QuizResponse.id
+  // Relations
+  answer           UserQuizAnswer @relation(fields: [userQuizAnswerId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  response         QuizResponse   @relation(fields: [responseId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@id([userQuizAnswerId, responseId])
+  @@index([responseId], map: "idx_user_quiz_answer_option_response")
+}

@@ -128,7 +128,7 @@ function retrieveJsonContent(jsonPathBase: string) {
 }
 
 if (require.main === module) {
-    const jsonPath = 'data/jobs/product_manager/kiviat.json';
+    const jsonPath = 'data/jobs/technicien_cybersecurite/kiviat.json';
     const jsonContent = retrieveJsonContent(jsonPath);
     importJobKiviatFromJson(jsonContent)
         .then(() => {
