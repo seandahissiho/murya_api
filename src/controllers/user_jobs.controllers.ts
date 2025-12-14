@@ -2,6 +2,7 @@ import {NextFunction, Request, Response} from "express";
 import * as jobService from "../services/user_jobs.services";
 import {sendResponse} from "../utils/helpers";
 import {generateMarkdownArticleForLastQuiz} from "../services/generateMarkdownArticleForLastQuiz";
+import {detectLanguage} from "../middlewares/i18n";
 
 // 👉 Optionnel : validation simple de format
 const LOCAL_DATETIME_REGEX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.000Z$/;

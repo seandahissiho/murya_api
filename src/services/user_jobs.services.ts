@@ -14,6 +14,58 @@ import {prisma} from "../config/db";
 import {resolveFields} from "../i18n/translate";
 import {buildGenerateQuizInput} from "./quiz_gen/build-generate-quiz-input";
 import {enqueueQuizGenerationJob, getRedisClient} from "../config/redis";
+import {generateMarkdownArticleForLastQuiz} from "./generateMarkdownArticleForLastQuiz";
+
+async function localizeQuizContent(quiz: any, lang: string) {
+    if (!quiz) return quiz;
+
+    const localizedQuiz = await resolveFields({
+        entity: 'Quiz',
+        entityId: quiz.id,
+        fields: ['title', 'description'],
+        lang,
+        base: {title: quiz.title, description: quiz.description},
+    });
+
+    const questions = await Promise.all(
+        (quiz.questions ?? []).map(async (q: any) => {
+            const localizedQuestion = await resolveFields({
+                entity: 'QuizQuestion',
+                entityId: q.id,
+                fields: ['text'],
+                lang,
+                base: {text: q.text},
+            });
+
+            const localizedCompetency = q.competency
+                ? await resolveFields({
+                    entity: 'Competency',
+                    entityId: q.competency.id,
+                    fields: ['name', 'description'],
+                    lang,
+                    base: q.competency,
+                })
+                : undefined;
+
+            const responses = await Promise.all(
+                (q.responses ?? []).map(async (r: any) => {
+                    const localizedResponse = await resolveFields({
+                        entity: 'QuizResponse',
+                        entityId: r.id,
+                        fields: ['text'],
+                        lang,
+                        base: {text: r.text},
+                    });
+                    return {...r, ...localizedResponse};
+                })
+            );
+
+            return {...q, ...localizedQuestion, competency: localizedCompetency, responses};
+        })
+    );
+
+    return {...quiz, ...localizedQuiz, questions};
+}
 
 const isSameDay = (a: Date, b: Date) => {
     return a.getUTCFullYear() === b.getUTCFullYear()
@@ -86,7 +138,7 @@ export async function getUserJob(jobId: string, userId: any, lang: string = 'en'
 }
 
 
-export const retrievePositioningQuizForJob = async (userJob: any): Promise<Quiz> => {
+export const retrievePositioningQuizForJob = async (userJob: any, lang: string = 'en'): Promise<Quiz> => {
     const userJobUpToDate = await prisma.userJob.findUnique({
         where: {id: userJob.id},
         select: {
@@ -127,7 +179,7 @@ export const retrievePositioningQuizForJob = async (userJob: any): Promise<Quiz>
         throw new Error('Positioning quiz not found for the current index');
     }
 
-    return await prisma.quiz.findUnique({
+    const quiz = await prisma.quiz.findUnique({
         where: {id: positioningQuiz.quizId},
         include: {
             questions: {
@@ -143,7 +195,9 @@ export const retrievePositioningQuizForJob = async (userJob: any): Promise<Quiz>
                 orderBy: {index: 'asc'},
             },
         }
-    }) as Quiz;
+    }) as any;
+
+    return await localizeQuizContent(quiz, lang);
 };
 
 async function createUserQuizzesForJob(userJobId: string, jobId: string, userId: string) {
@@ -232,7 +286,7 @@ export const retrieveDailyQuizForJob = async (jobId: string, userId: string, lan
     });
     const completedPositioningQuiz = completionCount >= 5;
     if (!completedPositioningQuiz) {
-        return await retrievePositioningQuizForJob(userJob);
+        return await retrievePositioningQuizForJob(userJob, lang);
     }
 
     // Bloquer un second DAILY le même jour
@@ -260,11 +314,23 @@ export const retrieveDailyQuizForJob = async (jobId: string, userId: string, lan
     }
     const quiz = await prisma.quiz.findUnique({
         where: {id: dailyQuiz.quizId},
+        include: {
+            questions: {
+                include: {
+                    responses: {
+                        include: {answerOptions: true},
+                        orderBy: {index: 'asc'},
+                    },
+                    competency: true,
+                },
+                orderBy: {index: 'asc'},
+            },
+        },
     });
     if (!quiz) {
         throw new Error('Daily quiz not found');
     }
-    return quiz;
+    return await localizeQuizContent(quiz, lang);
 }
 
 type AnswerInput = {
@@ -944,7 +1010,16 @@ export const saveUserQuizAnswers = async (
         return {updatedUserQuiz, userJobId: userJob.id};
     });
 
-    return await generateNextQuiz(updatedUserQuiz, userJobId, userId, jobId);
+    const quizResult = await generateNextQuiz(updatedUserQuiz, userJobId, userId, jobId);
+
+    let generatedArticle = null;
+    try {
+        generatedArticle = await generateMarkdownArticleForLastQuiz(userJobId, userId);
+    } catch (err) {
+        console.error('Failed to auto-generate markdown article after quiz completion', err);
+    }
+
+    return {...quizResult, generatedArticle};
 };
 
 
