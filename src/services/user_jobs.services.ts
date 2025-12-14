@@ -1045,6 +1045,31 @@ export type GetRankingForJobParams = {
     lang?: string;
 };
 
+export async function listLearningResourcesForUserJob(userJobId: string, userId: string, lang: string = 'en') {
+    // Vérifier que l'utilisateur est bien propriétaire du userJob
+    const userJob = await prisma.userJob.findFirst({
+        where: {id: userJobId, userId},
+        select: {id: true, jobId: true},
+    });
+
+    if (!userJob) {
+        throw new Error('Job utilisateur introuvable pour cet utilisateur.');
+    }
+
+    // Récupérer les ressources liées au métier et celles personnalisées au userJob
+    const resources = await prisma.learningResource.findMany({
+        where: {
+            OR: [
+                {userJobId: userJob.id},
+                {jobId: userJob.jobId},
+            ],
+        },
+        orderBy: {createdAt: 'desc'},
+    });
+
+    return resources;
+}
+
 export async function getRankingForJob({jobId, from, to,}: GetRankingForJobParams): Promise<UserJobRankingRow[]> {
     // fragments pour la période
     const fromFilter =

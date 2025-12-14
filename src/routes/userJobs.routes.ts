@@ -13,6 +13,8 @@ router.get('/:jobId/quiz/', authenticateToken, jobControllers.retrieveDailyQuizF
 
 router.get('/leaderboard/job/:jobId', authenticateToken, jobControllers.getJobLeaderboard);
 
+router.get('/:userJobId/resources', authenticateToken, jobControllers.listLearningResourcesForUserJob);
+
 //getUserJobCompetencyProfileHandler
 router.get('/:jobId/competenciesProfile', authenticateToken, jobControllers.getUserJobCompetencyProfileHandler);
 // getUserJob

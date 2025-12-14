@@ -150,6 +150,29 @@ export const saveDailyQuizAnswers = async (req: Request, res: Response, next: Ne
     }
 };
 
+export const listLearningResourcesForUserJob = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = (req as any).user?.userId;
+        const userJobId = req.params.userJobId;
+
+        if (!userJobId) {
+            return sendResponse(res, 400, {error: 'L’identifiant du job utilisateur est requis.'});
+        }
+        if (!userId) {
+            return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
+        }
+
+        const resources = await jobService.listLearningResourcesForUserJob(userJobId, userId, await detectLanguage(req));
+        return sendResponse(res, 200, {data: resources});
+    } catch (err) {
+        console.error('listLearningResourcesForUserJob error:', err);
+        return sendResponse(res, 500, {
+            error: "Une erreur s'est produite lors de la récupération des ressources d'apprentissage.",
+            message: err instanceof Error ? err.message : 'Unknown error'
+        });
+    }
+};
+
 // getUserJob
 export const getUserJob = async (req: Request, res: Response, next: NextFunction) => {
     try {
