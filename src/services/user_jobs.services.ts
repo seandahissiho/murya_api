@@ -9,6 +9,7 @@ import {
     QuizQuestionType,
     Level,
     LeagueTier,
+    LearningResourceSource,
 } from '@prisma/client';
 import {prisma} from "../config/db";
 import {resolveFields} from "../i18n/translate";
@@ -1056,12 +1057,15 @@ export async function listLearningResourcesForUserJob(userJobId: string, userId:
         throw new Error('Job utilisateur introuvable pour cet utilisateur.');
     }
 
-    // Récupérer les ressources liées au métier et celles personnalisées au userJob
+    // Récupérer les ressources personnalisées du userJob ET les ressources système par défaut du métier
     const resources = await prisma.learningResource.findMany({
         where: {
             OR: [
-                {userJobId: userJob.id},
-                {jobId: userJob.jobId},
+                {userJobId: userJob.id}, // spécifiques à ce userJob
+                {
+                    jobId: userJob.jobId,
+                    source: LearningResourceSource.SYSTEM_DEFAULT, // ressources par défaut du métier
+                },
             ],
         },
         orderBy: {createdAt: 'desc'},
