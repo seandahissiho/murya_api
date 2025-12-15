@@ -185,12 +185,12 @@ export const generateMarkdownArticleForLastQuiz = async (userJobId: string, user
 
     const {systemPrompt, userPrompt} = getArticlePromptUserSide(quizContext);
 
-    const markdownArticle = await callOpenAIForArticle(systemPrompt, userPrompt);
+    const article = await callOpenAIForArticle(systemPrompt, userPrompt);
 
     await saveLearningResourceFromArticle(
         userJobId,
         userId,
-        markdownArticle,
+        article,
         quizContext,
     );
 
@@ -210,45 +210,59 @@ export const generateMarkdownArticleForLastQuiz = async (userJobId: string, user
     });
 }
 
-async function callOpenAIForArticle(systemPrompt: string, userPrompt: string): Promise<string> {
-    const stream = await openai.chat.completions.create({
-        stream: true,
-        model: "gpt-4", // ou autre modèle adapté
+type GeneratedArticle = { title: string; description: string; markdown: string };
+
+async function callOpenAIForArticle(systemPrompt: string, userPrompt: string): Promise<GeneratedArticle> {
+    const finalUserPrompt = `${userPrompt}
+
+Consignes de sortie :
+- Génère un titre (45 caractères max) et une description courte (1-2 phrases) cohérents avec l'article.
+- Réponds UNIQUEMENT avec un objet JSON de la forme {"title": "...", "description": "...", "markdown": "..."}.
+- Ne renvoie rien d'autre que cet objet JSON. Le champ "markdown" doit contenir l'article complet.`;
+
+    const completion = await openai.chat.completions.create({
+        model: "gpt-4",
         messages: [
             {role: "system", content: systemPrompt},
-            {role: "user", content: userPrompt},
+            {role: "user", content: finalUserPrompt},
         ],
         temperature: 0.7,
     });
 
-    let buffer = "";
-    for await (const chunk of stream) {
-        process.stdout.write(chunk.choices[0]?.delta?.content ?? "");
-        const delta = chunk.choices?.[0]?.delta?.content ?? "";
-        if (delta) buffer += delta;
-    }
-
-    // Some models wrap JSON in code fences; strip defensively
-    // const jsonText = buffer.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
-
-
-    // const markdown = response.choices[0]?.message?.content ?? "";
-    const markdown = buffer;
-    if (!markdown) {
+    const raw = completion.choices[0]?.message?.content ?? "";
+    if (!raw) {
         throw new Error("L'IA n'a pas renvoyé de contenu.");
     }
-    return markdown;
+
+    const cleaned = raw.trim()
+        .replace(/^```(?:json)?/i, "")
+        .replace(/```$/, "")
+        .trim();
+
+    let parsed: GeneratedArticle;
+    try {
+        parsed = JSON.parse(cleaned);
+    } catch (e) {
+        throw new Error("Réponse IA illisible (JSON attendu).");
+    }
+
+    if (!parsed.markdown || !parsed.title || !parsed.description) {
+        throw new Error("Réponse IA incomplète (title, description, markdown attendus).");
+    }
+    return parsed;
 }
 
 async function saveLearningResourceFromArticle(
     userJobId: string,
     userId: string,
-    markdown: string,
+    article: GeneratedArticle,
     quizContext: any,
 ) {
     // Titre simple basé sur le job + date ou score
-    const title = `Plan d'apprentissage personnalisé - ${quizContext.globalSummary.jobTitle}`;
-    const description = `Article généré à partir de la dernière évaluation (${quizContext.globalSummary.percentage}% de réussite).`;
+    const fallbackTitle = `Plan d'apprentissage personnalisé - ${quizContext.globalSummary.jobTitle}`;
+    const fallbackDescription = `Article généré à partir de la dernière évaluation (${quizContext.globalSummary.percentage}% de réussite).`;
+    const title = article.title || fallbackTitle;
+    const description = article.description || fallbackDescription;
 
     // On récupère le UserJob pour avoir le jobId
     const userJob = await prisma.userJob.findUnique({
@@ -267,7 +281,7 @@ async function saveLearningResourceFromArticle(
             source: "AI_GENERATED",
             title,
             description,
-            content: markdown,
+            content: article.markdown,
             // userJobId,
             // jobId: userJob.jobId,
             userJob: {
