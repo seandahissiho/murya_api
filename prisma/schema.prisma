@@ -10,7 +10,7 @@ generator client {
 datasource db {
   provider   = "postgresql"
   url        = env("DATABASE_URL")
-  // directUrl  = env("DIRECT_URL") // direct (migrations)
+  directUrl  = env("DIRECT_URL") // direct (migrations)
   extensions = [pgcrypto] // or [uuid‑ossp]
 }
 
