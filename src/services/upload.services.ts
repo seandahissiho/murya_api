@@ -68,7 +68,6 @@ export const createUpload = async (data: any) => {
     const relPath = `/uploads/${file.filename}`; // URL you can serve
     const mimeType = file.mimetype || "application/octet-stream";
     const size = file.size;
-    const buffer: any = file.buffer;
     return await prisma.uploadedFile.create({
         data: {
             createdById: userId || null,
@@ -76,7 +75,6 @@ export const createUpload = async (data: any) => {
             file_url: relPath, // store a URL you can return/use in UI
             mimeType,
             size,
-            content: buffer,
         },
         include: UPLOADS_INCLUDES,
     });
@@ -88,7 +86,6 @@ export const updateUpload = async (id: string, data: any) => {
     const relPath = `/uploads/${file.filename}`; // URL you can serve
     const mimeType = file.mimetype || "application/octet-stream";
     const size = file.size;
-    const buffer: any = file.buffer;
 
     return await prisma.uploadedFile.update({
         where: {id},
@@ -98,7 +95,6 @@ export const updateUpload = async (id: string, data: any) => {
             file_url: relPath, // store a URL you can return/use in UI
             mimeType,
             size,
-            content: buffer,
         },
         include: UPLOADS_INCLUDES,
     });
