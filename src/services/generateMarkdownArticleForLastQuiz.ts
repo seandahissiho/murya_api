@@ -273,6 +273,9 @@ async function saveLearningResourceFromArticle(
     if (!userJob) {
         throw new Error("UserJob introuvable lors de la sauvegarde de la ressource.");
     }
+    if (!userJob.jobId) {
+        throw new Error("Job manquant pour ce UserJob.");
+    }
 
     const resource = await prisma.learningResource.create({
         data: {

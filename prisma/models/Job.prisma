@@ -1,49 +1,29 @@
 model Job {
-  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  jobFamilyId     String?  @db.Uuid
-  title           String   @db.VarChar(255)
-  slug            String   @unique @db.VarChar(255)
-  description     String?  @db.Text
-  createdAt       DateTime @default(now()) @db.Timestamp(0)
-  updatedAt       DateTime @default(now()) @updatedAt @db.Timestamp(0)
-  isActive        Boolean  @default(true)
-  popularity      Int      @default(0)
-  backgroundColor String   @default("#FFFFFFFF") @db.VarChar(9)
-  foregroundColor String   @default("#FFFFFFFF") @db.VarChar(9)
-  textColor       String   @default("#FFFFFFFF") @db.VarChar(9)
-  overlayColor    String   @default("#FFFFFFFF") @db.VarChar(9)
-  imageIndex      Int      @default(0)
-
-  quizzes Quiz[] @relation("JobQuizzes")
-
+  id                       String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  jobFamilyId              String?                  @db.Uuid
+  title                    String                   @db.VarChar(255)
+  slug                     String                   @unique @db.VarChar(255)
+  description              String?                  @db.Text
+  createdAt                DateTime                 @default(now()) @db.Timestamp(0)
+  updatedAt                DateTime                 @default(now()) @updatedAt @db.Timestamp(0)
+  isActive                 Boolean                  @default(true)
+  popularity               Int                      @default(0)
+  backgroundColor          String                   @default("#FFFFFFFF") @db.VarChar(9)
+  foregroundColor          String                   @default("#FFFFFFFF") @db.VarChar(9)
+  textColor                String                   @default("#FFFFFFFF") @db.VarChar(9)
+  overlayColor             String                   @default("#FFFFFFFF") @db.VarChar(9)
+  imageIndex               Int                      @default(0)
+  quizzes                  Quiz[]                   @relation("JobQuizzes")
   // Relations
-  jobFamily JobFamily? @relation(fields: [jobFamilyId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_jobs_job_family_id")
-
-  competencies            Competency[]            @relation("JobCompetencies")
-  competenciesFamilies    CompetenciesFamily[]    @relation("JobCompetenciesFamilies")
-  competenciesSubfamilies CompetenciesSubFamily[] @relation("JobCompetenciesSubfamilies")
-
+  jobFamily                JobFamily?               @relation(fields: [jobFamilyId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_jobs_job_family_id")
+  competencies             Competency[]             @relation("JobCompetencies")
+  competenciesFamilies     CompetenciesFamily[]     @relation("JobCompetenciesFamilies")
+  competenciesSubfamilies  CompetenciesSubFamily[]  @relation("JobCompetenciesSubfamilies")
   userJobs                 UserJob[]
+  userJobSelections        UserJobSelectedJob[]
   learningResources        LearningResource[]
   jobSubfamilyCompetencies JobSubfamilyCompetency[]
   kiviats                  JobKiviat[]
 
   @@index([jobFamilyId])
-}
-
-model JobKiviat {
-  id                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  jobId                String              @db.Uuid
-  competenciesFamilyId String              @db.Uuid
-  level                JobProgressionLevel
-  value                Decimal             @db.Decimal(2, 1) // 1.0, 1.5, ..., 5.0 max si tu contrôles côté app
-  updatedAt            DateTime            @default(now()) @updatedAt @db.Timestamp(0)
-
-  // Relations
-  job                Job                @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "FK_job_kiviat_job_id")
-  competenciesFamily CompetenciesFamily @relation(fields: [competenciesFamilyId], references: [id], onDelete: Cascade, onUpdate: Cascade, map: "FK_job_kiviat_family_id")
-
-  @@unique([jobId, competenciesFamilyId, level], map: "UQ_job_kiviat_job_family_level")
-  @@index([jobId], map: "IDX_job_kiviat_job_id")
-  @@index([competenciesFamilyId], map: "IDX_job_kiviat_family_id")
 }

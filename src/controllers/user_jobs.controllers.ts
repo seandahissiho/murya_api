@@ -31,6 +31,86 @@ export const retrieveCurrentUserJob = async (req: Request, res: Response, next: 
     }
 }
 
+export const setCurrentUserJob = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = (req as any).user?.userId;
+        const jobId = req.params.jobId;
+
+        if (!jobId) {
+            return sendResponse(res, 400, {error: 'L’identifiant du job est requis.'});
+        }
+        if (!userId) {
+            return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
+        }
+
+        const lang = await detectLanguage(req);
+        const userJob = await jobService.setCurrentUserJob(userId, jobId, lang);
+        if (!userJob) {
+            return sendResponse(res, 404, {error: 'Job utilisateur non trouvé.'});
+        }
+
+        return sendResponse(res, 200, {data: userJob});
+    } catch (err) {
+        console.error('setCurrentUserJob error:', err);
+        return sendResponse(res, 500, {
+            error: "Une erreur s'est produite lors de la mise à jour du job utilisateur courant.",
+            message: err instanceof Error ? err.message : 'Unknown error'
+        });
+    }
+}
+
+export const setCurrentUserJobFamily = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = (req as any).user?.userId;
+        const jobFamilyId = req.params.jobFamilyId;
+
+        if (!jobFamilyId) {
+            return sendResponse(res, 400, {error: 'L’identifiant de la famille de métiers est requis.'});
+        }
+        if (!userId) {
+            return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
+        }
+
+        const lang = await detectLanguage(req);
+        const userJob = await jobService.setCurrentUserJobFamily(userId, jobFamilyId, lang);
+        if (!userJob) {
+            return sendResponse(res, 404, {error: 'Track utilisateur non trouvé.'});
+        }
+
+        return sendResponse(res, 200, {data: userJob});
+    } catch (err) {
+        console.error('setCurrentUserJobFamily error:', err);
+        return sendResponse(res, 500, {
+            error: "Une erreur s'est produite lors de la mise à jour du track famille.",
+            message: err instanceof Error ? err.message : 'Unknown error'
+        });
+    }
+}
+
+export const updateUserJobFamilySelection = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userJobId = req.params.userJobId;
+        const selectedJobIds = req.body?.selectedJobIds;
+
+        if (!userJobId) {
+            return sendResponse(res, 400, {error: 'L’identifiant du track est requis.'});
+        }
+        if (!Array.isArray(selectedJobIds)) {
+            return sendResponse(res, 400, {error: 'selectedJobIds doit être un tableau.'});
+        }
+
+        const selections = await jobService.updateUserJobFamilySelection(userJobId, selectedJobIds);
+
+        return sendResponse(res, 200, {data: selections});
+    } catch (err) {
+        console.error('updateUserJobFamilySelection error:', err);
+        return sendResponse(res, 500, {
+            error: "Une erreur s'est produite lors de la mise à jour de la sélection des métiers.",
+            message: err instanceof Error ? err.message : 'Unknown error'
+        });
+    }
+}
+
 export const getJobLeaderboard = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const {jobId} = req.params;
@@ -123,6 +203,7 @@ export const saveDailyQuizAnswers = async (req: Request, res: Response, next: Ne
         const quizId = req.params.quizId;
         const answers = req.body.answers;
         const doneAt : any = typeof req.body.doneAt === 'string' ? req.body.doneAt : undefined;
+        const timezone = typeof req.body.timezone === 'string' ? req.body.timezone : undefined;
 
         if (doneAt && !LOCAL_DATETIME_REGEX.test(doneAt)) {
             return res.status(400).json({error: "Format de 'from' invalide. Attendu: YYYY-MM-DD ou YYYY-MM-DDTHH:mm"});
@@ -139,7 +220,15 @@ export const saveDailyQuizAnswers = async (req: Request, res: Response, next: Ne
             return sendResponse(res, 400, {error: 'Les réponses du quiz sont requises et doivent être un tableau.'});
         }
 
-        const result = await jobService.saveUserQuizAnswers(jobId, quizId, userId, answers, doneAt, await detectLanguage(req));
+        const result = await jobService.saveUserQuizAnswers(
+            jobId,
+            quizId,
+            userId,
+            answers,
+            doneAt,
+            timezone,
+            await detectLanguage(req),
+        );
         return sendResponse(res, 200, {data: result});
     } catch (err) {
         console.error('saveDailyQuizAnswers error:', err);

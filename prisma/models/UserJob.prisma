@@ -1,79 +1,38 @@
 model UserJob {
-  id               String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId           String        @db.Uuid
-  jobId            String        @db.Uuid
-  status           UserJobStatus @default(TARGET)
+  id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String                 @db.Uuid
+  scope             UserJobScope           @default(JOB)
+  jobId             String?                @db.Uuid
+  jobFamilyId       String?                @db.Uuid
+  status            UserJobStatus          @default(TARGET)
   // Optional: manual level or seniority (1–5 for example)
-  note             String?       @db.Text
+  note              String?                @db.Text
   // Aggregated stats for fast dashboards (optional but useful)
-  totalScore       Int           @default(0) // sum of all quiz totalScore
-  maxScoreSum      Int           @default(0) // sum of all quiz maxScore
-  completedQuizzes Int           @default(0)
-  lastQuizAt       DateTime?     @db.Timestamp(0)
-
-  leagueTier       LeagueTier @default(IRON)
-  leaguePoints     Int        @default(0) // points internes pour montée/descente
-  lastLeagueChange DateTime?  @db.Timestamp(0)
-  winningStreak    Int        @default(0) // nombre de quiz gagnés consécutivement
-
+  totalScore        Int                    @default(0) // sum of all quiz totalScore
+  maxScoreSum       Int                    @default(0) // sum of all quiz maxScore
+  completedQuizzes  Int                    @default(0)
+  lastQuizAt        DateTime?              @db.Timestamp(0)
+  leagueTier        LeagueTier             @default(IRON)
+  leaguePoints      Int                    @default(0) // points internes pour montée/descente
+  lastLeagueChange  DateTime?              @db.Timestamp(0)
+  winningStreak     Int                    @default(0) // nombre de quiz gagnés consécutivement
   createdAt         DateTime               @default(now()) @db.Timestamp(0)
   updatedAt         DateTime               @default(now()) @updatedAt @db.Timestamp(0)
   user              User                   @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  job               Job                    @relation(fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  job               Job?                   @relation(fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  jobFamily         JobFamily?             @relation(fields: [jobFamilyId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  selectedJobs      UserJobSelectedJob[]
   quizzes           UserQuiz[]
   competencies      UserJobCompetency[]
   learningResources LearningResource[]
   leagueHistories   UserJobLeagueHistory[]
   kiviats           UserJobKiviat[]
+  userJobQuests     UserJobQuest[]
 
   @@unique([userId, jobId], map: "unique_user_job")
+  @@unique([userId, jobFamilyId], map: "unique_user_job_family")
   @@index([userId], map: "idx_user_job_user")
   @@index([jobId], map: "idx_user_job_job")
+  @@index([jobFamilyId], map: "idx_user_job_job_family")
   @@index([userId, status], map: "idx_user_job_user_status")
-}
-
-model UserJobKiviat {
-  id                   String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userJobId            String              @db.Uuid
-  competenciesFamilyId String              @db.Uuid
-  level                JobProgressionLevel
-  value                Decimal             @db.Decimal(2, 1) // 1.0, 1.5, ..., 5.0 max si tu contrôles côté app
-  createdAt            DateTime            @default(now()) @db.Timestamp(0)
-  updatedAt            DateTime            @default(now()) @updatedAt @db.Timestamp(0)
-
-  userJob            UserJob                @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  competenciesFamily CompetenciesFamily     @relation(fields: [competenciesFamilyId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  histories          UserJobKiviatHistory[]
-
-  @@unique([userJobId, competenciesFamilyId], map: "unique_user_job_kiviat")
-  @@index([userJobId], map: "idx_user_job_kiviat_user_job")
-}
-
-model UserJobKiviatHistory {
-  id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userJobKiviatId String               @db.Uuid
-  userQuizId      String               @db.Uuid
-  level           JobProgressionLevel?
-  value           Decimal              @db.Decimal(2, 1) // 1.0, 1.5, ..., 5.0 max si tu contrôles côté app
-  percentage      Float
-  createdAt       DateTime             @default(now()) @db.Timestamp(0)
-  userJobKiviat   UserJobKiviat        @relation(fields: [userJobKiviatId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  userQuiz        UserQuiz             @relation(fields: [userQuizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-
-  @@index([userJobKiviatId, createdAt], map: "idx_user_job_kiviat_history")
-  @@index([userQuizId], map: "idx_user_job_kiviat_history_quiz")
-}
-
-model UserJobLeagueHistory {
-  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userJobId   String      @db.Uuid
-  fromTier    LeagueTier?
-  toTier      LeagueTier
-  deltaPoints Int         @default(0) // variation de leaguePoints
-  reason      String?     @db.VarChar(255) // "QUIZ_WON", "QUIZ_LOST", "MANUAL_ADJUSTMENT", etc.
-  createdAt   DateTime    @default(now()) @db.Timestamp(0)
-
-  userJob UserJob @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-
-  @@index([userJobId, createdAt], map: "idx_league_history_user_job")
 }

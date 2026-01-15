@@ -24,7 +24,13 @@ export const register = async (req: Request<any, any, RegisterDto>, res: Respons
             dto.password,
         );
 
-        const {access_token, refresh_token} = await authService.login(dto.email, dto.phone, dto.deviceId, dto.password);
+        const {access_token, refresh_token} = await authService.login(
+            dto.email,
+            dto.phone,
+            dto.deviceId,
+            dto.password,
+            dto.timezone,
+        );
 
         sendResponse(
             res,
@@ -49,7 +55,7 @@ export const register = async (req: Request<any, any, RegisterDto>, res: Respons
 // POST /auth/login
 export const login = async (req: Request<any, any, LoginDto>, res: Response, next: NextFunction) => {
     try {
-        const {email, password, phone, deviceId} = req.body;
+        const {email, password, phone, deviceId, timezone} = req.body;
 
         const hasDeviceOnly = !!deviceId && !password;
         const hasCredentials = (!!email || !!phone) && !!password;
@@ -60,7 +66,13 @@ export const login = async (req: Request<any, any, LoginDto>, res: Response, nex
             });
         }
 
-        const {access_token, refresh_token} = await authService.login(email, phone, deviceId, password);
+        const {access_token, refresh_token} = await authService.login(
+            email,
+            phone,
+            deviceId,
+            password,
+            timezone,
+        );
 
         return sendResponse(
             res,

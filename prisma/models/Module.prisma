@@ -1,0 +1,17 @@
+model Module {
+  id               String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug             String                   @unique @db.VarChar(255)
+  name             String                   @db.VarChar(255)
+  description      String?                  @db.Text
+  status           ModuleStatus             @default(ACTIVE)
+  visibility       ModuleVisibility         @default(PUBLIC)
+  defaultOnLanding Boolean                  @default(false)
+  createdAt        DateTime                 @default(now()) @db.Timestamp(0)
+  updatedAt        DateTime                 @default(now()) @updatedAt @db.Timestamp(0)
+  userModules      UserModule[]
+  landingModules   UserLandingModule[]
+  landingEvents    UserLandingModuleEvent[]
+
+  @@index([status], map: "idx_module_status")
+  @@index([visibility], map: "idx_module_visibility")
+}

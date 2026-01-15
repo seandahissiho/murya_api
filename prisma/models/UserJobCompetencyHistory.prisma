@@ -1,21 +1,17 @@
 model UserJobCompetencyHistory {
-  id                  String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userJobCompetencyId String @db.Uuid
-  userQuizId          String @db.Uuid
-
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userJobCompetencyId String            @db.Uuid
+  userQuizId          String            @db.Uuid
   // Score pour CETTE compétence dans CE quiz précis
-  score      Float @default(0)
-  maxScore   Float @default(0)
-  percentage Float @default(0)
-
+  score               Float             @default(0)
+  maxScore            Float             @default(0)
+  percentage          Float             @default(0)
   // Optionnel : snapshot du niveau à ce moment là
-  level Level?
-
-  createdAt DateTime @default(now()) @db.Timestamp(0)
-
+  level               Level?
+  createdAt           DateTime          @default(now()) @db.Timestamp(0)
   // Relations
-  userJobCompetency UserJobCompetency @relation(fields: [userJobCompetencyId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  userQuiz          UserQuiz          @relation(fields: [userQuizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  userJobCompetency   UserJobCompetency @relation(fields: [userJobCompetencyId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  userQuiz            UserQuiz          @relation(fields: [userQuizId], references: [id], onUpdate: Cascade, onDelete: Cascade)
 
   @@index([userJobCompetencyId, createdAt], map: "idx_ujc_history_timeline")
   @@index([userQuizId], map: "idx_ujc_history_user_quiz")

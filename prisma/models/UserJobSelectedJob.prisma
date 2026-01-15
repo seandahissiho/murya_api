@@ -1,0 +1,15 @@
+model UserJobSelectedJob {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userJobId  String   @db.Uuid
+  jobId      String   @db.Uuid
+  isSelected Boolean  @default(true)
+  createdAt  DateTime @default(now()) @db.Timestamp(0)
+  updatedAt  DateTime @default(now()) @updatedAt @db.Timestamp(0)
+
+  userJob    UserJob  @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  job        Job      @relation(fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@unique([userJobId, jobId], map: "unique_user_job_selected_job")
+  @@index([userJobId], map: "idx_user_job_selected_job_user_job")
+  @@index([jobId], map: "idx_user_job_selected_job_job")
+}

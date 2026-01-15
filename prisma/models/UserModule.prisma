@@ -1,0 +1,14 @@
+model UserModule {
+  id        String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String           @db.Uuid
+  moduleId  String           @db.Uuid
+  status    UserModuleStatus @default(ACTIVE)
+  createdAt DateTime         @default(now()) @db.Timestamp(0)
+  updatedAt DateTime         @default(now()) @updatedAt @db.Timestamp(0)
+  user      User             @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  module    Module           @relation(fields: [moduleId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@unique([userId, moduleId], map: "unique_user_module")
+  @@index([userId], map: "idx_user_module_user")
+  @@index([moduleId], map: "idx_user_module_module")
+}

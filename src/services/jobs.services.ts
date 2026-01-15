@@ -329,6 +329,7 @@ export interface CompetencySubFamilyDto {
 export interface CompetencyFamilyDto {
     name: string;
     subFamilies?: CompetencySubFamilyDto[];
+    competencies?: CompetencyDto[];
 }
 
 export interface JobCompetencyPayload {
@@ -491,6 +492,15 @@ export const createJobWithCompetencies = async (payload: any) => {
 
         const payloadCompetencies: CompetencyCandidate[] = [];
         for (const family of payload.families ?? []) {
+            for (const competency of family.competencies ?? []) {
+                const normalizedCompetencyName = competency.slug;
+                payloadCompetencies.push({
+                    name: competency.name,
+                    normalizedName: normalizedCompetencyName,
+                    source: 'payload',
+                    context: family.name,
+                });
+            }
             for (const subFamily of family.subFamilies ?? []) {
                 for (const competency of subFamily.competencies ?? []) {
                     const normalizedCompetencyName = competency.slug;
@@ -582,6 +592,37 @@ export const createJobWithCompetencies = async (payload: any) => {
 
             const familyCompetencyIds = new Set<string>();
             const familySubFamilyIds = new Set<string>();
+            for (const competency of family.competencies ?? []) {
+                const normalizedCompetencyName = competency.slug;
+                const competencyRecord = await tx.competency.upsert({
+                    where: {slug: normalizedCompetencyName},
+                    update: {
+                        name: competency.name,
+                        type: mapKindToType(competency.kind),
+                        level: mapAcquisitionToLevel(competency.acquisitionLevel),
+                    },
+                    create: {
+                        name: competency.name,
+                        slug: normalizedCompetencyName,
+                        type: mapKindToType(competency.kind),
+                        level: mapAcquisitionToLevel(competency.acquisitionLevel),
+                    },
+                });
+
+                await tx.competency.update({
+                    where: {id: competencyRecord.id},
+                    data: {
+                        families: {
+                            connect: [
+                                {id: familyRecord.id},
+                            ],
+                        },
+                        jobs: {connect: {id: job.id}},
+                    },
+                });
+                familyCompetencyIds.add(competencyRecord.id);
+                competencyIds.add(competencyRecord.id);
+            }
             for (const subFamily of family.subFamilies ?? []) {
                 const subFamilyNormalized = subFamily.slug;
                 const subFamilyRecord = await tx.competenciesSubFamily.upsert({
@@ -668,15 +709,17 @@ export const createJobWithCompetencies = async (payload: any) => {
                 });
             }
 
-            // connect sub-families to family
-            await tx.competenciesFamily.update({
-                where: {id: familyRecord.id},
-                data: {
-                    subFamilies: {
-                        connect: Array.from(familySubFamilyIds).map((id) => ({id})),
+            if (familySubFamilyIds.size) {
+                // connect sub-families to family
+                await tx.competenciesFamily.update({
+                    where: {id: familyRecord.id},
+                    data: {
+                        subFamilies: {
+                            connect: Array.from(familySubFamilyIds).map((id) => ({id})),
+                        },
                     },
-                },
-            });
+                });
+            }
 
             // connect competencies to family
             await tx.competenciesFamily.update({

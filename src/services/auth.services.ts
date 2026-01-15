@@ -2,6 +2,7 @@ import {User} from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import {prisma} from "../config/db";
+import {updateLoginStreak} from "./quests.services";
 
 const SALT_ROUNDS = 10;
 
@@ -60,6 +61,7 @@ export const login = async (
     phone?: string,
     deviceId?: string,
     rawPassword?: string,
+    timezone?: string,
 ): Promise<{ access_token: string; refresh_token: string }> => {
     if (!email && !phone && !deviceId) {
         throw new Error('Email, téléphone ou deviceId requis pour la connexion');
@@ -131,6 +133,8 @@ export const login = async (
             lastLogin: new Date()
         },
     });
+
+    await updateLoginStreak(user.id, timezone);
 
     return {access_token, refresh_token}
 };

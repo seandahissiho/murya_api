@@ -1,0 +1,15 @@
+model UserJobKiviat {
+  id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userJobId            String                 @db.Uuid
+  competenciesFamilyId String                 @db.Uuid
+  level                JobProgressionLevel
+  value                Decimal                @db.Decimal(2, 1) // 1.0, 1.5, ..., 5.0 max si tu contrôles côté app
+  createdAt            DateTime               @default(now()) @db.Timestamp(0)
+  updatedAt            DateTime               @default(now()) @updatedAt @db.Timestamp(0)
+  userJob              UserJob                @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  competenciesFamily   CompetenciesFamily     @relation(fields: [competenciesFamilyId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  histories            UserJobKiviatHistory[]
+
+  @@unique([userJobId, competenciesFamilyId], map: "unique_user_job_kiviat")
+  @@index([userJobId], map: "idx_user_job_kiviat_user_job")
+}

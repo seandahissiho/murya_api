@@ -1,0 +1,15 @@
+model UserLandingModule {
+  id        String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String               @db.Uuid
+  moduleId  String               @db.Uuid
+  order     Int
+  addedBy   LandingModuleAddedBy
+  addedAt   DateTime             @default(now()) @db.Timestamp(0)
+  removedAt DateTime?            @db.Timestamp(0)
+  user      User                 @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  module    Module               @relation(fields: [moduleId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@unique([userId, moduleId], map: "unique_user_landing_module")
+  @@index([userId], map: "idx_user_landing_module_user")
+  @@index([moduleId], map: "idx_user_landing_module_module")
+}

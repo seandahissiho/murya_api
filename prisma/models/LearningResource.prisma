@@ -6,6 +6,7 @@ model LearningResource {
   source            LearningResourceSource @default(AI_GENERATED)
   // Liens métier
   jobId             String?                @db.Uuid // pour les ressources par défaut (et/ou redondance pour les ressources user)
+  jobFamilyId       String?                @db.Uuid // pour les ressources par défaut d'une famille de métiers
   userJobId         String?                @db.Uuid // pour les ressources personnalisées
   // Contenu
   title             String                 @db.VarChar(255)
@@ -20,15 +21,18 @@ model LearningResource {
   // Audit
   createdAt         DateTime               @default(now()) @db.Timestamp(0)
   updatedAt         DateTime               @default(now()) @updatedAt @db.Timestamp(0)
+  collectedAt       DateTime?              @db.Timestamp(0)
   createdById       String?                @db.Uuid
   updatedById       String?                @db.Uuid
   // Relations
   job               Job?                   @relation(fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  jobFamily         JobFamily?             @relation(fields: [jobFamilyId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   userJob           UserJob?               @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   createdBy         User?                  @relation(name: "LearningResourceCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: SetNull)
   updatedBy         User?                  @relation(name: "LearningResourceUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: SetNull)
 
   @@index([jobId], map: "idx_learning_resource_job")
+  @@index([jobFamilyId], map: "idx_learning_resource_job_family")
   @@index([userJobId], map: "idx_learning_resource_user_job")
   @@index([scope, type], map: "idx_learning_resource_scope_type")
 }

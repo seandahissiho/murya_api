@@ -1,0 +1,14 @@
+model UserStreak {
+  id             String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String     @db.Uuid
+  type           StreakType @default(LOGIN_DAILY)
+  currentDays    Int        @default(0)
+  bestDays       Int        @default(0)
+  lastActiveDay  String?    @db.VarChar(10)
+  streakStartDay String?    @db.VarChar(10)
+  createdAt      DateTime   @default(now()) @db.Timestamp(0)
+  updatedAt      DateTime   @default(now()) @updatedAt @db.Timestamp(0)
+  user           User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+}

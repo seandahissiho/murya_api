@@ -1,0 +1,14 @@
+model CurrencyLedger {
+  id        String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String       @db.Uuid
+  currency  CurrencyType
+  delta     Int
+  reason    String       @db.VarChar(120)
+  refType   String       @db.VarChar(60)
+  refId     String       @db.Uuid
+  createdAt DateTime     @default(now()) @db.Timestamp(0)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([currency, refType, refId])
+  @@index([userId, createdAt])
+}

@@ -1,22 +1,22 @@
 model UserQuiz {
-  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userJobId         String         @db.Uuid
-  quizId            String         @db.Uuid // Quiz.id is String @default(uuid())
-  type              QuizType       @default(DAILY)
-  isActive          Boolean        @default(true)
-  status            UserQuizStatus @default(ASSIGNED)
-  index             Int
-  assignedAt        DateTime       @default(now()) @db.Timestamp(0)
-  startedAt         DateTime?      @db.Timestamp(0)
-  completedAt       DateTime?      @db.Timestamp(0)
-  totalScore        Int            @default(0)
-  bonusPoints       Int            @default(0)
-  maxScore          Int            @default(0)
-  maxScoreWithBonus Int            @default(0)
-  percentage        Float?         @default(0)
-  createdAt         DateTime       @default(now()) @db.Timestamp(0)
-  updatedAt         DateTime       @default(now()) @updatedAt @db.Timestamp(0)
-
+  id                  String                     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userJobId           String                     @db.Uuid
+  quizId              String                     @db.Uuid // Quiz.id is String @default(uuid())
+  type                QuizType                   @default(DAILY)
+  isActive            Boolean                    @default(true)
+  status              UserQuizStatus             @default(ASSIGNED)
+  index               Int
+  assignedAt          DateTime                   @default(now()) @db.Timestamp(0)
+  startedAt           DateTime?                  @db.Timestamp(0)
+  completedAt         DateTime?                  @db.Timestamp(0)
+  totalScore          Int                        @default(0)
+  bonusPoints         Int                        @default(0)
+  maxScore            Int                        @default(0)
+  maxScoreWithBonus   Int                        @default(0)
+  percentage          Float?                     @default(0)
+  jobsSnapshot        Json?                      @db.JsonB
+  createdAt           DateTime                   @default(now()) @db.Timestamp(0)
+  updatedAt           DateTime                   @default(now()) @updatedAt @db.Timestamp(0)
   // Relations
   userJob             UserJob                    @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   quiz                Quiz                       @relation(fields: [quizId], references: [id], onUpdate: Cascade, onDelete: Cascade)

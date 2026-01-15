@@ -93,8 +93,8 @@ export interface CompetencyPerformanceSummary {
     familyId: string;
     familySlug: string;
     familyName: string;
-    subFamilyId: string;
-    subFamilySlug: string;
+    subFamilyId: string | null;
+    subFamilySlug: string | null;
     attemptsLast5Quizzes: number;
     correctCount: number;
     wrongCount: number;

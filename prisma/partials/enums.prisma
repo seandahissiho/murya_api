@@ -73,6 +73,11 @@ enum UserJobStatus {
   PAST // job they had in the past
 }
 
+enum UserJobScope {
+  JOB
+  JOB_FAMILY
+}
+
 enum LeagueTier {
   IRON // Fer
   BRONZE // Bronze
@@ -105,6 +110,35 @@ enum QuizType {
   DAILY
 }
 
+enum StreakType {
+  LOGIN_DAILY
+}
+
+enum QuestPeriod {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+enum QuestStatus {
+  ACTIVE
+  COMPLETED
+  CLAIMED
+  EXPIRED
+}
+
+enum CurrencyType {
+  DIAMONDS
+  LEAGUE_POINTS
+}
+
+enum QuestCategory {
+  MAIN
+  BRANCH
+  COLLECTION
+  SHARE
+}
+
 enum LearningResourceType {
   ARTICLE
   PODCAST
@@ -120,4 +154,37 @@ enum LearningResourceSource {
   SYSTEM_DEFAULT // créée à la main / seed
   AI_GENERATED // générée par l'IA
   EXTERNAL_LINK // lien externe (YouTube, podcast hébergé ailleurs, etc.)
+}
+
+enum ModuleStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ModuleVisibility {
+  PUBLIC
+  PRIVATE
+  RESTRICTED
+}
+
+enum UserModuleStatus {
+  ACTIVE
+  INACTIVE
+  HIDDEN
+}
+
+enum LandingModuleAddedBy {
+  SYSTEM
+  USER
+}
+
+enum LandingModuleAction {
+  ADD
+  REMOVE
+}
+
+enum LandingModuleActor {
+  SYSTEM
+  USER
 }

@@ -1,13 +1,12 @@
 model Competency {
-  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name        String         @db.VarChar(255)
-  slug        String         @unique @db.VarChar(255)
-  description String?        @db.Text
-  type        CompetencyType
-  level       Level          @default(EASY)
-  createdAt   DateTime       @default(now()) @db.Timestamp(0)
-  updatedAt   DateTime       @default(now()) @updatedAt @db.Timestamp(0)
-
+  id                       String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                     String                   @db.VarChar(255)
+  slug                     String                   @unique @db.VarChar(255)
+  description              String?                  @db.Text
+  type                     CompetencyType
+  level                    Level                    @default(EASY)
+  createdAt                DateTime                 @default(now()) @db.Timestamp(0)
+  updatedAt                DateTime                 @default(now()) @updatedAt @db.Timestamp(0)
   // Relations
   jobs                     Job[]                    @relation("JobCompetencies")
   families                 CompetenciesFamily[]     @relation("CompetencyFamilies")

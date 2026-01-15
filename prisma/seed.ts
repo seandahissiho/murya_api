@@ -1,5 +1,20 @@
 /* eslint-disable no-console */
-import {CompetencyType, Level, PrismaClient} from '@prisma/client';
+import {
+    CompetencyType,
+    Level,
+    PrismaClient,
+    LearningResourceScope,
+    LearningResourceSource,
+    LearningResourceType,
+    ModuleStatus,
+    ModuleVisibility,
+    QuestCategory,
+    QuestPeriod,
+    CurrencyType,
+} from '@prisma/client';
+import fs from 'node:fs';
+import path from 'node:path';
+import {seedBtsCiel} from './seed_bts_ciel';
 
 const prisma = new PrismaClient();
 
@@ -189,6 +204,325 @@ const JOB_TITLE_FR: Record<string, string> = {
     'Product Manager': 'Product Manager',   // ou "Chef de produit"
     'UI Designer': 'UI Designer',
 };
+
+const DEFAULT_MODULES = [
+    {
+        slug: 'daily-quiz',
+        nameFr: 'Compétences',
+        nameEn: 'Daily Quiz',
+        descriptionFr: 'Quiz quotidiens pour progresser.',
+        descriptionEn: 'Daily quizzes to build skills.',
+    },
+    {
+        slug: 'leaderboard',
+        nameFr: 'Parcours',
+        nameEn: 'Leaderboard',
+        descriptionFr: 'Classement des utilisateurs.',
+        descriptionEn: 'User ranking leaderboard.',
+    },
+    {
+        slug: 'learning-resources',
+        nameFr: 'Ressources',
+        nameEn: 'Learning Resources',
+        descriptionFr: 'Ressources pour apprendre.',
+        descriptionEn: 'Learning resources.',
+    },
+];
+
+async function seedModules() {
+    for (const module of DEFAULT_MODULES) {
+        const record = await prisma.module.upsert({
+            where: {slug: module.slug},
+            update: {
+                name: module.nameFr,
+                description: module.descriptionFr,
+                status: ModuleStatus.ACTIVE,
+                visibility: ModuleVisibility.PUBLIC,
+                defaultOnLanding: true,
+            },
+            create: {
+                slug: module.slug,
+                name: module.nameFr,
+                description: module.descriptionFr,
+                status: ModuleStatus.ACTIVE,
+                visibility: ModuleVisibility.PUBLIC,
+                defaultOnLanding: true,
+            },
+        });
+
+        await prisma.translation.upsert({
+            where: {
+                entity_entityId_field_langCode: {
+                    entity: 'Module',
+                    entityId: record.id,
+                    field: 'name',
+                    langCode: 'fr',
+                },
+            },
+            update: {value: module.nameFr},
+            create: {
+                entity: 'Module',
+                entityId: record.id,
+                field: 'name',
+                langCode: 'fr',
+                value: module.nameFr,
+            },
+        });
+
+        await prisma.translation.upsert({
+            where: {
+                entity_entityId_field_langCode: {
+                    entity: 'Module',
+                    entityId: record.id,
+                    field: 'name',
+                    langCode: 'en',
+                },
+            },
+            update: {value: module.nameEn},
+            create: {
+                entity: 'Module',
+                entityId: record.id,
+                field: 'name',
+                langCode: 'en',
+                value: module.nameEn,
+            },
+        });
+
+        await prisma.translation.upsert({
+            where: {
+                entity_entityId_field_langCode: {
+                    entity: 'Module',
+                    entityId: record.id,
+                    field: 'description',
+                    langCode: 'fr',
+                },
+            },
+            update: {value: module.descriptionFr},
+            create: {
+                entity: 'Module',
+                entityId: record.id,
+                field: 'description',
+                langCode: 'fr',
+                value: module.descriptionFr,
+            },
+        });
+
+        await prisma.translation.upsert({
+            where: {
+                entity_entityId_field_langCode: {
+                    entity: 'Module',
+                    entityId: record.id,
+                    field: 'description',
+                    langCode: 'en',
+                },
+            },
+            update: {value: module.descriptionEn},
+            create: {
+                entity: 'Module',
+                entityId: record.id,
+                field: 'description',
+                langCode: 'en',
+                value: module.descriptionEn,
+            },
+        });
+    }
+
+    console.log(`✓ Seeded ${DEFAULT_MODULES.length} default modules.`);
+}
+
+async function seedQuestDefinitions() {
+    console.log(`\n=== Seeding quest definitions ===`);
+
+    const mainQuest = await prisma.questDefinition.upsert({
+        where: {code: 'WEEKLY_MAIN_5_DAILY_QUIZZES'},
+        update: {
+            title: '5 quizzes daily cette semaine',
+            description: 'Compléter 5 quizzes daily pendant la semaine.',
+            period: QuestPeriod.WEEKLY,
+            category: QuestCategory.MAIN,
+            eventKey: 'QUIZ_COMPLETED',
+            targetCount: 5,
+            meta: {
+                weeklyMain: true,
+                quizType: 'DAILY',
+                weekendCatchupCap: 2,
+            },
+            isActive: true,
+            uiOrder: 0,
+            updatedAt: new Date(),
+        },
+        create: {
+            code: 'WEEKLY_MAIN_5_DAILY_QUIZZES',
+            title: '5 quizzes daily cette semaine',
+            description: 'Compléter 5 quizzes daily pendant la semaine.',
+            period: QuestPeriod.WEEKLY,
+            category: QuestCategory.MAIN,
+            eventKey: 'QUIZ_COMPLETED',
+            targetCount: 5,
+            meta: {
+                weeklyMain: true,
+                quizType: 'DAILY',
+                weekendCatchupCap: 2,
+            },
+            isActive: true,
+            uiOrder: 0,
+        },
+    });
+
+    await prisma.questReward.deleteMany({where: {questDefinitionId: mainQuest.id}});
+    await prisma.questReward.createMany({
+        data: [
+            {
+                questDefinitionId: mainQuest.id,
+                currency: CurrencyType.DIAMONDS,
+                amount: 50,
+            },
+            {
+                questDefinitionId: mainQuest.id,
+                currency: CurrencyType.LEAGUE_POINTS,
+                amount: 100,
+            },
+        ],
+    });
+
+    const branchDefs = [
+        {
+            code: 'WEEKLY_BRANCH_SCORE_80',
+            title: 'Score >= 80%',
+            description: 'Obtenir un score de 80% ou plus sur un quiz.',
+            period: QuestPeriod.WEEKLY,
+            category: QuestCategory.BRANCH,
+            eventKey: 'QUIZ_COMPLETED',
+            targetCount: 1,
+            meta: {
+                minScore: 80,
+                requiresQuestCode: 'WEEKLY_MAIN_5_DAILY_QUIZZES',
+                requiresMinProgress: 1,
+            },
+            uiOrder: 1,
+            rewards: [{currency: CurrencyType.DIAMONDS, amount: 20}],
+        },
+        {
+            code: 'WEEKLY_BRANCH_COMPLETE_3_DAILY',
+            title: '3 quizzes daily',
+            description: 'Compléter 3 quizzes daily cette semaine.',
+            period: QuestPeriod.WEEKLY,
+            category: QuestCategory.BRANCH,
+            eventKey: 'QUIZ_COMPLETED',
+            targetCount: 3,
+            meta: {
+                quizType: 'DAILY',
+                requiresQuestCode: 'WEEKLY_MAIN_5_DAILY_QUIZZES',
+                requiresMinProgress: 1,
+            },
+            uiOrder: 2,
+            rewards: [{currency: CurrencyType.DIAMONDS, amount: 30}],
+        },
+        {
+            code: 'WEEKLY_COLLECTION_5_RESOURCES',
+            title: 'Collecter 5 ressources',
+            description: 'Collecter 5 ressources générées cette semaine.',
+            period: QuestPeriod.WEEKLY,
+            category: QuestCategory.COLLECTION,
+            eventKey: 'RESOURCE_COLLECTED',
+            targetCount: 5,
+            meta: {
+                requiresQuestCode: 'WEEKLY_MAIN_5_DAILY_QUIZZES',
+                requiresMinProgress: 2,
+            },
+            uiOrder: 3,
+            rewards: [{currency: CurrencyType.DIAMONDS, amount: 25}],
+        },
+    ];
+
+    for (const def of branchDefs) {
+        const quest = await prisma.questDefinition.upsert({
+            where: {code: def.code},
+            update: {
+                title: def.title,
+                description: def.description,
+                period: def.period,
+                category: def.category,
+                eventKey: def.eventKey,
+                targetCount: def.targetCount,
+                meta: def.meta,
+                isActive: true,
+                parentId: mainQuest.id,
+                uiOrder: def.uiOrder,
+                updatedAt: new Date(),
+            },
+            create: {
+                code: def.code,
+                title: def.title,
+                description: def.description,
+                period: def.period,
+                category: def.category,
+                eventKey: def.eventKey,
+                targetCount: def.targetCount,
+                meta: def.meta,
+                isActive: true,
+                parentId: mainQuest.id,
+                uiOrder: def.uiOrder,
+            },
+        });
+
+        await prisma.questReward.deleteMany({where: {questDefinitionId: quest.id}});
+        await prisma.questReward.createMany({
+            data: def.rewards.map((reward) => ({
+                questDefinitionId: quest.id,
+                currency: reward.currency,
+                amount: reward.amount,
+            })),
+        });
+    }
+
+    const shareQuest = await prisma.questDefinition.upsert({
+        where: {code: 'MONTHLY_SHARE_REFERRAL_SIGNUP'},
+        update: {
+            title: '1 referral signup',
+            description: 'Obtenir 1 inscription via referral ce mois-ci.',
+            period: QuestPeriod.MONTHLY,
+            category: QuestCategory.SHARE,
+            eventKey: 'REFERRAL_SIGNUP',
+            targetCount: 1,
+            meta: {
+                requiresQuestCode: 'WEEKLY_MAIN_5_DAILY_QUIZZES',
+                requiresMinProgress: 1,
+            },
+            isActive: true,
+            uiOrder: 10,
+            updatedAt: new Date(),
+        },
+        create: {
+            code: 'MONTHLY_SHARE_REFERRAL_SIGNUP',
+            title: '1 referral signup',
+            description: 'Obtenir 1 inscription via referral ce mois-ci.',
+            period: QuestPeriod.MONTHLY,
+            category: QuestCategory.SHARE,
+            eventKey: 'REFERRAL_SIGNUP',
+            targetCount: 1,
+            meta: {
+                requiresQuestCode: 'WEEKLY_MAIN_5_DAILY_QUIZZES',
+                requiresMinProgress: 1,
+            },
+            isActive: true,
+            uiOrder: 10,
+        },
+    });
+
+    await prisma.questReward.deleteMany({where: {questDefinitionId: shareQuest.id}});
+    await prisma.questReward.createMany({
+        data: [
+            {
+                questDefinitionId: shareQuest.id,
+                currency: CurrencyType.DIAMONDS,
+                amount: 40,
+            },
+        ],
+    });
+
+    console.log(`✓ Quest definitions seeded.`);
+}
 
 // -----------------------------------------------------------------------------
 // Fallback de scores par niveau
@@ -540,7 +874,7 @@ async function upsertFamily(nameFr: string, parentId?: string | null) {
 async function upsertCompetencyWithScores(nameFr: string, s: Scores, kind: string, level: Level) {
     const slug = slugify(nameFr);
     const competency = await prisma.competency.upsert({
-        where: {name: nameFr},
+        where: {slug},
         update: {
             slug,
             // beginnerScore: s.beginner,
@@ -776,6 +1110,218 @@ async function seedRole(name: string) {
     console.log(`✓ Role "${name}" upserted with ID: ${role.id}`);
 }
 
+type LearningResourceSeed = {
+    title: string;
+    description?: string | null;
+    type: 'ARTICLE' | 'VIDEO' | 'PODCAST';
+    url: string;
+    provider?: string | null;
+    languageCode?: string | null;
+    estimatedDurationSeconds?: number | null;
+    thumbnailUrl?: string | null;
+    relevance?: string | null;
+    verifiedAt?: string | null;
+    paywalled?: boolean | null;
+    jobTitle: string;
+};
+
+type LearningResourceSeedFile = {
+    jobTitle?: string;
+    jobFamilyName?: string;
+    resources: LearningResourceSeed[];
+};
+
+function normalizeUrl(url: string): string {
+    return url.replace(/\s+/g, '').trim();
+}
+
+const ARTICLE_CONTENT_FILES = [
+    'uploads/fichier_1_SOC_comprendre_le_SOC.md',
+    'uploads/fichier_2_ANSSI_10_regles_or_securite_numerique.md',
+    'uploads/fichier_3_PaloAlto_roles_responsabilites_SOC.md',
+    'uploads/fichier_4_Wiz_guide_SOC.md',
+    'uploads/fichier_5_ANSSI_10_regles_or_fiche_revision.md',
+];
+
+function loadArticleContents(): string[] {
+    return ARTICLE_CONTENT_FILES.map((relativePath) => {
+        const fullPath = path.resolve(__dirname, `../${relativePath}`);
+        if (!fs.existsSync(fullPath)) {
+            throw new Error(`Missing article content file: ${relativePath}`);
+        }
+        return fs.readFileSync(fullPath, 'utf8');
+    });
+}
+
+async function seedLearningResourcesFromFile(filePath: string) {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const payload = JSON.parse(raw) as LearningResourceSeedFile;
+
+    if (!Array.isArray(payload?.resources)) {
+        throw new Error('Invalid learning resources seed file format.');
+    }
+
+    const articleContents = loadArticleContents();
+
+    const seedForJob = async (job: {id: string; title: string}, resources: LearningResourceSeed[]) => {
+        console.log(`\n=== Seeding learning resources for job: ${job.title} ===`);
+
+        let articleIndex = 0;
+        for (const resource of resources) {
+            const type = resource.type as LearningResourceType;
+            const slug = slugify(`${job.title}-${resource.title}-${resource.type}`);
+            const mediaUrl = normalizeUrl(resource.url);
+            const content = type === LearningResourceType.ARTICLE
+                ? articleContents[articleIndex++] ?? null
+                : null;
+
+            await prisma.learningResource.upsert({
+                where: {slug},
+                update: {
+                    scope: LearningResourceScope.JOB_DEFAULT,
+                    type,
+                    source: LearningResourceSource.SYSTEM_DEFAULT,
+                    title: resource.title,
+                    description: resource.description ?? null,
+                    content,
+                    mediaUrl,
+                    thumbnailUrl: resource.thumbnailUrl ?? null,
+                    languageCode: resource.languageCode ?? null,
+                    estimatedDuration: resource.estimatedDurationSeconds ?? null,
+                    metadata: {
+                        url: mediaUrl,
+                        provider: resource.provider ?? null,
+                        relevance: resource.relevance ?? null,
+                        verifiedAt: resource.verifiedAt ?? null,
+                        paywalled: resource.paywalled ?? null,
+                        contentSource: type === LearningResourceType.ARTICLE
+                            ? ARTICLE_CONTENT_FILES[Math.max(0, articleIndex - 1)]
+                            : null,
+                    },
+                    job: {connect: {id: job.id}},
+                },
+                create: {
+                    scope: LearningResourceScope.JOB_DEFAULT,
+                    type,
+                    source: LearningResourceSource.SYSTEM_DEFAULT,
+                    title: resource.title,
+                    slug,
+                    description: resource.description ?? null,
+                    content,
+                    mediaUrl,
+                    thumbnailUrl: resource.thumbnailUrl ?? null,
+                    languageCode: resource.languageCode ?? null,
+                    estimatedDuration: resource.estimatedDurationSeconds ?? null,
+                    metadata: {
+                        url: mediaUrl,
+                        provider: resource.provider ?? null,
+                        relevance: resource.relevance ?? null,
+                        verifiedAt: resource.verifiedAt ?? null,
+                        paywalled: resource.paywalled ?? null,
+                        contentSource: type === LearningResourceType.ARTICLE
+                            ? ARTICLE_CONTENT_FILES[Math.max(0, articleIndex - 1)]
+                            : null,
+                    },
+                    job: {connect: {id: job.id}},
+            },
+        });
+    }
+
+        console.log(`✓ Seeded ${resources.length} learning resources.`);
+    };
+
+    if (payload.jobFamilyName) {
+        const jobFamily = await prisma.jobFamily.findFirst({
+            where: {name: payload.jobFamilyName},
+            select: {id: true, name: true},
+        });
+        if (!jobFamily) {
+            throw new Error(`JobFamily not found for learning resources seed: "${payload.jobFamilyName}".`);
+        }
+
+        console.log(`\n=== Seeding learning resources for job family: ${jobFamily.name} ===`);
+
+        let articleIndex = 0;
+        for (const resource of payload.resources) {
+            const type = resource.type as LearningResourceType;
+            const slug = slugify(`${jobFamily.name}-${resource.title}-${resource.type}`);
+            const mediaUrl = normalizeUrl(resource.url);
+            const content = type === LearningResourceType.ARTICLE
+                ? articleContents[articleIndex++] ?? null
+                : null;
+
+            await prisma.learningResource.upsert({
+                where: {slug},
+                update: {
+                    scope: LearningResourceScope.JOB_DEFAULT,
+                    type,
+                    source: LearningResourceSource.SYSTEM_DEFAULT,
+                    title: resource.title,
+                    description: resource.description ?? null,
+                    content,
+                    mediaUrl,
+                    thumbnailUrl: resource.thumbnailUrl ?? null,
+                    languageCode: resource.languageCode ?? null,
+                    estimatedDuration: resource.estimatedDurationSeconds ?? null,
+                    metadata: {
+                        url: mediaUrl,
+                        provider: resource.provider ?? null,
+                        relevance: resource.relevance ?? null,
+                        verifiedAt: resource.verifiedAt ?? null,
+                        paywalled: resource.paywalled ?? null,
+                        contentSource: type === LearningResourceType.ARTICLE
+                            ? ARTICLE_CONTENT_FILES[Math.max(0, articleIndex - 1)]
+                            : null,
+                    },
+                    jobFamily: {connect: {id: jobFamily.id}},
+                },
+                create: {
+                    scope: LearningResourceScope.JOB_DEFAULT,
+                    type,
+                    source: LearningResourceSource.SYSTEM_DEFAULT,
+                    title: resource.title,
+                    slug,
+                    description: resource.description ?? null,
+                    content,
+                    mediaUrl,
+                    thumbnailUrl: resource.thumbnailUrl ?? null,
+                    languageCode: resource.languageCode ?? null,
+                    estimatedDuration: resource.estimatedDurationSeconds ?? null,
+                    metadata: {
+                        url: mediaUrl,
+                        provider: resource.provider ?? null,
+                        relevance: resource.relevance ?? null,
+                        verifiedAt: resource.verifiedAt ?? null,
+                        paywalled: resource.paywalled ?? null,
+                        contentSource: type === LearningResourceType.ARTICLE
+                            ? ARTICLE_CONTENT_FILES[Math.max(0, articleIndex - 1)]
+                            : null,
+                    },
+                    jobFamily: {connect: {id: jobFamily.id}},
+                },
+            });
+        }
+
+        console.log(`✓ Seeded ${payload.resources.length} learning resources for job family.`);
+        return;
+    }
+
+    if (!payload.jobTitle) {
+        throw new Error('Learning resources seed file must include jobTitle or jobFamilyName.');
+    }
+
+    const job = await prisma.job.findFirst({
+        where: {title: payload.jobTitle},
+        select: {id: true, title: true},
+    });
+
+    if (!job) {
+        throw new Error(`Job not found for learning resources seed: "${payload.jobTitle}".`);
+    }
+
+    await seedForJob(job, payload.resources);
+}
+
 // -----------------------------------------------------------------------------
 // Main
 // -----------------------------------------------------------------------------
@@ -799,6 +1345,12 @@ async function main() {
     await seedRole('PROFESSIONAL');
     // await seedJob(JOB_PM);
     // await seedJob(JOB_UI);
+    await seedModules();
+    await seedQuestDefinitions();
+
+    await seedBtsCiel();
+    const learningResourcesPath = path.resolve(__dirname, '../uploads/Untitled-1.json');
+    await seedLearningResourcesFromFile(learningResourcesPath);
 
     console.log('\nSeed completed ✅');
 }

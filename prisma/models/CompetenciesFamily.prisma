@@ -1,11 +1,10 @@
 model CompetenciesFamily {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name        String   @unique(map: "competencies_family_name") @db.VarChar(255)
-  slug        String   @unique @db.VarChar(255)
-  description String?  @db.Text
-  createdAt   DateTime @default(now()) @db.Timestamp(0)
-  updatedAt   DateTime @default(now()) @updatedAt @db.Timestamp(0)
-
+  id             String                  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name           String                  @unique(map: "competencies_family_name") @db.VarChar(255)
+  slug           String                  @unique @db.VarChar(255)
+  description    String?                 @db.Text
+  createdAt      DateTime                @default(now()) @db.Timestamp(0)
+  updatedAt      DateTime                @default(now()) @updatedAt @db.Timestamp(0)
   // Relations
   subFamilies    CompetenciesSubFamily[]
   competencies   Competency[]            @relation("CompetencyFamilies")

@@ -1,0 +1,12 @@
+model UserJobLeagueHistory {
+  id          String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userJobId   String      @db.Uuid
+  fromTier    LeagueTier?
+  toTier      LeagueTier
+  deltaPoints Int         @default(0) // variation de leaguePoints
+  reason      String?     @db.VarChar(255) // "QUIZ_WON", "QUIZ_LOST", "MANUAL_ADJUSTMENT", etc.
+  createdAt   DateTime    @default(now()) @db.Timestamp(0)
+  userJob     UserJob     @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@index([userJobId, createdAt], map: "idx_league_history_user_job")
+}

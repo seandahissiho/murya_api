@@ -5,6 +5,10 @@ import uploadsRoutes from "./upload.routes";
 import jobsRoutes from "./jobs.routes";
 import competenciesRoutes from "./competencies.routes";
 import userJobsRoutes from "./userJobs.routes";
+import modulesRoutes from "./modules.routes";
+import questsRoutes from "./quests.routes";
+import userJobQuestsRoutes from "./userJobQuests.routes";
+import resourcesRoutes from "./resources.routes";
 
 
 const router = require("express").Router();
@@ -15,5 +19,9 @@ router.use("/files", authenticateToken, uploadsRoutes);
 router.use("/jobs", jobsRoutes);
 router.use("/competencies", competenciesRoutes);
 router.use("/userJobs", authenticateToken, userJobsRoutes);
+router.use("/quests", questsRoutes);
+router.use("/user-job-quests", userJobQuestsRoutes);
+router.use("/resources", resourcesRoutes);
+router.use("/", modulesRoutes);
 
 export default router;

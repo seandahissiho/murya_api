@@ -9,7 +9,6 @@ model Quiz {
   isActive    Boolean        @default(true)
   createdAt   DateTime       @default(now()) @db.Timestamp(0)
   updatedAt   DateTime       @updatedAt @db.Timestamp(0)
-
-  job     Job        @relation("JobQuizzes", fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  quizzes UserQuiz[]
+  job         Job            @relation("JobQuizzes", fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  quizzes     UserQuiz[]
 }

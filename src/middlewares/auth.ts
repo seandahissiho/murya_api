@@ -16,6 +16,7 @@ export const validateLogin = [
         // .withMessage("Invalid phone number format"),
         .withMessage("Format de numéro de téléphone invalide"),
     body("deviceId").optional().isString().withMessage("Device ID must be a string"),
+    body("timezone").optional().isString().withMessage("Timezone must be a string"),
 ];
 
 export const validateRefresh = [

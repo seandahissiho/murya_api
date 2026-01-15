@@ -4,6 +4,7 @@ export interface RegisterDto {
     phone?: string;
     deviceId?: string;
     password?: string;
+    timezone?: string;
 }
 
 export interface LoginDto {
@@ -11,4 +12,5 @@ export interface LoginDto {
     phone?: string;
     deviceId?: string;
     password?: string;
+    timezone?: string;
 }

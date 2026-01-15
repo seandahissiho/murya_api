@@ -42,8 +42,8 @@ type CompetencyMeta = {
     familyId: string;
     familySlug: string;
     familyName: string;
-    subFamilyId: string;
-    subFamilySlug: string;
+    subFamilyId: string | null;
+    subFamilySlug: string | null;
 };
 
 /**
@@ -52,15 +52,16 @@ type CompetencyMeta = {
  */
 export async function buildGenerateQuizInput(params: {
     userId: string;
-    jobId: string;
+    userJobId: string;
     generationParameters: GenerationParameters;
+    selectedJobIds?: string[];
 }): Promise<GenerateQuizInput> {
-    const { userId, jobId, generationParameters } = params;
+    const { userId, userJobId, generationParameters, selectedJobIds } = params;
 
-    // 1) Récupérer le UserJob + user + job + mapping JobSubfamilyCompetency
+    // 1) Récupérer le UserJob + user + job + sélection
     const userJob = await prisma.userJob.findUnique({
         where: {
-            userId_jobId: { userId, jobId },
+            id: userJobId,
         },
         include: {
             user: true,
@@ -77,38 +78,165 @@ export async function buildGenerateQuizInput(params: {
                             competency: true,
                         },
                     },
+                    competencies: {
+                        include: {
+                            families: true,
+                            subFamilies: {
+                                include: {
+                                    family: true,
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            jobFamily: true,
+            selectedJobs: {
+                include: {
+                    job: true,
                 },
             },
         },
     });
 
-    if (!userJob) {
-        throw new Error("UserJob not found for given userId + jobId");
+    if (!userJob || userJob.userId !== userId) {
+        throw new Error("UserJob not found for given userId + userJobId");
     }
 
-    const job = userJob.job;
     const user = userJob.user;
+    const activeSelectedJobIds =
+        userJob.scope === "JOB"
+            ? userJob.jobId
+                ? [userJob.jobId]
+                : []
+            : selectedJobIds ?? userJob.selectedJobs.filter((sj) => sj.isSelected).map((sj) => sj.jobId);
+
+    if (!activeSelectedJobIds.length) {
+        throw new Error("No selected jobs available for quiz generation");
+    }
+
+    const jobs = await prisma.job.findMany({
+        where: {
+            id: { in: activeSelectedJobIds },
+        },
+        include: {
+            competenciesFamilies: true,
+            jobSubfamilyCompetencies: {
+                include: {
+                    subFamily: {
+                        include: {
+                            family: true,
+                        },
+                    },
+                    competency: true,
+                },
+            },
+            competencies: {
+                include: {
+                    families: true,
+                    subFamilies: {
+                        include: {
+                            family: true,
+                        },
+                    },
+                },
+            },
+        },
+    });
+
+    if (jobs.length !== activeSelectedJobIds.length) {
+        throw new Error("Some selected jobs were not found for quiz generation");
+    }
+
+    if (userJob.scope === "JOB_FAMILY" && userJob.jobFamilyId) {
+        const mismatch = jobs.find((job) => job.jobFamilyId !== userJob.jobFamilyId);
+        if (mismatch) {
+            throw new Error("Selected jobs do not belong to the user job family");
+        }
+    }
+
+    const jobContext =
+        jobs.length === 1
+            ? {
+                id: jobs[0].id,
+                slug: jobs[0].slug,
+                title: jobs[0].title,
+                description: jobs[0].description ?? null,
+            }
+            : {
+                id: userJob.jobFamily?.id ?? userJob.jobFamilyId ?? jobs[0].id,
+                slug: userJob.jobFamily?.slug ?? "job-family",
+                title: userJob.jobFamily?.name ?? "Famille de metiers",
+                description: null,
+            };
 
     // 2) Construire la meta des compétences pour ce job
     const competencyMetaById = new Map<string, CompetencyMeta>();
+    const familyById = new Map<string, { id: string; slug: string; name: string }>();
 
-    for (const jsc of job.jobSubfamilyCompetencies) {
-        const comp = jsc.competency;
-        const subFamily = jsc.subFamily;
-        const family = subFamily.family;
+    const registerFamily = (family: { id: string; slug: string; name: string }) => {
+        if (!familyById.has(family.id)) {
+            familyById.set(family.id, {
+                id: family.id,
+                slug: family.slug,
+                name: family.name,
+            });
+        }
+    };
 
-        competencyMetaById.set(comp.id, {
-            id: comp.id,
-            slug: comp.slug,
-            name: comp.name,
-            type: comp.type,
-            level: comp.level,
-            familyId: family.id,
-            familySlug: family.slug,
-            familyName: family.name,
-            subFamilyId: subFamily.id,
-            subFamilySlug: subFamily.slug,
-        });
+    for (const job of jobs) {
+        for (const family of job.competenciesFamilies) {
+            registerFamily(family);
+        }
+
+        for (const jsc of job.jobSubfamilyCompetencies) {
+            const comp = jsc.competency;
+            const subFamily = jsc.subFamily;
+            const family = subFamily.family;
+
+            registerFamily(family);
+
+            competencyMetaById.set(comp.id, {
+                id: comp.id,
+                slug: comp.slug,
+                name: comp.name,
+                type: comp.type,
+                level: comp.level,
+                familyId: family.id,
+                familySlug: family.slug,
+                familyName: family.name,
+                subFamilyId: subFamily.id,
+                subFamilySlug: subFamily.slug,
+            });
+        }
+
+        for (const comp of job.competencies) {
+            if (competencyMetaById.has(comp.id)) {
+                continue;
+            }
+
+            const subFamily = comp.subFamilies[0] ?? null;
+            const family = subFamily?.family ?? comp.families[0] ?? null;
+
+            if (!family) {
+                continue;
+            }
+
+            registerFamily(family);
+
+            competencyMetaById.set(comp.id, {
+                id: comp.id,
+                slug: comp.slug,
+                name: comp.name,
+                type: comp.type,
+                level: comp.level,
+                familyId: family.id,
+                familySlug: family.slug,
+                familyName: family.name,
+                subFamilyId: subFamily?.id ?? null,
+                subFamilySlug: subFamily?.slug ?? null,
+            });
+        }
     }
 
     // 3) Charger les 5 derniers quizzes complétés pour ce UserJob
@@ -153,7 +281,7 @@ export async function buildGenerateQuizInput(params: {
     // 5) Kiviat Job + UserJob pour résumer par famille
     const jobKiviats = await prisma.jobKiviat.findMany({
         where: {
-            jobId: job.id,
+            jobId: { in: jobs.map((job) => job.id) },
             level: generationParameters.targetJobProgressionLevel,
         },
     });
@@ -164,9 +292,12 @@ export async function buildGenerateQuizInput(params: {
         },
     });
 
-    const jobKiviatByFamilyId = new Map<string, number>();
+    const jobKiviatByFamilyId = new Map<string, { sum: number; count: number }>();
     for (const jk of jobKiviats) {
-        jobKiviatByFamilyId.set(jk.competenciesFamilyId, Number(jk.value));
+        const entry = jobKiviatByFamilyId.get(jk.competenciesFamilyId) ?? { sum: 0, count: 0 };
+        entry.sum += Number(jk.value);
+        entry.count += 1;
+        jobKiviatByFamilyId.set(jk.competenciesFamilyId, entry);
     }
 
     const userKiviatByFamilyId = new Map<string, number>();
@@ -376,7 +507,7 @@ export async function buildGenerateQuizInput(params: {
     const familySummaries: FamilyPerformanceSummary[] = [];
 
     for (const [familyId, agg] of familyAgg.entries()) {
-        const jobFamily = job.competenciesFamilies.find((f) => f.id === familyId);
+        const jobFamily = familyById.get(familyId);
         if (!jobFamily) continue;
 
         const questionsCount = agg.questionsCount || 1;
@@ -392,7 +523,9 @@ export async function buildGenerateQuizInput(params: {
             familySlug: jobFamily.slug,
             familyName: jobFamily.name,
             userKiviatValue: userKiviatByFamilyId.get(familyId) ?? null,
-            targetKiviatValue: jobKiviatByFamilyId.get(familyId) ?? null,
+            targetKiviatValue: jobKiviatByFamilyId.get(familyId)
+                ? jobKiviatByFamilyId.get(familyId)!.sum / jobKiviatByFamilyId.get(familyId)!.count
+                : null,
             questionsCountLast5Quizzes: agg.questionsCount,
             successRateLast5Quizzes: successRate,
             avgQuestionLevel: avgLevel,
@@ -400,7 +533,7 @@ export async function buildGenerateQuizInput(params: {
     }
 
     // 9) Contexte job (families + competencies)
-    const families = job.competenciesFamilies.map((f) => ({
+    const families = Array.from(familyById.values()).map((f) => ({
         id: f.id,
         slug: f.slug,
         name: f.name,
@@ -432,10 +565,7 @@ export async function buildGenerateQuizInput(params: {
             winningStreak,
         },
         job: {
-            id: job.id,
-            slug: job.slug,
-            title: job.title,
-            description: job.description ?? null,
+            ...jobContext,
             families,
             competencies,
         },

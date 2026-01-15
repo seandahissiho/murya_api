@@ -7,3 +7,4 @@ create_admin_user.ts
 
 .idea
 .vercel
+dist/

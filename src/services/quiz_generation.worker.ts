@@ -11,7 +11,7 @@ export const startQuizGenerationWorker = () => {
                 if (!job) {
                     continue;
                 }
-                await generateAndPersistDailyQuiz(job.userId, job.jobId, job.userJobId);
+                await generateAndPersistDailyQuiz(job.userId, job.userJobId, job.jobId ?? undefined);
             } catch (err) {
                 console.error('Quiz generation worker error', err);
                 await sleep(1000);

@@ -1,15 +1,13 @@
 model CompetenciesSubFamily {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name        String   @db.VarChar(255)
-  slug        String   @unique @db.VarChar(255)
-  description String?  @db.Text
-  familyId    String   @db.Uuid
-  createdAt   DateTime @default(now()) @db.Timestamp(0)
-  updatedAt   DateTime @default(now()) @updatedAt @db.Timestamp(0)
-
+  id                       String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name                     String                   @db.VarChar(255)
+  slug                     String                   @unique @db.VarChar(255)
+  description              String?                  @db.Text
+  familyId                 String                   @db.Uuid
+  createdAt                DateTime                 @default(now()) @db.Timestamp(0)
+  updatedAt                DateTime                 @default(now()) @updatedAt @db.Timestamp(0)
   // Famille parente
-  family CompetenciesFamily @relation(fields: [familyId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_competencies_subfamily_family_id")
-
+  family                   CompetenciesFamily       @relation(fields: [familyId], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_competencies_subfamily_family_id")
   // Relations métier
   competencies             Competency[]             @relation("CompetenciesSubFamilies")
   jobs                     Job[]                    @relation("JobCompetenciesSubfamilies")

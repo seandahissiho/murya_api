@@ -3,7 +3,7 @@ import {createClient} from 'redis';
 
 export type QuizGenerationJob = {
     userId: string;
-    jobId: string;
+    jobId?: string | null;
     userJobId: string;
 };
 

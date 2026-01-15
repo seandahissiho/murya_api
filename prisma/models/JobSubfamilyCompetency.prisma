@@ -1,11 +1,10 @@
 model JobSubfamilyCompetency {
-  jobId        String @db.Uuid
-  subFamilyId  String @db.Uuid
-  competencyId String @db.Uuid
-
-  job        Job                   @relation(fields: [jobId], references: [id])
-  subFamily  CompetenciesSubFamily @relation(fields: [subFamilyId], references: [id])
-  competency Competency            @relation(fields: [competencyId], references: [id])
+  jobId        String                @db.Uuid
+  subFamilyId  String                @db.Uuid
+  competencyId String                @db.Uuid
+  job          Job                   @relation(fields: [jobId], references: [id])
+  subFamily    CompetenciesSubFamily @relation(fields: [subFamilyId], references: [id])
+  competency   Competency            @relation(fields: [competencyId], references: [id])
 
   @@id([jobId, subFamilyId, competencyId])
   // Interdit une compétence dans 2 sous-familles pour un même job :

@@ -2,6 +2,7 @@ import {
     Prisma,
     Quiz,
     QuizType,
+    UserJobScope,
     UserJobStatus,
     UserQuiz,
     UserQuizStatus,
@@ -16,6 +17,79 @@ import {resolveFields} from "../i18n/translate";
 import {buildGenerateQuizInput} from "./quiz_gen/build-generate-quiz-input";
 import {enqueueQuizGenerationJob, getRedisClient} from "../config/redis";
 import {generateMarkdownArticleForLastQuiz} from "./generateMarkdownArticleForLastQuiz";
+import {computeWaveformFromMediaUrl} from "../utils/waveform";
+import {trackEvent} from "./quests.services";
+
+async function resolveJobOrFamilyId(targetId: string) {
+    const job = await prisma.job.findUnique({
+        where: {id: targetId},
+        select: {id: true},
+    });
+    if (job) {
+        return {scope: UserJobScope.JOB as const, jobId: job.id, jobFamilyId: null};
+    }
+
+    const jobFamily = await prisma.jobFamily.findUnique({
+        where: {id: targetId},
+        select: {id: true},
+    });
+    if (jobFamily) {
+        return {scope: UserJobScope.JOB_FAMILY as const, jobId: null, jobFamilyId: jobFamily.id};
+    }
+
+    throw new Error('Job not found');
+}
+
+async function ensureUserJobFamilyTrack(userId: string, jobFamilyId: string) {
+    const jobFamily = await prisma.jobFamily.findUnique({
+        where: {id: jobFamilyId},
+        include: {jobs: {select: {id: true}}},
+    });
+    if (!jobFamily) {
+        throw new Error('JobFamily not found');
+    }
+    if (!jobFamily.jobs.length) {
+        throw new Error('JobFamily has no jobs');
+    }
+
+    const userJob = await prisma.userJob.upsert({
+        where: {userId_jobFamilyId: {userId, jobFamilyId}},
+        update: {},
+        create: {
+            userId,
+            scope: UserJobScope.JOB_FAMILY,
+            jobId: null,
+            jobFamilyId,
+            status: UserJobStatus.TARGET,
+        },
+    });
+
+    const familyJobIds = jobFamily.jobs.map((job) => job.id);
+    const existingSelections = await prisma.userJobSelectedJob.findMany({
+        where: {
+            userJobId: userJob.id,
+            jobId: {in: familyJobIds},
+        },
+        select: {jobId: true},
+    });
+    const existingIds = new Set(existingSelections.map((selection) => selection.jobId));
+    const selectionsToCreate = familyJobIds
+        .filter((jobId) => !existingIds.has(jobId))
+        .map((jobId) => ({
+            userJobId: userJob.id,
+            jobId,
+            isSelected: true,
+        }));
+
+    if (selectionsToCreate.length) {
+        await prisma.userJobSelectedJob.createMany({
+            data: selectionsToCreate,
+            skipDuplicates: true,
+        });
+    }
+
+    return userJob;
+}
 
 async function localizeQuizContent(quiz: any, lang: string) {
     if (!quiz) return quiz;
@@ -79,7 +153,19 @@ export async function getCurrentUserJob(userId: any, lang: string = 'en') {
     const userJob = await prisma.userJob.findFirst({
         where: {userId, status: UserJobStatus.CURRENT},
         include: {
-            job: true,
+            job: {
+                include: {
+                    kiviats: {
+                        include: {competenciesFamily: true},
+                    },
+                },
+            },
+            jobFamily: true,
+            selectedJobs: {
+                include: {
+                    job: true,
+                },
+            },
             kiviats: {
                 include: {
                     competenciesFamily: true,
@@ -90,14 +176,6 @@ export async function getCurrentUserJob(userId: any, lang: string = 'en') {
     });
 
     if (!userJob) return null;
-
-    const localizedJob = await resolveFields({
-        entity: 'Job',
-        entityId: userJob.job.id,
-        fields: ['title', 'description'],
-        lang,
-        base: userJob.job,
-    });
 
     const kiviats = await Promise.all(
         userJob.kiviats.map(async (k) => {
@@ -112,12 +190,330 @@ export async function getCurrentUserJob(userId: any, lang: string = 'en') {
         })
     );
 
-    return {...userJob, job: localizedJob, kiviats};
+    if (userJob.scope === UserJobScope.JOB) {
+        if (!userJob.job) {
+            throw new Error('Job manquant pour un UserJob de scope JOB.');
+        }
+
+        const localizedJob = await resolveFields({
+            entity: 'Job',
+            entityId: userJob.job.id,
+            fields: ['title', 'description'],
+            lang,
+            base: userJob.job,
+        });
+
+        const localizedJobKiviats = await Promise.all(
+            (userJob.job.kiviats ?? []).map(async (k) => {
+                const localizedFamily = await resolveFields({
+                    entity: 'CompetenciesFamily',
+                    entityId: k.competenciesFamily.id,
+                    fields: ['name', 'description'],
+                    lang,
+                    base: k.competenciesFamily,
+                });
+                const localizedKiviat = await resolveFields({
+                    entity: 'JobKiviat',
+                    entityId: k.id,
+                    fields: ['level'],
+                    lang,
+                    base: k,
+                });
+                return {...k, ...localizedKiviat, competenciesFamily: localizedFamily};
+            })
+        );
+
+        return {...userJob, job: {...localizedJob, kiviats: localizedJobKiviats}, kiviats};
+    }
+
+    if (!userJob.jobFamily) {
+        throw new Error('JobFamily manquante pour un UserJob de scope JOB_FAMILY.');
+    }
+
+    const localizedJobFamily = await resolveFields({
+        entity: 'JobFamily',
+        entityId: userJob.jobFamily.id,
+        fields: ['name'],
+        lang,
+        base: userJob.jobFamily,
+    });
+
+    const selectedJobs = await Promise.all(
+        userJob.selectedJobs.map(async (selection) => {
+            const localizedJob = await resolveFields({
+                entity: 'Job',
+                entityId: selection.job.id,
+                fields: ['title', 'description'],
+                lang,
+                base: selection.job,
+            });
+            return {
+                ...selection,
+                job: localizedJob,
+            };
+        })
+    );
+
+    return {
+        ...userJob,
+        job: null,
+        jobFamily: localizedJobFamily,
+        selectedJobs,
+        kiviats,
+    };
+}
+
+export async function setCurrentUserJob(userId: string, jobId: string, lang: string = 'en') {
+    const resolved = await resolveJobOrFamilyId(jobId);
+    if (resolved.scope === UserJobScope.JOB_FAMILY) {
+        return await setCurrentUserJobFamily(userId, resolved.jobFamilyId!, lang);
+    }
+
+    let created = false;
+    const userJobId = await prisma.$transaction(async (tx) => {
+        let userJob = await tx.userJob.findUnique({
+            where: {userId_jobId: {userId, jobId}},
+            select: {id: true, status: true},
+        });
+
+        if (!userJob) {
+            userJob = await tx.userJob.create({
+                data: {userId, jobId, scope: UserJobScope.JOB, jobFamilyId: null, status: UserJobStatus.CURRENT},
+                select: {id: true, status: true},
+            });
+            created = true;
+        } else if (userJob.status !== UserJobStatus.CURRENT) {
+            await tx.userJob.update({
+                where: {id: userJob.id},
+                data: {status: UserJobStatus.CURRENT, scope: UserJobScope.JOB, jobFamilyId: null},
+            });
+        }
+
+        await tx.userJob.updateMany({
+            where: {
+                userId,
+                status: UserJobStatus.CURRENT,
+                id: {not: userJob.id},
+            },
+            data: {status: UserJobStatus.PAST},
+        });
+
+        return userJob.id;
+    });
+
+    if (created) {
+        await createUserQuizzesForJob(userJobId, jobId, userId);
+    }
+
+    return await getCurrentUserJob(userId, lang);
+}
+
+export async function setCurrentUserJobFamily(userId: string, jobFamilyId: string, lang: string = 'en') {
+    const jobFamily = await prisma.jobFamily.findUnique({
+        where: {id: jobFamilyId},
+        include: {jobs: {select: {id: true}}},
+    });
+    if (!jobFamily) {
+        throw new Error('JobFamily not found');
+    }
+    if (!jobFamily.jobs.length) {
+        throw new Error('JobFamily has no jobs');
+    }
+
+    await prisma.$transaction(async (tx) => {
+        let userJob = await tx.userJob.findUnique({
+            where: {userId_jobFamilyId: {userId, jobFamilyId}},
+            select: {id: true, status: true, scope: true},
+        });
+
+        if (!userJob) {
+            userJob = await tx.userJob.create({
+                data: {
+                    userId,
+                    scope: UserJobScope.JOB_FAMILY,
+                    jobId: null,
+                    jobFamilyId,
+                    status: UserJobStatus.CURRENT,
+                },
+                select: {id: true, status: true, scope: true},
+            });
+        } else if (userJob.status !== UserJobStatus.CURRENT || userJob.scope !== UserJobScope.JOB_FAMILY) {
+            await tx.userJob.update({
+                where: {id: userJob.id},
+                data: {status: UserJobStatus.CURRENT, scope: UserJobScope.JOB_FAMILY, jobId: null},
+            });
+        }
+
+        await tx.userJob.updateMany({
+            where: {
+                userId,
+                status: UserJobStatus.CURRENT,
+                id: {not: userJob.id},
+            },
+            data: {status: UserJobStatus.PAST},
+        });
+
+        const familyJobIds = jobFamily.jobs.map((job) => job.id);
+        const existingSelections = await tx.userJobSelectedJob.findMany({
+            where: {
+                userJobId: userJob.id,
+                jobId: {in: familyJobIds},
+            },
+            select: {jobId: true},
+        });
+        const existingIds = new Set(existingSelections.map((selection) => selection.jobId));
+        const selectionsToCreate = familyJobIds
+            .filter((jobId) => !existingIds.has(jobId))
+            .map((jobId) => ({
+                userJobId: userJob.id,
+                jobId,
+                isSelected: true,
+            }));
+
+        if (selectionsToCreate.length) {
+            await tx.userJobSelectedJob.createMany({
+                data: selectionsToCreate,
+                skipDuplicates: true,
+            });
+        }
+    });
+
+    return await getCurrentUserJob(userId, lang);
+}
+
+export async function updateUserJobFamilySelection(userJobId: string, selectedJobIds: string[]) {
+    const uniqueSelectedIds = Array.from(new Set(selectedJobIds));
+    if (!uniqueSelectedIds.length) {
+        throw new Error('Au moins un métier doit rester sélectionné.');
+    }
+
+    const userJob = await prisma.userJob.findUnique({
+        where: {id: userJobId},
+        select: {id: true, scope: true, jobFamilyId: true},
+    });
+    if (!userJob) {
+        throw new Error('UserJob not found');
+    }
+    if (!userJob.job) {
+        throw new Error('Job manquant pour ce UserJob');
+    }
+    if (!userJob.job) {
+        throw new Error('Job manquant pour ce UserJob');
+    }
+    if (userJob.scope !== UserJobScope.JOB_FAMILY || !userJob.jobFamilyId) {
+        throw new Error('UserJob is not a job family track');
+    }
+
+    const familyJobs = await prisma.job.findMany({
+        where: {jobFamilyId: userJob.jobFamilyId},
+        select: {id: true},
+    });
+    if (!familyJobs.length) {
+        throw new Error('JobFamily has no jobs');
+    }
+
+    const familyJobIds = familyJobs.map((job) => job.id);
+    const familyJobIdSet = new Set(familyJobIds);
+    for (const jobId of uniqueSelectedIds) {
+        if (!familyJobIdSet.has(jobId)) {
+            throw new Error('Un ou plusieurs métiers ne font pas partie de la famille.');
+        }
+    }
+
+    await prisma.$transaction(async (tx) => {
+        const existingSelections = await tx.userJobSelectedJob.findMany({
+            where: {
+                userJobId,
+                jobId: {in: familyJobIds},
+            },
+            select: {jobId: true},
+        });
+        const existingIds = new Set(existingSelections.map((selection) => selection.jobId));
+        const selectionsToCreate = familyJobIds
+            .filter((jobId) => !existingIds.has(jobId))
+            .map((jobId) => ({
+                userJobId,
+                jobId,
+                isSelected: uniqueSelectedIds.includes(jobId),
+            }));
+
+        if (selectionsToCreate.length) {
+            await tx.userJobSelectedJob.createMany({
+                data: selectionsToCreate,
+                skipDuplicates: true,
+            });
+        }
+
+        await tx.userJobSelectedJob.updateMany({
+            where: {userJobId, jobId: {in: familyJobIds}},
+            data: {isSelected: false},
+        });
+
+        await tx.userJobSelectedJob.updateMany({
+            where: {userJobId, jobId: {in: uniqueSelectedIds}},
+            data: {isSelected: true},
+        });
+    });
+
+    return prisma.userJobSelectedJob.findMany({
+        where: {userJobId},
+        include: {job: true},
+    });
 }
 
 export async function getUserJob(jobId: string, userId: any, lang: string = 'en') {
+    const resolved = await resolveJobOrFamilyId(jobId);
+
+    if (resolved.scope === UserJobScope.JOB_FAMILY) {
+        const userJob = await prisma.userJob.findUnique({
+            where: {userId_jobFamilyId: {userId, jobFamilyId: resolved.jobFamilyId!}},
+            include: {
+                jobFamily: true,
+                selectedJobs: {include: {job: true}},
+            },
+        });
+
+        if (!userJob) {
+            throw new Error('UserJob not found');
+        }
+        if (!userJob.jobFamily) {
+            throw new Error('JobFamily manquante pour ce UserJob.');
+        }
+
+        const localizedJobFamily = await resolveFields({
+            entity: 'JobFamily',
+            entityId: userJob.jobFamily.id,
+            fields: ['name'],
+            lang,
+            base: userJob.jobFamily,
+        });
+
+        const selectedJobs = await Promise.all(
+            userJob.selectedJobs.map(async (selection) => {
+                const localizedJob = await resolveFields({
+                    entity: 'Job',
+                    entityId: selection.job.id,
+                    fields: ['title', 'description'],
+                    lang,
+                    base: selection.job,
+                });
+                return {
+                    ...selection,
+                    job: localizedJob,
+                };
+            })
+        );
+
+        return {
+            ...userJob,
+            job: null,
+            jobFamily: localizedJobFamily,
+            selectedJobs,
+        };
+    }
+
     const userJob = await prisma.userJob.findUnique({
-        where: {userId_jobId: {userId, jobId}},
+        where: {userId_jobId: {userId, jobId: resolved.jobId!}},
         include: {
             job: true,
         },
@@ -140,6 +536,9 @@ export async function getUserJob(jobId: string, userId: any, lang: string = 'en'
 
 
 export const retrievePositioningQuizForJob = async (userJob: any, lang: string = 'en'): Promise<Quiz> => {
+    if (!userJob.jobId) {
+        throw new Error('Job manquant pour la récupération du quiz de positionnement');
+    }
     const userJobUpToDate = await prisma.userJob.findUnique({
         where: {id: userJob.id},
         select: {
@@ -261,24 +660,75 @@ async function createUserQuizzesForJob(userJobId: string, jobId: string, userId:
 
 // retrieveDailyQuizForJob
 export const retrieveDailyQuizForJob = async (jobId: string, userId: string, lang: string = 'en'): Promise<Quiz | undefined | null> => {
+    const resolved = await resolveJobOrFamilyId(jobId);
 
+    if (resolved.scope === UserJobScope.JOB_FAMILY) {
+        let userJob: any = await prisma.userJob.findUnique({
+            where: {userId_jobFamilyId: {userId, jobFamilyId: resolved.jobFamilyId!}},
+            select: {quizzes: true, id: true, userId: true},
+        });
+        if (!userJob) {
+            userJob = await ensureUserJobFamilyTrack(userId, resolved.jobFamilyId!);
+        }
+
+        const dailyQuiz = userJob.quizzes.find(
+            (uq: UserQuiz) => uq.type === QuizType.DAILY && uq.status === UserQuizStatus.ASSIGNED
+        );
+        if (!dailyQuiz) {
+            const generated = await generateAdaptiveQuizForUserJob(userId, userJob.id);
+            if (!generated) {
+                return null;
+            }
+        }
+
+        const refreshed = await prisma.userJob.findUnique({
+            where: {id: userJob.id},
+            select: {quizzes: true},
+        });
+        const assignedDaily = refreshed?.quizzes.find(
+            (uq: UserQuiz) => uq.type === QuizType.DAILY && uq.status === UserQuizStatus.ASSIGNED
+        );
+        if (!assignedDaily) {
+            return null;
+        }
+
+        const quiz = await prisma.quiz.findUnique({
+            where: {id: assignedDaily.quizId},
+            include: {
+                questions: {
+                    include: {
+                        responses: {
+                            include: {answerOptions: true},
+                            orderBy: {index: 'asc'},
+                        },
+                        competency: true,
+                    },
+                    orderBy: {index: 'asc'},
+                },
+            },
+        });
+        if (!quiz) {
+            throw new Error('Daily quiz not found');
+        }
+        return await localizeQuizContent(quiz, lang);
+    }
 
     // check if user has completed the positioning quiz for the job, if not, return then positioningQuiz
     let userJob: any = await prisma.userJob.findUnique({
-        where: {userId_jobId: {userId, jobId}},
+        where: {userId_jobId: {userId, jobId: resolved.jobId!}},
         select: {quizzes: true, completedQuizzes: true, id: true, jobId: true, userId: true},
     });
     if (!userJob) {
         // create the userJob entry?
         userJob = await prisma.userJob.create({
-            data: {userId, jobId},
+            data: {userId, jobId: resolved.jobId!},
             select: {quizzes: true, completedQuizzes: true, id: true, jobId: true, userId: true},
         });
         if (!userJob) {
             throw new Error('Failed to create userJob entry');
         }
 
-        await createUserQuizzesForJob(userJob.id, jobId, userId);
+        await createUserQuizzesForJob(userJob.id, resolved.jobId!, userId);
     }
 
     const completionCount = await prisma.userQuiz.count({
@@ -342,6 +792,21 @@ type AnswerInput = {
 };
 
 async function updateUserJobStats(userJobId: string, doneAt: string) {
+    const userJobScope = await prisma.userJob.findUnique({
+        where: {id: userJobId},
+        select: {
+            scope: true,
+            selectedJobs: {where: {isSelected: true}, select: {jobId: true}},
+        },
+    });
+    if (!userJobScope) {
+        throw new Error('UserJob introuvable pour la mise à jour des stats.');
+    }
+
+    const selectedJobIds = new Set(
+        userJobScope.selectedJobs?.map((selection) => selection.jobId) ?? []
+    );
+
     // 5. Recalculer les agrégats sur UserJob
     const allQuizzes = await prisma.userQuiz.findMany({
         where: {userJobId: userJobId},
@@ -352,21 +817,33 @@ async function updateUserJobStats(userJobId: string, doneAt: string) {
             bonusPoints: true,
             maxScoreWithBonus: true,
             completedAt: true,
+            jobsSnapshot: true,
         },
     });
 
-    // const quizzesCount = allQuizzes.length;
-    const completedQuizzes = allQuizzes.filter(
+    const filteredQuizzes =
+        userJobScope.scope === UserJobScope.JOB_FAMILY
+            ? allQuizzes.filter((quiz) => {
+                const snapshot = Array.isArray(quiz.jobsSnapshot) ? quiz.jobsSnapshot : [];
+                if (!snapshot.length) {
+                    return true;
+                }
+                return snapshot.some((jobId) => selectedJobIds.has(String(jobId)));
+            })
+            : allQuizzes;
+
+    // const quizzesCount = filteredQuizzes.length;
+    const completedQuizzes = filteredQuizzes.filter(
         (q) => q.status === UserQuizStatus.COMPLETED
     ).length;
-    const totalScoreSum = allQuizzes.reduce(
+    const totalScoreSum = filteredQuizzes.reduce(
         (sum, q) => {
             const total = (q.totalScore ?? 0) + (q.bonusPoints ?? 0);
             return sum + total;
         },
         0
     );
-    const maxScoreSum = allQuizzes.reduce((sum, q) => sum + q.maxScoreWithBonus, 0);
+    const maxScoreSum = filteredQuizzes.reduce((sum, q) => sum + q.maxScoreWithBonus, 0);
 
     // const lastQuizAt = allQuizzes.reduce<Date | null>((latest, q) => {
     //     if (!q.completedAt) return latest;
@@ -480,7 +957,7 @@ const mapLeagueTierToProgressionLevel = (tier: LeagueTier | null | undefined): J
     }
 };
 
-export async function generateAndPersistDailyQuiz(userId: string, jobId: string, userJobId: string) {
+export async function generateAndPersistDailyQuiz(userId: string, userJobId: string, jobId?: string) {
     const agentUrl = process.env.QUIZ_GENERATION_URL || process.env.QUIZ_AGENT_URL;
     if (!agentUrl) {
         throw new Error('QUIZ_GENERATION_URL (ou QUIZ_AGENT_URL) non configuré');
@@ -496,15 +973,33 @@ export async function generateAndPersistDailyQuiz(userId: string, jobId: string,
 
     const userJob = await prisma.userJob.findUnique({
         where: {id: userJobId},
-        select: {leagueTier: true},
+        include: {
+            selectedJobs: true,
+        },
     });
     if (!userJob) {
         throw new Error('UserJob introuvable pour la génération');
     }
 
+    const activeJobIds =
+        userJob.scope === UserJobScope.JOB
+            ? userJob.jobId
+                ? [userJob.jobId]
+                : []
+            : userJob.selectedJobs.filter((sj) => sj.isSelected).map((sj) => sj.jobId);
+
+    if (!activeJobIds.length) {
+        throw new Error('Aucun métier sélectionné pour la génération');
+    }
+
+    if (jobId && userJob.scope === UserJobScope.JOB && userJob.jobId !== jobId) {
+        throw new Error('Le jobId ne correspond pas au UserJob demandé');
+    }
+
     const payload = await buildGenerateQuizInput({
         userId,
-        jobId,
+        userJobId,
+        selectedJobIds: userJob.scope === UserJobScope.JOB_FAMILY ? activeJobIds : undefined,
         generationParameters: {
             numberOfQuestions: 10,
             allowedQuestionTypes: [
@@ -536,20 +1031,23 @@ export async function generateAndPersistDailyQuiz(userId: string, jobId: string,
         throw new Error('Réponse de génération invalide (questions absentes)');
     }
 
-    const job = await prisma.job.findUnique({
-        where: {id: jobId},
+    const jobIdsForQuiz = userJob.scope === UserJobScope.JOB ? [userJob.jobId!] : activeJobIds;
+    const quizJobId = jobIdsForQuiz[0];
+
+    const jobsForCompetencies = await prisma.job.findMany({
+        where: {id: {in: jobIdsForQuiz}},
         include: {competencies: true},
     });
-    if (!job) {
-        throw new Error('Job introuvable pour la génération');
+    if (!jobsForCompetencies.length) {
+        throw new Error('Jobs introuvables pour la génération');
     }
 
     const competencyMap = new Map<string, string>();
-    job.competencies.forEach((c) => competencyMap.set(c.slug, c.id));
+    jobsForCompetencies.forEach((j) => j.competencies.forEach((c) => competencyMap.set(c.slug, c.id)));
 
     const quiz = await prisma.quiz.create({
         data: {
-            jobId,
+            jobId: quizJobId,
             title: generated.title,
             description: generated.description ?? '',
             level: mapDifficultyToLevel(generated.level),
@@ -608,6 +1106,7 @@ export async function generateAndPersistDailyQuiz(userId: string, jobId: string,
             index: nextIndex,
             maxScore,
             maxScoreWithBonus,
+            jobsSnapshot: activeJobIds,
         },
         include: {
             quiz: {
@@ -627,7 +1126,7 @@ export async function generateAndPersistDailyQuiz(userId: string, jobId: string,
     return userQuiz;
 }
 
-export async function generateAdaptiveQuizForUserJob(userId: string, jobId: string, userJobId: string) {
+export async function generateAdaptiveQuizForUserJob(userId: string, userJobId: string, jobId?: string) {
     if (getRedisClient()) {
         try {
             const enqueued = await enqueueQuizGenerationJob({userId, jobId, userJobId});
@@ -639,7 +1138,7 @@ export async function generateAdaptiveQuizForUserJob(userId: string, jobId: stri
         }
     }
 
-    return await generateAndPersistDailyQuiz(userId, jobId, userJobId);
+    return await generateAndPersistDailyQuiz(userId, userJobId, jobId);
 }
 
 
@@ -676,7 +1175,7 @@ async function generateNextQuiz(updatedUserQuiz: any, userJobId: string, userId:
 
     if (shouldGeneratePersonalizedQuiz) {
         try {
-            await generateAdaptiveQuizForUserJob(userId, jobId, userJobId);
+            await generateAdaptiveQuizForUserJob(userId, userJobId, jobId);
         } catch (e) {
             console.error('Failed to generate next quiz', e);
         }
@@ -691,13 +1190,22 @@ export const saveUserQuizAnswers = async (
     userId: string,
     answers: AnswerInput[],
     doneAt: string,
+    timezone: string = 'UTC',
     lang: string = 'en',
 ) => {
-    const {updatedUserQuiz, userJobId} = await prisma.$transaction(async (tx: any) => {
+    const {updatedUserQuiz, userJobId, wasAlreadyCompleted} = await prisma.$transaction(async (tx: any) => {
+        const resolved = await resolveJobOrFamilyId(jobId);
+
         // 0. Récupérer le UserJob
         const userJob = await tx.userJob.findUnique({
-            where: {userId_jobId: {userId, jobId}},
-            select: {id: true, jobId: true, job: {select: {competenciesFamilies: true}}},
+            where: resolved.scope === UserJobScope.JOB
+                ? {userId_jobId: {userId, jobId: resolved.jobId!}}
+                : {userId_jobFamilyId: {userId, jobFamilyId: resolved.jobFamilyId!}},
+            select: {
+                id: true,
+                jobId: true,
+                job: {select: {competenciesFamilies: true}},
+            },
         });
         if (!userJob) {
             throw new Error("Job introuvable pour cet utilisateur.");
@@ -711,6 +1219,7 @@ export const saveUserQuizAnswers = async (
             include: {
                 quiz: {
                     include: {
+                        job: {include: {competenciesFamilies: true}},
                         questions: {
                             include: {
                                 responses: true,
@@ -729,6 +1238,13 @@ export const saveUserQuizAnswers = async (
         if (!userQuiz) {
             throw new Error("Quiz introuvable pour cet utilisateur et ce job.");
         }
+
+        const jobForStats = userJob.job ?? userQuiz.quiz.job;
+        if (!jobForStats) {
+            throw new Error("Job manquant pour ce quiz.");
+        }
+
+        const wasAlreadyCompleted = userQuiz.status === UserQuizStatus.COMPLETED;
 
         // Map questionId -> QuizQuestion
         const questionMap = new Map(
@@ -931,7 +1447,7 @@ export const saveUserQuizAnswers = async (
         });
 
         // 7. Mettre à jour les JobKiviats utilisateur + historique
-        const allFamilies = userJob.job.competenciesFamilies;
+        const allFamilies = jobForStats.competenciesFamilies;
         for (const family of allFamilies) {
             const familyId = family.id;
             const currentAgg = familyAgg.get(familyId) ?? {score: 0, maxScore: 0};
@@ -940,33 +1456,33 @@ export const saveUserQuizAnswers = async (
             const JuniorValue = (await tx.jobKiviat.findUnique({
                 where: {
                     jobId_competenciesFamilyId_level: {
-                        jobId: userJob.jobId,
+                        jobId: jobForStats.id,
                         competenciesFamilyId: familyId,
                         level: JobProgressionLevel.JUNIOR,
                     },
                 },
                 select: {value: true},
-            })).value;
+            }))?.value ?? 0;
             const MidLevelValue = (await tx.jobKiviat.findUnique({
                 where: {
                     jobId_competenciesFamilyId_level: {
-                        jobId: userJob.jobId,
+                        jobId: jobForStats.id,
                         competenciesFamilyId: familyId,
                         level: JobProgressionLevel.MIDLEVEL,
                     },
                 },
                 select: {value: true},
-            })).value;
+            }))?.value ?? 0;
             const SeniorValue = (await tx.jobKiviat.findUnique({
                 where: {
                     jobId_competenciesFamilyId_level: {
-                        jobId: userJob.jobId,
+                        jobId: jobForStats.id,
                         competenciesFamilyId: familyId,
                         level: JobProgressionLevel.SENIOR,
                     },
                 },
                 select: {value: true},
-            })).value;
+            }))?.value ?? 0;
 
             const level: JobProgressionLevel = value <= JuniorValue ? JobProgressionLevel.JUNIOR
                 : value <= MidLevelValue ? JobProgressionLevel.MIDLEVEL
@@ -1008,8 +1524,21 @@ export const saveUserQuizAnswers = async (
             });
         }
 
-        return {updatedUserQuiz, userJobId: userJob.id};
+        return {updatedUserQuiz, userJobId: userJob.id, wasAlreadyCompleted};
     });
+
+    if (!wasAlreadyCompleted) {
+        await trackEvent(
+            userJobId,
+            'QUIZ_COMPLETED',
+            {
+                quizType: updatedUserQuiz.type,
+                score: updatedUserQuiz.percentage ?? 0,
+                completedAt: updatedUserQuiz.completedAt ?? undefined,
+            },
+            timezone,
+        );
+    }
 
     const quizResult = await generateNextQuiz(updatedUserQuiz, userJobId, userId, jobId);
 
@@ -1050,7 +1579,7 @@ export async function listLearningResourcesForUserJob(userJobId: string, userId:
     // Vérifier que l'utilisateur est bien propriétaire du userJob
     const userJob = await prisma.userJob.findFirst({
         where: {id: userJobId, userId},
-        select: {id: true, jobId: true},
+        select: {id: true, jobId: true, jobFamilyId: true},
     });
 
     if (!userJob) {
@@ -1062,19 +1591,64 @@ export async function listLearningResourcesForUserJob(userJobId: string, userId:
         where: {
             OR: [
                 {userJobId: userJob.id}, // spécifiques à ce userJob
-                {
-                    jobId: userJob.jobId,
-                    source: LearningResourceSource.SYSTEM_DEFAULT, // ressources par défaut du métier
-                },
+                ...(userJob.jobId
+                    ? [{
+                        jobId: userJob.jobId,
+                        source: LearningResourceSource.SYSTEM_DEFAULT, // ressources par défaut du métier
+                    }]
+                    : []),
+                ...(userJob.jobFamilyId
+                    ? [{
+                        jobFamilyId: userJob.jobFamilyId,
+                        source: LearningResourceSource.SYSTEM_DEFAULT, // ressources par défaut de la famille
+                    }]
+                    : []),
             ],
         },
         orderBy: {createdAt: 'desc'},
     });
 
-    return resources;
+    const resourcesWithWaveform = await Promise.all(resources.map(async (resource) => {
+        if (resource.type !== 'PODCAST' || !resource.mediaUrl) {
+            return resource;
+        }
+
+        const currentMetadata = resource.metadata;
+        const metadataObject = currentMetadata && typeof currentMetadata === 'object' && !Array.isArray(currentMetadata)
+            ? {...currentMetadata as Record<string, unknown>}
+            : {};
+
+        if (metadataObject.waveform) {
+            return resource;
+        }
+
+        const waveform = await computeWaveformFromMediaUrl(resource.mediaUrl);
+        if (!waveform) {
+            return resource;
+        }
+
+        const updated = await prisma.learningResource.update({
+            where: {id: resource.id},
+            data: {
+                metadata: {
+                    ...metadataObject,
+                    waveform,
+                },
+            },
+        });
+
+        return updated;
+    }));
+
+    return resourcesWithWaveform;
 }
 
 export async function getRankingForJob({jobId, from, to,}: GetRankingForJobParams): Promise<UserJobRankingRow[]> {
+    const resolved = await resolveJobOrFamilyId(jobId);
+    if (resolved.scope === UserJobScope.JOB_FAMILY) {
+        throw new Error('Ranking is only supported for job tracks.');
+    }
+
     // fragments pour la période
     const fromFilter =
         from ? Prisma.sql`AND uq."completedAt" >= ${from}::timestamp` : Prisma.empty;
@@ -1141,7 +1715,7 @@ export async function getRankingForJob({jobId, from, to,}: GetRankingForJobParam
         ${fromFilter}
         ${toFilter}
 
-        WHERE uj."jobId" = ${jobId}::uuid
+        WHERE uj."jobId" = ${resolved.jobId!}::uuid
         GROUP BY
         uj.id,
         uj."userId",
@@ -1348,12 +1922,17 @@ export const getUserJobCompetencyProfile = async (
     lang: string = 'en'
 ): Promise<UserJobCompetencyProfile> => { // si tu veux typer strictement
 // ) => {
+    const resolved = await resolveJobOrFamilyId(jobId);
+    if (resolved.scope === UserJobScope.JOB_FAMILY) {
+        throw new Error('Competency profile is not supported for job family tracks.');
+    }
+
     // 1. Récupérer le UserJob + user + job (et vérifier qu’il existe)
     const userJob = await prisma.userJob.findUnique({
         where: {
             userId_jobId: {
                 userId,
-                jobId,
+                jobId: resolved.jobId!,
             },
         },
         include: {
