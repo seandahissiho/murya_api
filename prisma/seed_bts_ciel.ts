@@ -483,21 +483,24 @@ export async function seedBtsCiel(options?: {reset?: boolean}) {
     for (const [key, groups] of groupsByJobQuiz.entries()) {
         const [jobTitle, questionnaireRaw] = key.split('::');
         const questionnaire = Number(questionnaireRaw);
-        const job = jobMap.get(jobTitle);
-        if (!job) continue;
 
         const existingQuiz = await prisma.quiz.findFirst({
-            where: {jobId: job.id, type: QuizType.POSITIONING, title: `Questionnaire ${questionnaire}`},
+            where: {
+                jobFamilyId: jobFamily.id,
+                type: QuizType.POSITIONING,
+                title: `Questionnaire ${questionnaire}`,
+            },
             select: {id: true},
         });
         if (existingQuiz) {
-            console.log(`Quiz déjà existant pour ${jobTitle} / Questionnaire ${questionnaire}, skip.`);
+            console.log(`Quiz déjà existant pour BTS Ciel / Questionnaire ${questionnaire}, skip.`);
             continue;
         }
 
         await prisma.quiz.create({
             data: {
-                jobId: job.id,
+                jobId: null,
+                jobFamilyId: jobFamily.id,
                 title: `Questionnaire ${questionnaire}`,
                 description: null,
                 type: QuizType.POSITIONING,

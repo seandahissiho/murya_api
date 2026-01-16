@@ -52,7 +52,11 @@ export const getJobDetails = async (req: Request, res: Response, next: NextFunct
 
         const job = await jobService.getJobDetails(jobId, lang);
         if (!job) {
-            return sendResponse(res, 404, {error: 'Job non trouvé.'});
+            const jobFamily = await jobService.getJobFamilyDetails(jobId, lang);
+            if (!jobFamily) {
+                return sendResponse(res, 404, {error: 'Job non trouvé.'});
+            }
+            return sendResponse(res, 200, {data: jobFamily});
         }
 
         return sendResponse(res, 200, {data: job});

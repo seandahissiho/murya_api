@@ -1,10 +1,12 @@
 model JobFamily {
-  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name      String   @unique(map: "job_family_name") @db.VarChar(255)
-  slug      String   @unique @db.VarChar(255)
-  createdAt DateTime @default(now()) @db.Timestamp(0)
-  updatedAt DateTime @default(now()) @updatedAt @db.Timestamp(0)
-  jobs      Job[]
-  userJobs  UserJob[]
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String             @unique(map: "job_family_name") @db.VarChar(255)
+  slug              String             @unique @db.VarChar(255)
+  description       String?            @db.Text
+  createdAt         DateTime           @default(now()) @db.Timestamp(0)
+  updatedAt         DateTime           @default(now()) @updatedAt @db.Timestamp(0)
+  jobs              Job[]
+  userJobs          UserJob[]
   learningResources LearningResource[]
+  quizzes           Quiz[]
 }

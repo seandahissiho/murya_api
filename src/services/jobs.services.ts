@@ -1,4 +1,4 @@
-import {CompetencyType, Level, QuizType} from '@prisma/client';
+import {CompetencyType, JobProgressionLevel, Level, QuizType} from '@prisma/client';
 import {resolveFields} from '../i18n/translate';
 import {prisma} from "../config/db";
 
@@ -245,11 +245,204 @@ export const getJobDetails = async (jobId: string, lang: string = 'en') => {
     );
 
     return {
+        id: localizedJob.id,
+        scope: 'JOB',
         ...localizedJob,
         jobFamily: localizedJobFamily,
         competenciesFamilies: localizedFamilies,
         competencies: localizedCompetencies,
         kiviats: localizedKiviats,
+    };
+};
+
+export const getJobFamilyDetails = async (jobFamilyId: string, lang: string = 'en') => {
+    const jobFamily = await prisma.jobFamily.findUnique({
+        where: {id: jobFamilyId},
+        include: {
+            jobs: {
+                include: {
+                    competenciesFamilies: true,
+                },
+            },
+        },
+    });
+
+    if (!jobFamily) return null;
+
+    const localizedJobFamily = await resolveFields({
+        entity: 'JobFamily',
+        entityId: jobFamily.id,
+        fields: ['name'],
+        lang,
+        base: jobFamily,
+    });
+
+    const localizedJobs = await Promise.all(
+        jobFamily.jobs.map(async (job) => {
+            const localizedJob = await resolveFields({
+                entity: 'Job',
+                entityId: job.id,
+                fields: ['title', 'description'],
+                lang,
+                base: job,
+            });
+            return {...job, ...localizedJob};
+        }),
+    );
+
+    const familyCounts = new Map<string, number>();
+    jobFamily.jobs.forEach((job) => {
+        job.competenciesFamilies.forEach((family) => {
+            familyCounts.set(family.id, (familyCounts.get(family.id) ?? 0) + 1);
+        });
+    });
+
+    const topFamilyIds = Array.from(familyCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([familyId]) => familyId);
+
+    const families = topFamilyIds.length
+        ? await prisma.competenciesFamily.findMany({
+            where: {id: {in: topFamilyIds}},
+            include: {
+                subFamilies: true,
+            },
+        })
+        : [];
+
+    const localizedFamilies = await Promise.all(
+        families.map(async (family) => {
+            const localizedFamily = await resolveFields({
+                entity: 'CompetenciesFamily',
+                entityId: family.id,
+                fields: ['name', 'description'],
+                lang,
+                base: family,
+            });
+            return {...family, ...localizedFamily};
+        }),
+    );
+
+    const subFamilies = await prisma.competenciesSubFamily.findMany({
+        where: {familyId: {in: topFamilyIds}},
+    });
+
+    const localizedSubFamilies = await Promise.all(
+        subFamilies.map(async (subFamily) => {
+            const localizedSubFamily = await resolveFields({
+                entity: 'CompetenciesSubFamily',
+                entityId: subFamily.id,
+                fields: ['name', 'description'],
+                lang,
+                base: subFamily,
+            });
+            return {...subFamily, ...localizedSubFamily};
+        }),
+    );
+
+    const jobIds = jobFamily.jobs.map((job) => job.id);
+    const competenciesById = new Map<string, any>();
+    for (const familyId of topFamilyIds) {
+        const jobsWithCompetencies = await prisma.job.findMany({
+            where: {id: {in: jobIds}},
+            select: {
+                competencies: {
+                    where: {families: {some: {id: familyId}}},
+                    include: {families: true, subFamilies: true},
+                },
+            },
+        });
+
+        const competencyCounts = new Map<string, number>();
+        const familyCompetenciesById = new Map<string, any>();
+        for (const job of jobsWithCompetencies) {
+            for (const comp of job.competencies) {
+                competencyCounts.set(comp.id, (competencyCounts.get(comp.id) ?? 0) + 1);
+                if (!familyCompetenciesById.has(comp.id)) {
+                    familyCompetenciesById.set(comp.id, comp);
+                }
+            }
+        }
+
+        const topCompetencyIds = Array.from(competencyCounts.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 10)
+            .map(([id]) => id);
+
+        for (const compId of topCompetencyIds) {
+            const comp = familyCompetenciesById.get(compId);
+            if (comp) {
+                competenciesById.set(compId, comp);
+            }
+        }
+    }
+
+    const competencies = Array.from(competenciesById.values());
+    const localizedCompetencies = await Promise.all(
+        competencies.map(async (comp) => {
+            const localized = await resolveFields({
+                entity: 'Competency',
+                entityId: comp.id,
+                fields: ['name', 'description'],
+                lang,
+                base: comp,
+            });
+            return {...comp, ...localized};
+        }),
+    );
+
+    const jobKiviats = await prisma.jobKiviat.findMany({
+        where: {
+            jobId: {in: jobIds},
+            competenciesFamilyId: {in: topFamilyIds},
+        },
+        select: {
+            competenciesFamilyId: true,
+            level: true,
+            value: true,
+        },
+    });
+
+    const levels = [
+        JobProgressionLevel.JUNIOR,
+        JobProgressionLevel.MIDLEVEL,
+        JobProgressionLevel.SENIOR,
+        JobProgressionLevel.EXPERT,
+    ];
+
+    const kiviats = topFamilyIds.flatMap((familyId) => {
+        return levels.map((level) => {
+            const values = jobKiviats
+                .filter((k) => k.competenciesFamilyId === familyId && k.level === level)
+                .map((k) => Number(k.value));
+            const value = values.length
+                ? values.reduce((sum, v) => sum + v, 0) / values.length
+                : 0;
+            return {
+                id: `${familyId}:${level}`,
+                jobId: null,
+                jobFamilyId: jobFamily.id,
+                userJobId: null,
+                competenciesFamilyId: familyId,
+                level,
+                value,
+                jobFamily: {id: jobFamily.id, name: localizedJobFamily.name, slug: jobFamily.slug},
+                competenciesFamily: localizedFamilies.find((f) => f.id === familyId) ?? null,
+            };
+        });
+    });
+
+    return {
+        id: jobFamily.id,
+        scope: 'JOB_FAMILY',
+        title: localizedJobFamily.name,
+        description: null,
+        jobs: localizedJobs,
+        competenciesFamilies: localizedFamilies,
+        competenciesSubFamilies: localizedSubFamilies,
+        competencies: localizedCompetencies,
+        kiviats,
     };
 };
 
@@ -262,7 +455,16 @@ export const getCompetencyFamilyDetailsForJob = async (
     lang: string = 'en',
 ) => {
     const job = await prisma.job.findUnique({where: {id: jobId}});
-    if (!job) throw new Error('Job not found');
+    if (!job) {
+        const jobFamily = await prisma.jobFamily.findUnique({
+            where: {id: jobId},
+            select: {id: true},
+        });
+        if (!jobFamily) {
+            throw new Error('Job not found');
+        }
+        return await getCompetencyFamilyDetailsForJobFamily(jobFamily.id, cfId, lang);
+    }
 
     const family = await prisma.competenciesFamily.findUnique({
         where: {id: cfId},
@@ -306,6 +508,84 @@ export const getCompetencyFamilyDetailsForJob = async (
 
     return {
         job: localizedJob,
+        family: localizedFamily,
+        competencies: localizedCompetencies,
+    };
+};
+
+export const getCompetencyFamilyDetailsForJobFamily = async (
+    jobFamilyId: string,
+    cfId: string,
+    lang: string = 'en',
+) => {
+    const jobFamily = await prisma.jobFamily.findUnique({
+        where: {id: jobFamilyId},
+        select: {id: true, name: true, slug: true},
+    });
+    if (!jobFamily) {
+        throw new Error('JobFamily not found');
+    }
+
+    const jobs = await prisma.job.findMany({
+        where: {jobFamilyId},
+        select: {
+            competencies: {
+                where: {families: {some: {id: cfId}}},
+                include: {families: true, subFamilies: true},
+            },
+        },
+    });
+
+    const competencyCounts = new Map<string, number>();
+    const competenciesById = new Map<string, any>();
+    for (const job of jobs) {
+        for (const comp of job.competencies) {
+            competencyCounts.set(comp.id, (competencyCounts.get(comp.id) ?? 0) + 1);
+            if (!competenciesById.has(comp.id)) {
+                competenciesById.set(comp.id, comp);
+            }
+        }
+    }
+
+    const topCompetencyIds = Array.from(competencyCounts.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([id]) => id);
+
+    const competencies = topCompetencyIds
+        .map((id) => competenciesById.get(id))
+        .filter(Boolean);
+
+    const localizedCompetencies = await Promise.all(
+        competencies.map((comp) =>
+            resolveFields({
+                entity: 'Competency',
+                entityId: comp.id,
+                fields: ['name'],
+                lang,
+                base: comp,
+            }),
+        ),
+    );
+
+    const family = await prisma.competenciesFamily.findUnique({
+        where: {id: cfId},
+    });
+    if (!family) {
+        throw new Error('Competency Family not found');
+    }
+
+    const localizedFamily = await resolveFields({
+        entity: 'CompetenciesFamily',
+        entityId: family.id,
+        fields: ['name', 'description'],
+        lang,
+        base: family,
+    });
+
+    return {
+        scope: 'JOB_FAMILY',
+        jobFamily: {id: jobFamily.id, name: jobFamily.name, slug: jobFamily.slug},
         family: localizedFamily,
         competencies: localizedCompetencies,
     };

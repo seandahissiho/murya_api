@@ -1,6 +1,7 @@
 model Quiz {
   id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  jobId       String         @db.Uuid
+  jobId       String?        @db.Uuid
+  jobFamilyId String?        @db.Uuid
   title       String?
   description String?
   level       Level          @default(EASY)
@@ -9,6 +10,7 @@ model Quiz {
   isActive    Boolean        @default(true)
   createdAt   DateTime       @default(now()) @db.Timestamp(0)
   updatedAt   DateTime       @updatedAt @db.Timestamp(0)
-  job         Job            @relation("JobQuizzes", fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  job         Job?           @relation("JobQuizzes", fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  jobFamily   JobFamily?     @relation(fields: [jobFamilyId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   quizzes     UserQuiz[]
 }

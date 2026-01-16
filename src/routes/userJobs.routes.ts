@@ -22,7 +22,7 @@ router.get('/:userJobId/resources', authenticateToken, jobControllers.listLearni
 router.put('/:userJobId/selected-jobs', authenticateToken, jobControllers.updateUserJobFamilySelection);
 
 //getUserJobCompetencyProfileHandler
-router.get('/:jobId/competenciesProfile', authenticateToken, jobControllers.getUserJobCompetencyProfileHandler);
+router.get('/:userJobId/competenciesProfile', authenticateToken, jobControllers.getUserJobCompetencyProfileHandler);
 // getUserJob
 router.get('/:jobId', authenticateToken, jobControllers.getUserJob);
 // generateMarkdownArticleForLastQuiz2

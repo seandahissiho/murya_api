@@ -174,7 +174,7 @@ export const retrieveDailyQuizForJob = async (req: Request, res: Response, next:
         const userId = (req as any).user?.userId;
         const jobId = req.params.jobId;
         if (!jobId) {
-            return sendResponse(res, 400, {error: 'L’identifiant du job est requis.'});
+            return sendResponse(res, 400, {error: 'L’identifiant du job ou de la famille est requis.'});
         }
         if (!userId) {
             return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
@@ -182,7 +182,7 @@ export const retrieveDailyQuizForJob = async (req: Request, res: Response, next:
 
         const quiz = await jobService.retrieveDailyQuizForJob(jobId, userId, await detectLanguage(req));
         if (!quiz) {
-            return sendResponse(res, 404, {error: 'Quiz quotidien non trouvé pour ce job.'});
+            return sendResponse(res, 404, {error: 'Quiz quotidien non trouvé pour ce job ou cette famille.'});
         }
 
         return sendResponse(res, 200, {data: quiz});
@@ -293,10 +293,10 @@ export const getUserJob = async (req: Request, res: Response, next: NextFunction
 
 export const getUserJobCompetencyProfileHandler = async (req: Request, res: Response, next: NextFunction) => {
     const userId = (req as any).user?.userId;
-    const jobId = req.params.jobId as string; // ou query/body
+    const userJobId = req.params.userJobId as string; // ou query/body
 
     try {
-        const profile = await jobService.getUserJobCompetencyProfile(userId, jobId, await detectLanguage(req));
+        const profile = await jobService.getUserJobCompetencyProfile(userId, userJobId, await detectLanguage(req));
         sendResponse(res, 200, {data: profile});
     } catch (e: any) {
         console.error(e);
