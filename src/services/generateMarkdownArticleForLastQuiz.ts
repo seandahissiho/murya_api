@@ -136,9 +136,14 @@ export const generateMarkdownArticleForLastQuiz = async (userJobId: string, user
         return "Aucun quiz complété trouvé pour ce poste.";
     }
 
+    const userJob = await prisma.userJob.findUnique({
+        where: {id: userJobId},
+        select: {jobFamily: true},
+    });
+
     const globalSummary: GlobalQuizSummary = {
         quizTitle: lastUserQuiz.quiz.title ?? "Évaluation",
-        jobTitle: lastUserQuiz.quiz.job.title,
+        jobTitle: lastUserQuiz.quiz.job?.title ?? userJob?.jobFamily?.name ?? "Famille de métiers",
         totalScore: lastUserQuiz.totalScore,
         maxScore: lastUserQuiz.maxScore,
         percentage: lastUserQuiz.percentage,
@@ -267,14 +272,11 @@ async function saveLearningResourceFromArticle(
     // On récupère le UserJob pour avoir le jobId
     const userJob = await prisma.userJob.findUnique({
         where: {id: userJobId},
-        select: {jobId: true},
+        select: {jobId: true, jobFamilyId: true},
     });
 
     if (!userJob) {
         throw new Error("UserJob introuvable lors de la sauvegarde de la ressource.");
-    }
-    if (!userJob.jobId) {
-        throw new Error("Job manquant pour ce UserJob.");
     }
 
     const resource = await prisma.learningResource.create({
@@ -290,9 +292,11 @@ async function saveLearningResourceFromArticle(
             userJob: {
                 connect: {id: userJobId},
             },
-            job: {
-                connect: {id: userJob.jobId},
-            },
+            ...(userJob.jobId
+                ? {job: {connect: {id: userJob.jobId}}}
+                : userJob.jobFamilyId
+                    ? {jobFamily: {connect: {id: userJob.jobFamilyId}}}
+                    : {}),
             createdBy: {
                 connect: {id: userId}
             }
