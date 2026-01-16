@@ -36,7 +36,7 @@ export const collectResource = async (
         data: {collectedAt: new Date()},
     });
 
-    await trackEvent(userJob.id, 'RESOURCE_COLLECTED', {resourceId}, timezone);
+    await trackEvent(userJob.id, 'RESOURCE_COLLECTED', {resourceId}, timezone, userId);
 
     return updated;
 };

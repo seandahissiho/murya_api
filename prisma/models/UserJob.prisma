@@ -28,6 +28,7 @@ model UserJob {
   leagueHistories   UserJobLeagueHistory[]
   kiviats           UserJobKiviat[]
   userJobQuests     UserJobQuest[]
+  userQuestGroups   UserQuestGroup[]
 
   @@unique([userId, jobId], map: "unique_user_job")
   @@unique([userId, jobFamilyId], map: "unique_user_job_family")

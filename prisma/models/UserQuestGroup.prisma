@@ -1,0 +1,25 @@
+model UserQuestGroup {
+  id                String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String         @db.Uuid
+  userJobId         String?        @db.Uuid
+  questGroupId      String         @db.Uuid
+  status            QuestStatus    @default(ACTIVE)
+  requiredTotal     Int            @default(0)
+  requiredCompleted Int            @default(0)
+  optionalTotal     Int            @default(0)
+  optionalCompleted Int            @default(0)
+  periodStartAt     DateTime       @db.Timestamp(0)
+  periodEndAt       DateTime       @db.Timestamp(0)
+  completedAt       DateTime?      @db.Timestamp(0)
+  claimedAt         DateTime?      @db.Timestamp(0)
+  createdAt         DateTime       @default(now()) @db.Timestamp(0)
+  updatedAt         DateTime       @default(now()) @updatedAt @db.Timestamp(0)
+  user              User           @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  userJob           UserJob?        @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  questGroup        QuestGroup     @relation(fields: [questGroupId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@unique([userId, userJobId, questGroupId, periodStartAt])
+  @@index([userId])
+  @@index([userJobId])
+  @@index([questGroupId])
+}

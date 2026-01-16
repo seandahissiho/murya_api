@@ -118,6 +118,7 @@ enum QuestPeriod {
   DAILY
   WEEKLY
   MONTHLY
+  ONCE
 }
 
 enum QuestStatus {
@@ -125,6 +126,11 @@ enum QuestStatus {
   COMPLETED
   CLAIMED
   EXPIRED
+}
+
+enum QuestScope {
+  USER
+  USER_JOB
 }
 
 enum CurrencyType {

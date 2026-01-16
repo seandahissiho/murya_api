@@ -10,6 +10,7 @@ import {
     ModuleVisibility,
     QuestCategory,
     QuestPeriod,
+    QuestScope,
     CurrencyType,
 } from '@prisma/client';
 import fs from 'node:fs';
@@ -340,6 +341,7 @@ async function seedQuestDefinitions() {
             description: 'Compléter 5 quizzes daily pendant la semaine.',
             period: QuestPeriod.WEEKLY,
             category: QuestCategory.MAIN,
+            scope: QuestScope.USER_JOB,
             eventKey: 'QUIZ_COMPLETED',
             targetCount: 5,
             meta: {
@@ -357,6 +359,7 @@ async function seedQuestDefinitions() {
             description: 'Compléter 5 quizzes daily pendant la semaine.',
             period: QuestPeriod.WEEKLY,
             category: QuestCategory.MAIN,
+            scope: QuestScope.USER_JOB,
             eventKey: 'QUIZ_COMPLETED',
             targetCount: 5,
             meta: {
@@ -392,6 +395,7 @@ async function seedQuestDefinitions() {
             description: 'Obtenir un score de 80% ou plus sur un quiz.',
             period: QuestPeriod.WEEKLY,
             category: QuestCategory.BRANCH,
+            scope: QuestScope.USER_JOB,
             eventKey: 'QUIZ_COMPLETED',
             targetCount: 1,
             meta: {
@@ -408,6 +412,7 @@ async function seedQuestDefinitions() {
             description: 'Compléter 3 quizzes daily cette semaine.',
             period: QuestPeriod.WEEKLY,
             category: QuestCategory.BRANCH,
+            scope: QuestScope.USER_JOB,
             eventKey: 'QUIZ_COMPLETED',
             targetCount: 3,
             meta: {
@@ -424,6 +429,7 @@ async function seedQuestDefinitions() {
             description: 'Collecter 5 ressources générées cette semaine.',
             period: QuestPeriod.WEEKLY,
             category: QuestCategory.COLLECTION,
+            scope: QuestScope.USER_JOB,
             eventKey: 'RESOURCE_COLLECTED',
             targetCount: 5,
             meta: {
@@ -443,6 +449,7 @@ async function seedQuestDefinitions() {
                 description: def.description,
                 period: def.period,
                 category: def.category,
+                scope: def.scope,
                 eventKey: def.eventKey,
                 targetCount: def.targetCount,
                 meta: def.meta,
@@ -457,6 +464,7 @@ async function seedQuestDefinitions() {
                 description: def.description,
                 period: def.period,
                 category: def.category,
+                scope: def.scope,
                 eventKey: def.eventKey,
                 targetCount: def.targetCount,
                 meta: def.meta,
@@ -476,6 +484,161 @@ async function seedQuestDefinitions() {
         });
     }
 
+    const positioningQuest = await prisma.questDefinition.upsert({
+        where: {code: 'POSITIONING_COMPLETE_QUIZZES'},
+        update: {
+            title: 'Completer les quizzes de positionnement',
+            description: 'Completer tous les quizzes de positionnement.',
+            period: QuestPeriod.ONCE,
+            category: QuestCategory.COLLECTION,
+            scope: QuestScope.USER_JOB,
+            eventKey: 'QUIZ_COMPLETED',
+            targetCount: 1,
+            meta: {quizType: 'POSITIONING', oneShot: true, dynamicTarget: 'POSITIONING'},
+            isActive: false,
+            uiOrder: 4,
+            updatedAt: new Date(),
+        },
+        create: {
+            code: 'POSITIONING_COMPLETE_QUIZZES',
+            title: 'Completer les quizzes de positionnement',
+            description: 'Completer tous les quizzes de positionnement.',
+            period: QuestPeriod.ONCE,
+            category: QuestCategory.COLLECTION,
+            scope: QuestScope.USER_JOB,
+            eventKey: 'QUIZ_COMPLETED',
+            targetCount: 1,
+            meta: {quizType: 'POSITIONING', oneShot: true, dynamicTarget: 'POSITIONING'},
+            isActive: false,
+            uiOrder: 4,
+        },
+    });
+
+    await prisma.questReward.deleteMany({where: {questDefinitionId: positioningQuest.id}});
+
+    const positioningGroup = await prisma.questGroup.upsert({
+        where: {code: 'POSITIONING_PATH'},
+        update: {
+            title: 'Finaliser le parcours de positionnement',
+            description: 'Completer chaque questionnaire de positionnement.',
+            scope: QuestScope.USER_JOB,
+            period: QuestPeriod.ONCE,
+            meta: {oneShot: true},
+            isActive: true,
+            uiOrder: 5,
+            updatedAt: new Date(),
+        },
+        create: {
+            code: 'POSITIONING_PATH',
+            title: 'Finaliser le parcours de positionnement',
+            description: 'Completer chaque questionnaire de positionnement.',
+            scope: QuestScope.USER_JOB,
+            period: QuestPeriod.ONCE,
+            meta: {oneShot: true},
+            isActive: true,
+            uiOrder: 5,
+        },
+    });
+
+    const positioningDefs = [
+        {
+            code: 'POSITIONING_QUIZ_1',
+            title: 'Questionnaire de positionnement #1',
+            description: 'Completer le questionnaire de positionnement #1.',
+            quizIndex: 1,
+            requiresQuestCode: null,
+            uiOrder: 1,
+        },
+        {
+            code: 'POSITIONING_QUIZ_2',
+            title: 'Questionnaire de positionnement #2',
+            description: 'Completer le questionnaire de positionnement #2.',
+            quizIndex: 2,
+            requiresQuestCode: 'POSITIONING_QUIZ_1',
+            uiOrder: 2,
+        },
+        {
+            code: 'POSITIONING_QUIZ_3',
+            title: 'Questionnaire de positionnement #3',
+            description: 'Completer le questionnaire de positionnement #3.',
+            quizIndex: 3,
+            requiresQuestCode: 'POSITIONING_QUIZ_2',
+            uiOrder: 3,
+        },
+        {
+            code: 'POSITIONING_QUIZ_4',
+            title: 'Questionnaire de positionnement #4',
+            description: 'Completer le questionnaire de positionnement #4.',
+            quizIndex: 4,
+            requiresQuestCode: 'POSITIONING_QUIZ_3',
+            uiOrder: 4,
+        },
+        {
+            code: 'POSITIONING_QUIZ_5',
+            title: 'Questionnaire de positionnement #5',
+            description: 'Completer le questionnaire de positionnement #5.',
+            quizIndex: 5,
+            requiresQuestCode: 'POSITIONING_QUIZ_4',
+            uiOrder: 5,
+        },
+    ];
+
+    const positioningQuestIds: string[] = [];
+    for (const def of positioningDefs) {
+        const quest = await prisma.questDefinition.upsert({
+            where: {code: def.code},
+            update: {
+                title: def.title,
+                description: def.description,
+                period: QuestPeriod.ONCE,
+                category: QuestCategory.COLLECTION,
+                scope: QuestScope.USER_JOB,
+                eventKey: 'QUIZ_COMPLETED',
+                targetCount: 1,
+                meta: {
+                    quizType: 'POSITIONING',
+                    quizIndex: def.quizIndex,
+                    oneShot: true,
+                    ...(def.requiresQuestCode ? {requiresQuestCode: def.requiresQuestCode} : {}),
+                },
+                isActive: true,
+                uiOrder: def.uiOrder,
+                updatedAt: new Date(),
+            },
+            create: {
+                code: def.code,
+                title: def.title,
+                description: def.description,
+                period: QuestPeriod.ONCE,
+                category: QuestCategory.COLLECTION,
+                scope: QuestScope.USER_JOB,
+                eventKey: 'QUIZ_COMPLETED',
+                targetCount: 1,
+                meta: {
+                    quizType: 'POSITIONING',
+                    quizIndex: def.quizIndex,
+                    oneShot: true,
+                    ...(def.requiresQuestCode ? {requiresQuestCode: def.requiresQuestCode} : {}),
+                },
+                isActive: true,
+                uiOrder: def.uiOrder,
+            },
+        });
+        positioningQuestIds.push(quest.id);
+    }
+
+    await prisma.questGroupItem.deleteMany({
+        where: {questGroupId: positioningGroup.id},
+    });
+    await prisma.questGroupItem.createMany({
+        data: positioningDefs.map((def, idx) => ({
+            questGroupId: positioningGroup.id,
+            questDefinitionId: positioningQuestIds[idx],
+            isRequired: true,
+            uiOrder: def.uiOrder,
+        })),
+    });
+
     const shareQuest = await prisma.questDefinition.upsert({
         where: {code: 'MONTHLY_SHARE_REFERRAL_SIGNUP'},
         update: {
@@ -483,12 +646,10 @@ async function seedQuestDefinitions() {
             description: 'Obtenir 1 inscription via referral ce mois-ci.',
             period: QuestPeriod.MONTHLY,
             category: QuestCategory.SHARE,
+            scope: QuestScope.USER,
             eventKey: 'REFERRAL_SIGNUP',
             targetCount: 1,
-            meta: {
-                requiresQuestCode: 'WEEKLY_MAIN_5_DAILY_QUIZZES',
-                requiresMinProgress: 1,
-            },
+            meta: {},
             isActive: true,
             uiOrder: 10,
             updatedAt: new Date(),
@@ -499,12 +660,10 @@ async function seedQuestDefinitions() {
             description: 'Obtenir 1 inscription via referral ce mois-ci.',
             period: QuestPeriod.MONTHLY,
             category: QuestCategory.SHARE,
+            scope: QuestScope.USER,
             eventKey: 'REFERRAL_SIGNUP',
             targetCount: 1,
-            meta: {
-                requiresQuestCode: 'WEEKLY_MAIN_5_DAILY_QUIZZES',
-                requiresMinProgress: 1,
-            },
+            meta: {},
             isActive: true,
             uiOrder: 10,
         },

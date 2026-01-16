@@ -5,6 +5,7 @@ model QuestDefinition {
   description   String?          @db.Text
   period        QuestPeriod
   category      QuestCategory    @default(BRANCH)
+  scope         QuestScope       @default(USER_JOB)
   eventKey      String           @db.VarChar(80)
   targetCount   Int              @default(1)
   meta          Json?
@@ -17,6 +18,8 @@ model QuestDefinition {
   updatedAt     DateTime         @default(now()) @updatedAt @db.Timestamp(0)
   rewards       QuestReward[]
   userJobQuests UserJobQuest[]
+  userQuests    UserQuest[]
+  questGroups   QuestGroupItem[]
 
   @@index([isActive, period])
   @@index([parentId])

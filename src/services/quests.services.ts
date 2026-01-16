@@ -4,6 +4,7 @@ import {
     QuestDefinition,
     QuestCategory,
     QuestPeriod,
+    QuestScope,
     QuestStatus,
     QuizType,
     StreakType,
@@ -15,6 +16,7 @@ import {prisma} from '../config/db';
 
 const DEFAULT_TIMEZONE = 'UTC';
 const WEEKLY_MAIN_CODE = 'WEEKLY_MAIN_5_DAILY_QUIZZES';
+const POSITIONING_QUEST_CODE = 'POSITIONING_COMPLETE_QUIZZES';
 
 type QuestDefinitionWithRewards = Prisma.QuestDefinitionGetPayload<{
     include: {rewards: true};
@@ -27,6 +29,8 @@ type QuestLockState = {
 
 export type QuestEventPayload = {
     quizType?: QuizType | string;
+    quizId?: string;
+    quizIndex?: number;
     score?: number;
     completedAt?: string | Date;
     resourceId?: string;
@@ -61,6 +65,10 @@ const toMetaObject = (meta: unknown): Record<string, unknown> | null => {
     return meta as Record<string, unknown>;
 };
 
+const isOneShotQuest = (meta: Record<string, unknown> | null): boolean => {
+    return meta?.oneShot === true;
+};
+
 const matchesQuestMeta = (meta: Record<string, unknown> | null, payload: QuestEventPayload): boolean => {
     if (!meta) {
         return true;
@@ -69,6 +77,20 @@ const matchesQuestMeta = (meta: Record<string, unknown> | null, payload: QuestEv
     const quizType = typeof meta.quizType === 'string' ? meta.quizType : undefined;
     if (quizType) {
         if (!payload.quizType || payload.quizType !== quizType) {
+            return false;
+        }
+    }
+
+    const quizId = typeof meta.quizId === 'string' ? meta.quizId : undefined;
+    if (quizId) {
+        if (!payload.quizId || payload.quizId !== quizId) {
+            return false;
+        }
+    }
+
+    const quizIndex = typeof meta.quizIndex === 'number' ? meta.quizIndex : undefined;
+    if (quizIndex !== undefined) {
+        if (payload.quizIndex === undefined || payload.quizIndex !== quizIndex) {
             return false;
         }
     }
@@ -109,9 +131,174 @@ const getRequiredMinProgress = (meta: Record<string, unknown> | null): number | 
     return meta.requiresMinProgress;
 };
 
+const getPositioningTargetCount = async (userJobId: string): Promise<number | null> => {
+    const userJob = await prisma.userJob.findUnique({
+        where: {id: userJobId},
+        select: {scope: true, jobId: true, jobFamilyId: true},
+    });
+
+    if (!userJob) {
+        return null;
+    }
+
+    if (userJob.scope === 'JOB' && userJob.jobId) {
+        return prisma.quiz.count({
+            where: {
+                jobId: userJob.jobId,
+                type: QuizType.POSITIONING,
+                isActive: true,
+            },
+        });
+    }
+
+    if (userJob.scope === 'JOB_FAMILY' && userJob.jobFamilyId) {
+        return prisma.quiz.count({
+            where: {
+                jobFamilyId: userJob.jobFamilyId,
+                type: QuizType.POSITIONING,
+                isActive: true,
+            },
+        });
+    }
+
+    return null;
+};
+
+const isQuestCompletedStatus = (status: QuestStatus) =>
+    status === QuestStatus.COMPLETED || status === QuestStatus.CLAIMED;
+
+const isQuestGroupCompleted = (
+    requiredTotal: number,
+    requiredCompleted: number,
+    optionalTotal: number,
+    optionalCompleted: number,
+) => {
+    if (requiredTotal > 0) {
+        return requiredCompleted >= requiredTotal;
+    }
+    if (optionalTotal > 0) {
+        return optionalCompleted >= optionalTotal;
+    }
+    return false;
+};
+
+const getPositioningQuestCodes = async (): Promise<string[]> => {
+    const definitions = await prisma.questDefinition.findMany({
+        where: {
+            isActive: true,
+            eventKey: 'QUIZ_COMPLETED',
+            scope: QuestScope.USER_JOB,
+            meta: {
+                path: ['quizType'],
+                equals: 'POSITIONING',
+            },
+        },
+        select: {code: true, meta: true},
+    });
+
+    return definitions
+        .filter((def) => {
+            const meta = toMetaObject(def.meta);
+            return typeof meta?.quizIndex === 'number';
+        })
+        .map((def) => def.code);
+};
+
+const resolveQuestGroupWindow = (
+    group: {period: QuestPeriod; meta: unknown; scope: QuestScope},
+    timezone: string,
+    userCreatedAt: Date,
+    userJobCreatedAt?: Date | null,
+) => {
+    const meta = toMetaObject(group.meta);
+    const referenceDate = isOneShotQuest(meta)
+        ? group.scope === QuestScope.USER_JOB
+            ? userJobCreatedAt ?? userCreatedAt
+            : userCreatedAt
+        : undefined;
+    return getQuestWindow(group.period, timezone, referenceDate);
+};
+
+const upsertUserQuestGroup = async (
+    userId: string,
+    userJobId: string | null,
+    questGroupId: string,
+    periodStartAt: Date,
+    periodEndAt: Date,
+    requiredTotal: number,
+    requiredCompleted: number,
+    optionalTotal: number,
+    optionalCompleted: number,
+) => {
+    const existing = await prisma.userQuestGroup.findFirst({
+        where: {
+            userId,
+            userJobId,
+            questGroupId,
+            periodStartAt,
+        },
+    });
+
+    const completed = isQuestGroupCompleted(
+        requiredTotal,
+        requiredCompleted,
+        optionalTotal,
+        optionalCompleted,
+    );
+    const status = completed ? QuestStatus.COMPLETED : QuestStatus.ACTIVE;
+    const completedAt = completed ? existing?.completedAt ?? new Date() : null;
+
+    if (!existing) {
+        return prisma.userQuestGroup.create({
+            data: {
+                userId,
+                userJobId: userJobId ?? null,
+                questGroupId,
+                status,
+                requiredTotal,
+                requiredCompleted,
+                optionalTotal,
+                optionalCompleted,
+                periodStartAt,
+                periodEndAt,
+                completedAt,
+            },
+        });
+    }
+
+    return prisma.userQuestGroup.update({
+        where: {id: existing.id},
+        data: {
+            status,
+            requiredTotal,
+            requiredCompleted,
+            optionalTotal,
+            optionalCompleted,
+            periodEndAt,
+            completedAt,
+        },
+    });
+};
+
+const resolveQuestTargetCount = async (
+    questDefinition: QuestDefinition | QuestDefinitionWithRewards,
+    userJobId: string | null,
+) => {
+    if (questDefinition.code !== POSITIONING_QUEST_CODE) {
+        return questDefinition.targetCount;
+    }
+
+    if (!userJobId) {
+        return questDefinition.targetCount;
+    }
+
+    const count = await getPositioningTargetCount(userJobId);
+    return count && count > 0 ? count : questDefinition.targetCount;
+};
+
 const ensureQuestInstance = async (
     userJobId: string,
-    definition: QuestDefinitionWithRewards,
+    definition: QuestDefinition | QuestDefinitionWithRewards,
     periodStartAt: Date,
     periodEndAt: Date,
 ) => {
@@ -135,11 +322,38 @@ const ensureQuestInstance = async (
     });
 };
 
+const ensureUserQuestInstance = async (
+    userId: string,
+    definition: QuestDefinition | QuestDefinitionWithRewards,
+    periodStartAt: Date,
+    periodEndAt: Date,
+) => {
+    return prisma.userQuest.upsert({
+        where: {
+            userId_questDefinitionId_periodStartAt: {
+                userId,
+                questDefinitionId: definition.id,
+                periodStartAt,
+            },
+        },
+        update: {periodEndAt},
+        create: {
+            userId,
+            questDefinitionId: definition.id,
+            periodStartAt,
+            periodEndAt,
+            progressCount: 0,
+            status: QuestStatus.ACTIVE,
+        },
+    });
+};
+
 const isQuestLocked = async (
     userJobId: string,
     questDefinition: QuestDefinition | QuestDefinitionWithRewards,
     periodStartAt: Date,
     timezone: string,
+    userId?: string,
 ): Promise<QuestLockState> => {
     const meta = toMetaObject(questDefinition.meta);
     const requiredCode = getRequiredQuestCode(meta);
@@ -162,13 +376,23 @@ const isQuestLocked = async (
         periodStartAt,
     );
 
-    const requiredQuest = await prisma.userJobQuest.findFirst({
-        where: {
-            userJobId,
-            questDefinitionId: requiredDefinition.id,
-            periodStartAt: requiredStart,
-        },
-    });
+    const requiredQuest = requiredDefinition.scope === QuestScope.USER
+        ? userId
+            ? await prisma.userQuest.findFirst({
+                where: {
+                    userId,
+                    questDefinitionId: requiredDefinition.id,
+                    periodStartAt: requiredStart,
+                },
+            })
+            : null
+        : await prisma.userJobQuest.findFirst({
+            where: {
+                userJobId,
+                questDefinitionId: requiredDefinition.id,
+                periodStartAt: requiredStart,
+            },
+        });
 
     if (!requiredQuest) {
         return {locked: true, reason: 'requiredQuestMissing'};
@@ -221,6 +445,10 @@ export const getQuestWindow = (
             start = base.startOf('month');
             end = base.endOf('month');
             break;
+        case QuestPeriod.ONCE:
+            start = base.startOf('day');
+            end = DateTime.fromISO('9999-12-31T23:59:59', {zone: base.zoneName});
+            break;
         default:
             start = base.startOf('day');
             end = base.endOf('day');
@@ -231,6 +459,91 @@ export const getQuestWindow = (
         periodStartAt: start.toJSDate(),
         periodEndAt: end.toJSDate(),
     };
+};
+
+export const ensureQuestInstanceForUserJob = async (
+    userJobId: string,
+    questCode: string,
+    timezone?: string,
+    referenceDate?: Date | string,
+) => {
+    const questDefinition = await prisma.questDefinition.findUnique({
+        where: {code: questCode},
+    });
+
+    if (!questDefinition || !questDefinition.isActive) {
+        return null;
+    }
+    if (questDefinition.scope !== QuestScope.USER_JOB) {
+        return null;
+    }
+
+    const zone = normalizeTimezone(timezone);
+    const {periodStartAt, periodEndAt} = getQuestWindow(
+        questDefinition.period,
+        zone,
+        referenceDate,
+    );
+
+    return ensureQuestInstance(userJobId, questDefinition, periodStartAt, periodEndAt);
+};
+
+export const ensureQuestInstanceForUser = async (
+    userId: string,
+    questCode: string,
+    timezone?: string,
+    referenceDate?: Date | string,
+) => {
+    const questDefinition = await prisma.questDefinition.findUnique({
+        where: {code: questCode},
+    });
+
+    if (!questDefinition || !questDefinition.isActive) {
+        return null;
+    }
+    if (questDefinition.scope !== QuestScope.USER) {
+        return null;
+    }
+
+    const zone = normalizeTimezone(timezone);
+    const {periodStartAt, periodEndAt} = getQuestWindow(
+        questDefinition.period,
+        zone,
+        referenceDate,
+    );
+
+    return ensureUserQuestInstance(userId, questDefinition, periodStartAt, periodEndAt);
+};
+
+export const assignPositioningQuestsForUserJob = async (
+    userJobId: string,
+    timezone?: string,
+    referenceDate?: Date | string,
+) => {
+    const userJob = await prisma.userJob.findUnique({
+        where: {id: userJobId},
+        select: {createdAt: true},
+    });
+    if (!userJob) {
+        return;
+    }
+
+    const availableCount = await getPositioningTargetCount(userJobId);
+    const codes = await getPositioningQuestCodes();
+    const createdAt = referenceDate ?? userJob.createdAt;
+
+    for (const code of codes) {
+        const definition = await prisma.questDefinition.findUnique({
+            where: {code},
+            select: {meta: true},
+        });
+        const meta = toMetaObject(definition?.meta);
+        const quizIndex = typeof meta?.quizIndex === 'number' ? meta.quizIndex : null;
+        if (availableCount !== null && quizIndex !== null && quizIndex > availableCount) {
+            continue;
+        }
+        await ensureQuestInstanceForUserJob(userJobId, code, timezone, createdAt);
+    }
 };
 
 export const syncWeeklyMainQuest = async (
@@ -335,10 +648,11 @@ export const syncWeeklyMainQuest = async (
 };
 
 export const trackEvent = async (
-    userJobId: string,
+    userJobId: string | null,
     eventKey: string,
     payload: QuestEventPayload,
     timezone?: string,
+    userId?: string,
 ) => {
     const definitions = await prisma.questDefinition.findMany({
         where: {
@@ -353,15 +667,46 @@ export const trackEvent = async (
 
     const zone = normalizeTimezone(timezone);
     const eventDate = resolveEventDate(payload);
+    const hasOneShotUserJob = definitions.some((definition) =>
+        definition.scope === QuestScope.USER_JOB && isOneShotQuest(toMetaObject(definition.meta)),
+    );
+    const hasOneShotUser = definitions.some((definition) =>
+        definition.scope === QuestScope.USER && isOneShotQuest(toMetaObject(definition.meta)),
+    );
+    const needsUser = definitions.some((definition) => definition.scope === QuestScope.USER);
+
+    const userJob = userJobId
+        ? await prisma.userJob.findUnique({
+            where: {id: userJobId},
+            select: {createdAt: true, userId: true},
+        })
+        : null;
+    const resolvedUserId = userId ?? userJob?.userId ?? null;
+    const user = hasOneShotUser && resolvedUserId
+        ? await prisma.user.findUnique({
+            where: {id: resolvedUserId},
+            select: {createdAt: true},
+        })
+        : null;
+
+    const touchedDefinitionIds: string[] = [];
 
     for (const definition of definitions) {
+        if (definition.scope === QuestScope.USER && !resolvedUserId) {
+            if (needsUser) {
+                continue;
+            }
+        }
+        if (definition.scope === QuestScope.USER_JOB && !userJobId) {
+            continue;
+        }
         const meta = toMetaObject(definition.meta);
         if (!matchesQuestMeta(meta, payload)) {
             continue;
         }
 
         const isWeeklyMain = meta?.weeklyMain === true || definition.code === WEEKLY_MAIN_CODE;
-        if (isWeeklyMain) {
+        if (isWeeklyMain && userJobId) {
             await syncWeeklyMainQuest(userJobId, zone, eventDate);
             continue;
         }
@@ -369,39 +714,74 @@ export const trackEvent = async (
         const {periodStartAt, periodEndAt} = getQuestWindow(
             definition.period,
             zone,
-            eventDate,
+            isOneShotQuest(meta)
+                ? definition.scope === QuestScope.USER
+                    ? user?.createdAt ?? eventDate
+                    : userJob?.createdAt ?? eventDate
+                : eventDate,
         );
 
-        const lockState = await isQuestLocked(userJobId, definition, periodStartAt, zone);
+        const lockState = await isQuestLocked(
+            userJobId ?? '',
+            definition,
+            periodStartAt,
+            zone,
+            resolvedUserId ?? undefined,
+        );
         if (lockState.locked) {
             continue;
         }
 
         await prisma.$transaction(async (tx) => {
-            const existing = await tx.userJobQuest.findUnique({
-                where: {
-                    userJobId_questDefinitionId_periodStartAt: {
-                        userJobId,
-                        questDefinitionId: definition.id,
-                        periodStartAt,
+            const targetCount = await resolveQuestTargetCount(definition, userJobId ?? null);
+            const existing = definition.scope === QuestScope.USER
+                ? await tx.userQuest.findUnique({
+                    where: {
+                        userId_questDefinitionId_periodStartAt: {
+                            userId: resolvedUserId!,
+                            questDefinitionId: definition.id,
+                            periodStartAt,
+                        },
                     },
-                },
-            });
-
-            if (!existing) {
-                const initialProgress = Math.min(1, definition.targetCount);
-                const isCompleted = initialProgress >= definition.targetCount;
-                await tx.userJobQuest.create({
-                    data: {
-                        userJobId,
-                        questDefinitionId: definition.id,
-                        periodStartAt,
-                        periodEndAt,
-                        progressCount: initialProgress,
-                        status: isCompleted ? QuestStatus.COMPLETED : QuestStatus.ACTIVE,
-                        completedAt: isCompleted ? new Date() : null,
+                })
+                : await tx.userJobQuest.findUnique({
+                    where: {
+                        userJobId_questDefinitionId_periodStartAt: {
+                            userJobId: userJobId!,
+                            questDefinitionId: definition.id,
+                            periodStartAt,
+                        },
                     },
                 });
+
+            if (!existing) {
+                const initialProgress = Math.min(1, targetCount);
+                const isCompleted = initialProgress >= targetCount;
+                if (definition.scope === QuestScope.USER) {
+                    await tx.userQuest.create({
+                        data: {
+                            userId: resolvedUserId!,
+                            questDefinitionId: definition.id,
+                            periodStartAt,
+                            periodEndAt,
+                            progressCount: initialProgress,
+                            status: isCompleted ? QuestStatus.COMPLETED : QuestStatus.ACTIVE,
+                            completedAt: isCompleted ? new Date() : null,
+                        },
+                    });
+                } else {
+                    await tx.userJobQuest.create({
+                        data: {
+                            userJobId: userJobId!,
+                            questDefinitionId: definition.id,
+                            periodStartAt,
+                            periodEndAt,
+                            progressCount: initialProgress,
+                            status: isCompleted ? QuestStatus.COMPLETED : QuestStatus.ACTIVE,
+                            completedAt: isCompleted ? new Date() : null,
+                        },
+                    });
+                }
                 return;
             }
 
@@ -411,20 +791,179 @@ export const trackEvent = async (
 
             const nextProgress = Math.min(
                 existing.progressCount + 1,
-                definition.targetCount,
+                targetCount,
             );
-            const isCompleted = nextProgress >= definition.targetCount;
+            const isCompleted = nextProgress >= targetCount;
 
-            await tx.userJobQuest.update({
-                where: {id: existing.id},
-                data: {
-                    periodEndAt,
-                    progressCount: nextProgress,
-                    status: isCompleted ? QuestStatus.COMPLETED : QuestStatus.ACTIVE,
-                    completedAt: isCompleted ? existing.completedAt ?? new Date() : null,
-                },
-            });
+            if (definition.scope === QuestScope.USER) {
+                await tx.userQuest.update({
+                    where: {id: existing.id},
+                    data: {
+                        periodEndAt,
+                        progressCount: nextProgress,
+                        status: isCompleted ? QuestStatus.COMPLETED : QuestStatus.ACTIVE,
+                        completedAt: isCompleted ? existing.completedAt ?? new Date() : null,
+                    },
+                });
+            } else {
+                await tx.userJobQuest.update({
+                    where: {id: existing.id},
+                    data: {
+                        periodEndAt,
+                        progressCount: nextProgress,
+                        status: isCompleted ? QuestStatus.COMPLETED : QuestStatus.ACTIVE,
+                        completedAt: isCompleted ? existing.completedAt ?? new Date() : null,
+                    },
+                });
+            }
         });
+
+        touchedDefinitionIds.push(definition.id);
+    }
+
+    if (resolvedUserId && touchedDefinitionIds.length > 0) {
+        await syncQuestGroupsForDefinitions(
+            touchedDefinitionIds,
+            resolvedUserId,
+            userJobId,
+            zone,
+        );
+    }
+};
+
+const syncQuestGroupsForDefinitions = async (
+    questDefinitionIds: string[],
+    userId: string,
+    userJobId: string | null,
+    timezone: string,
+) => {
+    if (questDefinitionIds.length === 0) {
+        return;
+    }
+
+    const user = await prisma.user.findUnique({
+        where: {id: userId},
+        select: {createdAt: true},
+    });
+    if (!user) {
+        return;
+    }
+
+    const userJob = userJobId
+        ? await prisma.userJob.findUnique({
+            where: {id: userJobId},
+            select: {createdAt: true},
+        })
+        : null;
+
+    const availablePositioningCount = userJobId
+        ? await getPositioningTargetCount(userJobId)
+        : null;
+
+    const questGroups = await prisma.questGroup.findMany({
+        where: {
+            isActive: true,
+            items: {
+                some: {questDefinitionId: {in: questDefinitionIds}},
+            },
+        },
+        include: {
+            items: {
+                include: {
+                    questDefinition: true,
+                },
+                orderBy: {uiOrder: 'asc'},
+            },
+        },
+    });
+
+    for (const group of questGroups) {
+        if (group.scope === QuestScope.USER_JOB && !userJobId) {
+            continue;
+        }
+
+        const {periodStartAt, periodEndAt} = resolveQuestGroupWindow(
+            group,
+            timezone,
+            user.createdAt,
+            userJob?.createdAt,
+        );
+
+        const resolvedItems: Array<{
+            isRequired: boolean;
+            status: QuestStatus;
+        }> = [];
+
+        for (const item of group.items) {
+            const definition = item.questDefinition;
+            if (definition.scope === QuestScope.USER_JOB && !userJobId) {
+                continue;
+            }
+
+            const meta = toMetaObject(definition.meta);
+            const quizIndex = typeof meta?.quizIndex === 'number' ? meta.quizIndex : null;
+            const quizType = typeof meta?.quizType === 'string' ? meta.quizType : null;
+            if (
+                definition.scope === QuestScope.USER_JOB
+                && quizType === 'POSITIONING'
+                && quizIndex !== null
+                && availablePositioningCount !== null
+                && quizIndex > availablePositioningCount
+            ) {
+                continue;
+            }
+
+            const questReferenceDate = isOneShotQuest(meta)
+                ? definition.scope === QuestScope.USER_JOB
+                    ? userJob?.createdAt
+                    : user.createdAt
+                : undefined;
+            const {periodStartAt: questStart, periodEndAt: questEnd} = getQuestWindow(
+                definition.period,
+                timezone,
+                questReferenceDate,
+            );
+
+            const instance = definition.scope === QuestScope.USER
+                ? await ensureUserQuestInstance(
+                    userId,
+                    definition,
+                    questStart,
+                    questEnd,
+                )
+                : await ensureQuestInstance(
+                    userJobId!,
+                    definition,
+                    questStart,
+                    questEnd,
+                );
+
+            resolvedItems.push({
+                isRequired: item.isRequired,
+                status: instance.status,
+            });
+        }
+
+        const requiredItems = resolvedItems.filter((item) => item.isRequired);
+        const optionalItems = resolvedItems.filter((item) => !item.isRequired);
+        const requiredCompleted = requiredItems.filter((item) =>
+            isQuestCompletedStatus(item.status),
+        ).length;
+        const optionalCompleted = optionalItems.filter((item) =>
+            isQuestCompletedStatus(item.status),
+        ).length;
+
+        await upsertUserQuestGroup(
+            userId,
+            group.scope === QuestScope.USER_JOB ? userJobId : null,
+            group.id,
+            periodStartAt,
+            periodEndAt,
+            requiredItems.length,
+            requiredCompleted,
+            optionalItems.length,
+            optionalCompleted,
+        );
     }
 };
 
@@ -432,23 +971,39 @@ export const listUserQuests = async (
     userId: string,
     timezone?: string,
     userJobId?: string,
+    scope: QuestScope | 'ALL' = 'ALL',
 ) => {
-    const userJob = userJobId
-        ? await prisma.userJob.findFirst({
-            where: {id: userJobId, userId},
-            select: {id: true},
-        })
-        : await prisma.userJob.findFirst({
-            where: {userId, status: UserJobStatus.CURRENT},
-            select: {id: true},
-        });
+    const user = await prisma.user.findUnique({
+        where: {id: userId},
+        select: {id: true, createdAt: true},
+    });
+    if (!user) {
+        throw new Error('Utilisateur introuvable.');
+    }
 
-    if (!userJob) {
+    const scopes = scope === 'ALL'
+        ? [QuestScope.USER, QuestScope.USER_JOB]
+        : [scope];
+    const needsUserJob = scopes.includes(QuestScope.USER_JOB);
+
+    const userJob = needsUserJob
+        ? userJobId
+            ? await prisma.userJob.findFirst({
+                where: {id: userJobId, userId},
+                select: {id: true, createdAt: true},
+            })
+            : await prisma.userJob.findFirst({
+                where: {userId, status: UserJobStatus.CURRENT},
+                select: {id: true, createdAt: true},
+            })
+        : null;
+
+    if (needsUserJob && !userJob) {
         throw new Error('Job utilisateur actuel introuvable.');
     }
 
     const definitions = await prisma.questDefinition.findMany({
-        where: {isActive: true},
+        where: {isActive: true, scope: {in: scopes}},
         include: {rewards: true},
         orderBy: {uiOrder: 'asc'},
     });
@@ -458,24 +1013,65 @@ export const listUserQuests = async (
         definition: QuestDefinitionWithRewards;
         instance: any;
     }> = [];
+    const availablePositioningCount = userJob
+        ? await getPositioningTargetCount(userJob.id)
+        : null;
 
     for (const definition of definitions) {
-        const {periodStartAt, periodEndAt} = getQuestWindow(definition.period, zone);
-        const instance = await ensureQuestInstance(
-            userJob.id,
-            definition,
-            periodStartAt,
-            periodEndAt,
-        );
+        const meta = toMetaObject(definition.meta);
+        const quizIndex = typeof meta?.quizIndex === 'number' ? meta.quizIndex : null;
+        const quizType = typeof meta?.quizType === 'string' ? meta.quizType : null;
 
-        questItems.push({definition, instance});
+        if (
+            definition.scope === QuestScope.USER_JOB
+            && quizType === 'POSITIONING'
+            && quizIndex !== null
+            && availablePositioningCount !== null
+            && quizIndex > availablePositioningCount
+        ) {
+            continue;
+        }
+
+        const referenceDate = isOneShotQuest(meta)
+            ? definition.scope === QuestScope.USER_JOB
+                ? userJob?.createdAt
+                : user.createdAt
+            : undefined;
+        const {periodStartAt, periodEndAt} = getQuestWindow(
+            definition.period,
+            zone,
+            referenceDate,
+        );
+        const targetCount = await resolveQuestTargetCount(
+            definition,
+            definition.scope === QuestScope.USER_JOB ? userJob?.id ?? null : null,
+        );
+        const effectiveDefinition = {
+            ...definition,
+            targetCount,
+        };
+        const instance = definition.scope === QuestScope.USER
+            ? await ensureUserQuestInstance(
+                user.id,
+                effectiveDefinition,
+                periodStartAt,
+                periodEndAt,
+            )
+            : await ensureQuestInstance(
+                userJob!.id,
+                effectiveDefinition,
+                periodStartAt,
+                periodEndAt,
+            );
+
+        questItems.push({definition: effectiveDefinition, instance});
     }
 
     const mainQuest = questItems.find(
         (item) => item.definition.category === QuestCategory.MAIN,
     );
 
-    if (mainQuest) {
+    if (mainQuest && userJob) {
         const synced = await syncWeeklyMainQuest(userJob.id, zone);
         if (synced) {
             mainQuest.instance = synced;
@@ -498,10 +1094,11 @@ export const listUserQuests = async (
 
     const decorate = async (item: {definition: QuestDefinitionWithRewards; instance: any}) => {
         const lockState = await isQuestLocked(
-            userJob.id,
+            userJob?.id ?? '',
             item.definition,
             item.instance.periodStartAt,
             zone,
+            user.id,
         );
         const claimable = !lockState.locked
             && item.instance.status === QuestStatus.COMPLETED
@@ -511,17 +1108,135 @@ export const listUserQuests = async (
             definition: item.definition,
             instance: item.instance,
             rewards: item.definition.rewards,
+            scope: item.definition.scope,
             locked: lockState.locked,
             lockedReason: lockState.locked ? lockState.reason ?? null : null,
             claimable,
         };
     };
 
+    const decoratedByDefinitionId = new Map<string, Awaited<ReturnType<typeof decorate>>>();
+    for (const item of questItems) {
+        decoratedByDefinitionId.set(item.definition.id, await decorate(item));
+    }
+
+    const questGroups = await prisma.questGroup.findMany({
+        where: {
+            isActive: true,
+            scope: {in: scopes},
+        },
+        include: {
+            items: {
+                include: {
+                    questDefinition: {include: {rewards: true}},
+                },
+                orderBy: {uiOrder: 'asc'},
+            },
+        },
+        orderBy: {uiOrder: 'asc'},
+    });
+
+    const groups = await Promise.all(questGroups.map(async (group) => {
+        const items = group.items
+            .map((item) => {
+                const decorated = decoratedByDefinitionId.get(item.questDefinitionId);
+                if (!decorated) {
+                    return null;
+                }
+                const meta = toMetaObject(decorated.definition.meta);
+                const quizIndex = typeof meta?.quizIndex === 'number' ? meta.quizIndex : null;
+                const quizType = typeof meta?.quizType === 'string' ? meta.quizType : null;
+                if (
+                    decorated.scope === QuestScope.USER_JOB
+                    && quizType === 'POSITIONING'
+                    && quizIndex !== null
+                    && availablePositioningCount !== null
+                    && quizIndex > availablePositioningCount
+                ) {
+                    return null;
+                }
+                return {
+                    ...decorated,
+                    isRequired: item.isRequired,
+                    uiOrder: item.uiOrder,
+                };
+            })
+            .filter((item): item is NonNullable<typeof item> => item !== null);
+
+        const requiredItems = items.filter((item) => item.isRequired);
+        const optionalItems = items.filter((item) => !item.isRequired);
+        const requiredCompleted = requiredItems.filter((item) =>
+            isQuestCompletedStatus(item.instance.status),
+        ).length;
+        const optionalCompleted = optionalItems.filter((item) =>
+            isQuestCompletedStatus(item.instance.status),
+        ).length;
+
+        const {periodStartAt, periodEndAt} = resolveQuestGroupWindow(
+            group,
+            zone,
+            user.createdAt,
+            userJob?.createdAt,
+        );
+        const groupInstance = await upsertUserQuestGroup(
+            user.id,
+            group.scope === QuestScope.USER_JOB ? userJob?.id ?? null : null,
+            group.id,
+            periodStartAt,
+            periodEndAt,
+            requiredItems.length,
+            requiredCompleted,
+            optionalItems.length,
+            optionalCompleted,
+        );
+
+        return {
+            group: {
+                id: group.id,
+                code: group.code,
+                title: group.title,
+                description: group.description,
+                uiOrder: group.uiOrder,
+                scope: group.scope,
+            },
+            instance: groupInstance,
+            requiredTotal: requiredItems.length,
+            requiredCompleted,
+            optionalTotal: optionalItems.length,
+            optionalCompleted,
+            completed: isQuestGroupCompleted(
+                requiredItems.length,
+                requiredCompleted,
+                optionalItems.length,
+                optionalCompleted,
+            ),
+            items,
+        };
+    }));
+
     return {
-        userJobId: userJob.id,
-        main: mainQuest ? await decorate(mainQuest) : null,
-        branches: await Promise.all(branches.map(decorate)),
-        others: await Promise.all(others.map(decorate)),
+        userJobId: userJob?.id ?? null,
+        main: mainQuest ? decoratedByDefinitionId.get(mainQuest.definition.id) ?? null : null,
+        branches: branches
+            .map((item) => decoratedByDefinitionId.get(item.definition.id))
+            .filter((item): item is NonNullable<typeof item> => item !== undefined),
+        others: others
+            .map((item) => decoratedByDefinitionId.get(item.definition.id))
+            .filter((item): item is NonNullable<typeof item> => item !== undefined),
+        groups,
+    };
+};
+
+export const listUserQuestGroups = async (
+    userId: string,
+    timezone?: string,
+    userJobId?: string,
+    scope?: QuestScope | 'ALL',
+) => {
+    const quests = await listUserQuests(userId, timezone, userJobId, scope);
+    return {
+        userJobId: quests.userJobId,
+        groups: quests.groups,
     };
 };
 
@@ -553,6 +1268,7 @@ export const claimUserJobQuest = async (
             quest.questDefinition as QuestDefinitionWithRewards,
             quest.periodStartAt,
             zone,
+            userId,
         );
         if (lockState.locked) {
             throw new Error('Quête verrouillée.');
@@ -599,6 +1315,82 @@ export const claimUserJobQuest = async (
         }
 
         return tx.userJobQuest.update({
+            where: {id: quest.id},
+            data: {
+                status: QuestStatus.CLAIMED,
+                claimedAt: new Date(),
+            },
+        });
+    });
+};
+
+export const claimUserQuest = async (
+    userId: string,
+    userQuestId: string,
+    timezone?: string,
+) => {
+    const zone = normalizeTimezone(timezone);
+    return prisma.$transaction(async (tx) => {
+        const quest = await tx.userQuest.findUnique({
+            where: {id: userQuestId},
+            include: {
+                questDefinition: {include: {rewards: true}},
+            },
+        });
+
+        if (!quest) {
+            throw new Error('Quête introuvable.');
+        }
+
+        if (quest.userId !== userId) {
+            throw new Error('Accès refusé.');
+        }
+
+        const lockState = await isQuestLocked(
+            '',
+            quest.questDefinition as QuestDefinitionWithRewards,
+            quest.periodStartAt,
+            zone,
+            userId,
+        );
+        if (lockState.locked) {
+            throw new Error('Quête verrouillée.');
+        }
+
+        if (quest.status !== QuestStatus.COMPLETED || quest.claimedAt) {
+            throw new Error('Récompense déjà réclamée ou quête non complétée.');
+        }
+
+        const totals = new Map<CurrencyType, number>();
+        for (const reward of quest.questDefinition.rewards) {
+            totals.set(reward.currency, (totals.get(reward.currency) ?? 0) + reward.amount);
+        }
+
+        for (const [currency, amount] of totals) {
+            if (amount === 0) {
+                continue;
+            }
+
+            await tx.currencyLedger.create({
+                data: {
+                    userId,
+                    currency,
+                    delta: amount,
+                    reason: 'QUEST_REWARD',
+                    refType: 'UserQuest',
+                    refId: quest.id,
+                },
+            });
+
+            if (currency === CurrencyType.DIAMONDS) {
+                await tx.user.update({
+                    where: {id: userId},
+                    data: {diamonds: {increment: amount}},
+                });
+            }
+        }
+
+        return tx.userQuest.update({
             where: {id: quest.id},
             data: {
                 status: QuestStatus.CLAIMED,

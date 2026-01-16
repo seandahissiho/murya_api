@@ -134,6 +134,7 @@ enum QuestPeriod {
   DAILY
   WEEKLY
   MONTHLY
+  ONCE
 }
 
 enum QuestStatus {
@@ -141,6 +142,11 @@ enum QuestStatus {
   COMPLETED
   CLAIMED
   EXPIRED
+}
+
+enum QuestScope {
+  USER
+  USER_JOB
 }
 
 enum CurrencyType {
@@ -544,6 +550,7 @@ model QuestDefinition {
   description   String?           @db.Text
   period        QuestPeriod
   category      QuestCategory     @default(BRANCH)
+  scope         QuestScope        @default(USER_JOB)
   eventKey      String            @db.VarChar(80)
   targetCount   Int               @default(1)
   meta          Json?
@@ -556,9 +563,43 @@ model QuestDefinition {
   updatedAt     DateTime          @default(now()) @updatedAt @db.Timestamp(0)
   rewards       QuestReward[]
   userJobQuests UserJobQuest[]
+  userQuests    UserQuest[]
+  questGroups   QuestGroupItem[]
 
   @@index([isActive, period])
   @@index([parentId])
+}
+
+model QuestGroup {
+  id          String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String           @unique @db.VarChar(80)
+  title       String           @db.VarChar(160)
+  description String?          @db.Text
+  scope       QuestScope       @default(USER_JOB)
+  period      QuestPeriod      @default(MONTHLY)
+  meta        Json?
+  isActive    Boolean          @default(true)
+  uiOrder     Int              @default(0)
+  createdAt   DateTime         @default(now()) @db.Timestamp(0)
+  updatedAt   DateTime         @default(now()) @updatedAt @db.Timestamp(0)
+  items       QuestGroupItem[]
+  userGroups  UserQuestGroup[]
+
+  @@index([isActive])
+}
+
+model QuestGroupItem {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questGroupId      String          @db.Uuid
+  questDefinitionId String          @db.Uuid
+  isRequired        Boolean         @default(true)
+  uiOrder           Int             @default(0)
+  questGroup        QuestGroup      @relation(fields: [questGroupId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  questDefinition   QuestDefinition @relation(fields: [questDefinitionId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@unique([questGroupId, questDefinitionId])
+  @@index([questGroupId])
+  @@index([questDefinitionId])
 }
 
 model QuestReward {
@@ -726,6 +767,8 @@ model User {
   userLandingModuleEvents    UserLandingModuleEvent[]
   userStreaks                UserStreak[]
   currencyLedgers            CurrencyLedger[]
+  userQuests                 UserQuest[]
+  userQuestGroups            UserQuestGroup[]
 
   @@unique([email], map: "unique_email_not_null")
   @@unique([phone], map: "unique_phone_not_null")
@@ -763,6 +806,7 @@ model UserJob {
   leagueHistories   UserJobLeagueHistory[]
   kiviats           UserJobKiviat[]
   userJobQuests     UserJobQuest[]
+  userQuestGroups   UserQuestGroup[]
 
   @@unique([userId, jobId], map: "unique_user_job")
   @@unique([userId, jobFamilyId], map: "unique_user_job_family")
@@ -940,6 +984,52 @@ model UserModule {
   @@unique([userId, moduleId], map: "unique_user_module")
   @@index([userId], map: "idx_user_module_user")
   @@index([moduleId], map: "idx_user_module_module")
+}
+
+model UserQuest {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String          @db.Uuid
+  questDefinitionId String          @db.Uuid
+  status            QuestStatus     @default(ACTIVE)
+  progressCount     Int             @default(0)
+  periodStartAt     DateTime        @db.Timestamp(0)
+  periodEndAt       DateTime        @db.Timestamp(0)
+  completedAt       DateTime?       @db.Timestamp(0)
+  claimedAt         DateTime?       @db.Timestamp(0)
+  createdAt         DateTime        @default(now()) @db.Timestamp(0)
+  updatedAt         DateTime        @default(now()) @updatedAt @db.Timestamp(0)
+  user              User            @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  questDefinition   QuestDefinition @relation(fields: [questDefinitionId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@unique([userId, questDefinitionId, periodStartAt])
+  @@index([userId])
+  @@index([questDefinitionId])
+}
+
+model UserQuestGroup {
+  id                String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String      @db.Uuid
+  userJobId         String?     @db.Uuid
+  questGroupId      String      @db.Uuid
+  status            QuestStatus @default(ACTIVE)
+  requiredTotal     Int         @default(0)
+  requiredCompleted Int         @default(0)
+  optionalTotal     Int         @default(0)
+  optionalCompleted Int         @default(0)
+  periodStartAt     DateTime    @db.Timestamp(0)
+  periodEndAt       DateTime    @db.Timestamp(0)
+  completedAt       DateTime?   @db.Timestamp(0)
+  claimedAt         DateTime?   @db.Timestamp(0)
+  createdAt         DateTime    @default(now()) @db.Timestamp(0)
+  updatedAt         DateTime    @default(now()) @updatedAt @db.Timestamp(0)
+  user              User        @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  userJob           UserJob?    @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  questGroup        QuestGroup  @relation(fields: [questGroupId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@unique([userId, userJobId, questGroupId, periodStartAt])
+  @@index([userId])
+  @@index([userJobId])
+  @@index([questGroupId])
 }
 
 model UserQuiz {

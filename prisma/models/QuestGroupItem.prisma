@@ -1,0 +1,13 @@
+model QuestGroupItem {
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  questGroupId      String          @db.Uuid
+  questDefinitionId String          @db.Uuid
+  isRequired        Boolean         @default(true)
+  uiOrder           Int             @default(0)
+  questGroup        QuestGroup      @relation(fields: [questGroupId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  questDefinition   QuestDefinition @relation(fields: [questDefinitionId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@unique([questGroupId, questDefinitionId])
+  @@index([questGroupId])
+  @@index([questDefinitionId])
+}

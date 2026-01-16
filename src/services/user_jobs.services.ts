@@ -18,7 +18,7 @@ import {buildGenerateQuizInput} from "./quiz_gen/build-generate-quiz-input";
 import {enqueueArticleGenerationJob, enqueueQuizGenerationJob, getRedisClient} from "../config/redis";
 import {generateMarkdownArticleForLastQuiz} from "./generateMarkdownArticleForLastQuiz";
 import {computeWaveformFromMediaUrl} from "../utils/waveform";
-import {trackEvent} from "./quests.services";
+import {assignPositioningQuestsForUserJob, trackEvent} from "./quests.services";
 
 async function resolveJobOrFamilyId(targetId: string) {
     const job = await prisma.job.findUnique({
@@ -52,16 +52,20 @@ async function ensureUserJobFamilyTrack(userId: string, jobFamilyId: string) {
         throw new Error('JobFamily has no jobs');
     }
 
-    const userJob = await prisma.userJob.upsert({
+    const existing = await prisma.userJob.findUnique({
         where: {userId_jobFamilyId: {userId, jobFamilyId}},
-        update: {},
-        create: {
+        select: {id: true},
+    });
+
+    const userJob = existing ?? await prisma.userJob.create({
+        data: {
             userId,
             scope: UserJobScope.JOB_FAMILY,
             jobId: null,
             jobFamilyId,
             status: UserJobStatus.TARGET,
         },
+        select: {id: true},
     });
 
     const familyJobIds = jobFamily.jobs.map((job) => job.id);
@@ -86,6 +90,10 @@ async function ensureUserJobFamilyTrack(userId: string, jobFamilyId: string) {
             data: selectionsToCreate,
             skipDuplicates: true,
         });
+    }
+
+    if (!existing) {
+        await assignPositioningQuestsForUserJob(userJob.id);
     }
 
     return userJob;
@@ -421,6 +429,7 @@ export async function setCurrentUserJob(userId: string, jobId: string, lang: str
 
     if (created) {
         await createUserQuizzesForJob(userJobId, jobId, userId);
+        await assignPositioningQuestsForUserJob(userJobId);
     }
 
     return await getCurrentUserJob(userId, lang);
@@ -438,7 +447,8 @@ export async function setCurrentUserJobFamily(userId: string, jobFamilyId: strin
         throw new Error('JobFamily has no jobs');
     }
 
-    await prisma.$transaction(async (tx) => {
+    let created = false;
+    const userJobId = await prisma.$transaction(async (tx) => {
         let userJob = await tx.userJob.findUnique({
             where: {userId_jobFamilyId: {userId, jobFamilyId}},
             select: {id: true, status: true, scope: true},
@@ -455,6 +465,7 @@ export async function setCurrentUserJobFamily(userId: string, jobFamilyId: strin
                 },
                 select: {id: true, status: true, scope: true},
             });
+            created = true;
         } else if (userJob.status !== UserJobStatus.CURRENT || userJob.scope !== UserJobScope.JOB_FAMILY) {
             await tx.userJob.update({
                 where: {id: userJob.id},
@@ -494,7 +505,13 @@ export async function setCurrentUserJobFamily(userId: string, jobFamilyId: strin
                 skipDuplicates: true,
             });
         }
+
+        return userJob.id;
     });
+
+    if (created) {
+        await assignPositioningQuestsForUserJob(userJobId);
+    }
 
     return await getCurrentUserJob(userId, lang);
 }
@@ -1058,8 +1075,12 @@ type AnswerInput = {
     responseIds?: string[]; // ids de QuizResponse sélectionnées
 };
 
-async function updateUserJobStats(userJobId: string, doneAt: string) {
-    const userJobScope = await prisma.userJob.findUnique({
+async function updateUserJobStats(
+    userJobId: string,
+    doneAt: string,
+    client: Prisma.TransactionClient | typeof prisma = prisma,
+) {
+    const userJobScope = await client.userJob.findUnique({
         where: {id: userJobId},
         select: {
             scope: true,
@@ -1075,7 +1096,7 @@ async function updateUserJobStats(userJobId: string, doneAt: string) {
     );
 
     // 5. Recalculer les agrégats sur UserJob
-    const allQuizzes = await prisma.userQuiz.findMany({
+    const allQuizzes = await client.userQuiz.findMany({
         where: {userJobId: userJobId},
         select: {
             status: true,
@@ -1121,7 +1142,7 @@ async function updateUserJobStats(userJobId: string, doneAt: string) {
     // lastQuizAt done now
     const lastQuizAt = doneAt;
 
-    await prisma.userJob.update({
+    await client.userJob.update({
         where: {id: userJobId},
         data: {
             // quizzesCount,
@@ -1134,12 +1155,13 @@ async function updateUserJobStats(userJobId: string, doneAt: string) {
     });
 
     // set all other user's UserJob to PAST except the current one
-    await prisma.userJob.updateMany({
+    const currentUserJob = await client.userJob.findUnique({
+        where: {id: userJobId},
+        select: {userId: true},
+    });
+    await client.userJob.updateMany({
         where: {
-            userId: (await prisma.userJob.findUnique({
-                where: {id: userJobId},
-                select: {userId: true},
-            }))?.userId,
+            userId: currentUserJob?.userId,
             id: {not: userJobId},
             status: UserJobStatus.CURRENT,
         },
@@ -1684,7 +1706,7 @@ export const saveUserQuizAnswers = async (
         });
 
         // 5. Mettre à jour les stats globales du UserJob
-        await updateUserJobStats(userJob.id, doneAt);
+        await updateUserJobStats(userJob.id, doneAt, tx);
 
         // *** 5bis. NOUVEAU : persister la progression par compétence ***
         // Pour chaque compétence impactée par CE quiz :
@@ -1865,10 +1887,13 @@ export const saveUserQuizAnswers = async (
             'QUIZ_COMPLETED',
             {
                 quizType: updatedUserQuiz.type,
+                quizId: updatedUserQuiz.quizId,
+                quizIndex: updatedUserQuiz.index + 1,
                 score: updatedUserQuiz.percentage ?? 0,
                 completedAt: updatedUserQuiz.completedAt ?? undefined,
             },
             timezone,
+            userId,
         );
     }
 

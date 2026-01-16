@@ -55,6 +55,8 @@ model User {
   userLandingModuleEvents    UserLandingModuleEvent[]
   userStreaks                UserStreak[]
   currencyLedgers            CurrencyLedger[]
+  userQuests                 UserQuest[]
+  userQuestGroups            UserQuestGroup[]
 
   @@unique([email], map: "unique_email_not_null")
   @@unique([phone], map: "unique_phone_not_null")
