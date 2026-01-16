@@ -1471,7 +1471,9 @@ export const saveUserQuizAnswers = async (
             select: {
                 id: true,
                 jobId: true,
+                jobFamilyId: true,
                 job: {select: {competenciesFamilies: true}},
+                selectedJobs: {where: {isSelected: true}, select: {jobId: true}},
             },
         });
         if (!userJob) {
@@ -1506,10 +1508,7 @@ export const saveUserQuizAnswers = async (
             throw new Error("Quiz introuvable pour cet utilisateur et ce job.");
         }
 
-        const jobForStats = userJob.job ?? userQuiz.quiz.job;
-        if (!jobForStats) {
-            throw new Error("Job manquant pour ce quiz.");
-        }
+        const jobForStats = userJob.job ?? userQuiz.quiz.job ?? null;
 
         const wasAlreadyCompleted = userQuiz.status === UserQuizStatus.COMPLETED;
 
@@ -1540,6 +1539,7 @@ export const saveUserQuizAnswers = async (
             { score: number; maxScore: number }
         >();
         const familyAgg = new Map<string, { score: number; maxScore: number }>();
+        const familiesById = new Map<string, {id: string}>();
 
         // 3. Créer les réponses
         for (const rawAnswer of answers) {
@@ -1600,6 +1600,7 @@ export const saveUserQuizAnswers = async (
                     existingFamilyAgg.score += score;
                     existingFamilyAgg.maxScore += question.points;
                     familyAgg.set(family.id, existingFamilyAgg);
+                    familiesById.set(family.id, family);
                 }
             }
 
@@ -1714,42 +1715,67 @@ export const saveUserQuizAnswers = async (
         });
 
         // 7. Mettre à jour les JobKiviats utilisateur + historique
-        const allFamilies = jobForStats.competenciesFamilies;
+        const allFamilies = jobForStats?.competenciesFamilies ?? Array.from(familiesById.values());
         for (const family of allFamilies) {
             const familyId = family.id;
             const currentAgg = familyAgg.get(familyId) ?? {score: 0, maxScore: 0};
             const familyPercentage = currentAgg.maxScore > 0 ? (currentAgg.score / currentAgg.maxScore) * 100 : 0;
             const value = Math.max(0, Math.min(5, familyPercentage / 20));
-            const JuniorValue = (await tx.jobKiviat.findUnique({
-                where: {
-                    jobId_competenciesFamilyId_level: {
-                        jobId: jobForStats.id,
-                        competenciesFamilyId: familyId,
-                        level: JobProgressionLevel.JUNIOR,
+            let JuniorValue = 0;
+            let MidLevelValue = 0;
+            let SeniorValue = 0;
+
+            if (jobForStats) {
+                JuniorValue = (await tx.jobKiviat.findUnique({
+                    where: {
+                        jobId_competenciesFamilyId_level: {
+                            jobId: jobForStats.id,
+                            competenciesFamilyId: familyId,
+                            level: JobProgressionLevel.JUNIOR,
+                        },
                     },
-                },
-                select: {value: true},
-            }))?.value ?? 0;
-            const MidLevelValue = (await tx.jobKiviat.findUnique({
-                where: {
-                    jobId_competenciesFamilyId_level: {
-                        jobId: jobForStats.id,
-                        competenciesFamilyId: familyId,
-                        level: JobProgressionLevel.MIDLEVEL,
+                    select: {value: true},
+                }))?.value ?? 0;
+                MidLevelValue = (await tx.jobKiviat.findUnique({
+                    where: {
+                        jobId_competenciesFamilyId_level: {
+                            jobId: jobForStats.id,
+                            competenciesFamilyId: familyId,
+                            level: JobProgressionLevel.MIDLEVEL,
+                        },
                     },
-                },
-                select: {value: true},
-            }))?.value ?? 0;
-            const SeniorValue = (await tx.jobKiviat.findUnique({
-                where: {
-                    jobId_competenciesFamilyId_level: {
-                        jobId: jobForStats.id,
-                        competenciesFamilyId: familyId,
-                        level: JobProgressionLevel.SENIOR,
+                    select: {value: true},
+                }))?.value ?? 0;
+                SeniorValue = (await tx.jobKiviat.findUnique({
+                    where: {
+                        jobId_competenciesFamilyId_level: {
+                            jobId: jobForStats.id,
+                            competenciesFamilyId: familyId,
+                            level: JobProgressionLevel.SENIOR,
+                        },
                     },
-                },
-                select: {value: true},
-            }))?.value ?? 0;
+                    select: {value: true},
+                }))?.value ?? 0;
+            } else {
+                const selectedJobIds = userJob.selectedJobs.map((selection) => selection.jobId);
+                if (selectedJobIds.length) {
+                    const jobKiviats = await tx.jobKiviat.findMany({
+                        where: {
+                            jobId: {in: selectedJobIds},
+                            competenciesFamilyId: familyId,
+                            level: {in: [JobProgressionLevel.JUNIOR, JobProgressionLevel.MIDLEVEL, JobProgressionLevel.SENIOR]},
+                        },
+                        select: {level: true, value: true},
+                    });
+                    const avg = (level: JobProgressionLevel) => {
+                        const values = jobKiviats.filter((k) => k.level === level).map((k) => Number(k.value));
+                        return values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : 0;
+                    };
+                    JuniorValue = avg(JobProgressionLevel.JUNIOR);
+                    MidLevelValue = avg(JobProgressionLevel.MIDLEVEL);
+                    SeniorValue = avg(JobProgressionLevel.SENIOR);
+                }
+            }
 
             const level: JobProgressionLevel = value <= JuniorValue ? JobProgressionLevel.JUNIOR
                 : value <= MidLevelValue ? JobProgressionLevel.MIDLEVEL
