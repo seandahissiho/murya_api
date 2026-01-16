@@ -1362,7 +1362,10 @@ export async function generateAndPersistDailyQuiz(userId: string, userJobId: str
     const nextIndex = (maxIndex._max.index ?? -1) + 1;
 
     const maxScore = quiz.questions.reduce((sum, q) => sum + q.points, 0);
-    const maxScoreWithBonus = quiz.questions.reduce((sum, q) => sum + q.points + q.timeLimitInSeconds, 0);
+    const maxScoreWithBonus = quiz.questions.reduce(
+        (sum, q) => sum + q.points + (q.timeLimitInSeconds ?? 0),
+        0,
+    ) + getMaxStreakBonus(quiz.questions.length);
 
     const userQuiz = await prisma.userQuiz.create({
         data: {
@@ -1451,6 +1454,36 @@ async function generateNextQuiz(updatedUserQuiz: any, userJobId: string, userId:
     return updatedUserQuiz;
 }
 
+const STREAK_BONUS_BY_COUNT = new Map<number, number>([
+    [2, 20],
+    [3, 50],
+    [4, 90],
+    [5, 140],
+    [6, 200],
+    [7, 270],
+    [8, 350],
+    [9, 440],
+    [10, 540],
+]);
+
+function getStreakBonus(streak: number): number {
+    if (streak < 2) {
+        return 0;
+    }
+    if (streak >= 10) {
+        return 540;
+    }
+    return STREAK_BONUS_BY_COUNT.get(streak) ?? 0;
+}
+
+function getMaxStreakBonus(questionCount: number): number {
+    let total = 0;
+    for (let i = 1; i <= questionCount; i += 1) {
+        total += getStreakBonus(i);
+    }
+    return total;
+}
+
 export const saveUserQuizAnswers = async (
     jobId: string,
     userQuizId: string,
@@ -1524,14 +1557,15 @@ export const saveUserQuizAnswers = async (
 
         let totalScore = 0;
         let bonusPoints = 0;
+        let streak = 0;
         const maxScore = userQuiz.quiz.questions.reduce(
             (sum: any, q: any) => sum + q.points,
             0
         );
         const maxScoreWithBonus = userQuiz.quiz.questions.reduce(
-            (sum: any, q: any) => sum + q.points + q.timeLimitInSeconds,
+            (sum: any, q: any) => sum + q.points + (q.timeLimitInSeconds ?? 0),
             0
-        );
+        ) + getMaxStreakBonus(userQuiz.quiz.questions.length);
 
         // *** NOUVEAU : agrégation par compétence pour CE quiz ***
         const competencyAgg = new Map<
@@ -1572,12 +1606,17 @@ export const saveUserQuizAnswers = async (
                 isCorrect = sameSize && allCorrectIncluded;
 
                 score = isCorrect ? question.points : 0;
-                bonusPoints += isCorrect
-                    ? question.timeLimitInSeconds - (rawAnswer.timeToAnswer ?? 0)
-                    : 0;
+                if (isCorrect) {
+                    streak += 1;
+                    const timeBonus = (question.timeLimitInSeconds ?? 0) - (rawAnswer.timeToAnswer ?? 0);
+                    bonusPoints += timeBonus + getStreakBonus(streak);
+                } else {
+                    streak = 0;
+                }
             } else {
                 isCorrect = false;
                 score = 0;
+                streak = 0;
             }
 
             totalScore += score;

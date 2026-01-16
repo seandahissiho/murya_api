@@ -32,6 +32,7 @@ type QuestionRow = {
     questionText: string;
     proposition: string;
     isCorrect: boolean;
+    timeLimitInSeconds: number | null;
 };
 
 type QuestionGroup = {
@@ -41,6 +42,7 @@ type QuestionGroup = {
     competencyName: string;
     questionText: string;
     propositions: {text: string; isCorrect: boolean}[];
+    timeLimitInSeconds: number | null;
 };
 
 function slugify(input: string): string {
@@ -95,6 +97,21 @@ function mapProgressionLevel(value: string): JobProgressionLevel {
             return JobProgressionLevel.EXPERT;
         default:
             return JobProgressionLevel.MIDLEVEL;
+    }
+}
+
+function pointsForLevel(level: Level): number {
+    switch (level) {
+        case Level.EASY:
+            return 100;
+        case Level.MEDIUM:
+            return 110;
+        case Level.HARD:
+            return 120;
+        case Level.EXPERT:
+            return 130;
+        default:
+            return 110;
     }
 }
 
@@ -220,6 +237,8 @@ function loadQuestions(): QuestionRow[] {
             if (!row['Proposition']) continue;
 
             const response = normalizeString(row['Réponse'] ?? '').toUpperCase();
+            const timeRaw = row['Temps (s)'] ?? row['Temps'] ?? row['Temps(s)'];
+            const timeLimit = timeRaw == null || timeRaw === '' ? null : Number(timeRaw);
             rows.push({
                 jobTitle,
                 questionnaire: currentQuestionnaire,
@@ -228,6 +247,7 @@ function loadQuestions(): QuestionRow[] {
                 questionText: currentQuestion,
                 proposition: normalizeString(row['Proposition']),
                 isCorrect: response === 'VRAI',
+                timeLimitInSeconds: Number.isFinite(timeLimit) ? timeLimit : null,
             });
         }
     }
@@ -467,7 +487,11 @@ export async function seedBtsCiel(options?: {reset?: boolean}) {
             competencyName: row.competencyName,
             questionText: row.questionText,
             propositions: [],
+            timeLimitInSeconds: row.timeLimitInSeconds,
         };
+        if (group.timeLimitInSeconds == null && row.timeLimitInSeconds != null) {
+            group.timeLimitInSeconds = row.timeLimitInSeconds;
+        }
         group.propositions.push({text: row.proposition, isCorrect: row.isCorrect});
         questionGroups.set(key, group);
     }
@@ -515,9 +539,9 @@ export async function seedBtsCiel(options?: {reset?: boolean}) {
                         return {
                             text: group.questionText,
                             competencyId: competency.id,
-                            timeLimitInSeconds: 30,
-                            points: 1,
+                            timeLimitInSeconds: group.timeLimitInSeconds ?? 30,
                             level: competency.level ?? Level.MEDIUM,
+                            points: pointsForLevel(competency.level ?? Level.MEDIUM),
                             type: QuizQuestionType.single_choice,
                             index,
                             responses: {

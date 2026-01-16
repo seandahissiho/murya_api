@@ -191,6 +191,9 @@ export const generateMarkdownArticleForLastQuiz = async (userJobId: string, user
     const {systemPrompt, userPrompt} = getArticlePromptUserSide(quizContext);
 
     const article = await callOpenAIForArticle(systemPrompt, userPrompt);
+    if (!article) {
+        return null;
+    }
 
     await saveLearningResourceFromArticle(
         userJobId,
@@ -217,44 +220,61 @@ export const generateMarkdownArticleForLastQuiz = async (userJobId: string, user
 
 type GeneratedArticle = { title: string; description: string; markdown: string };
 
-async function callOpenAIForArticle(systemPrompt: string, userPrompt: string): Promise<GeneratedArticle> {
-    const finalUserPrompt = `${userPrompt}
-
+async function callOpenAIForArticle(systemPrompt: string, userPrompt: string): Promise<GeneratedArticle | null> {
+    const baseInstructions = `
 Consignes de sortie :
 - Génère un titre (45 caractères max) et une description courte (1-2 phrases) cohérents avec l'article.
-- Réponds UNIQUEMENT avec un objet JSON de la forme {"title": "...", "description": "...", "markdown": "..."}.
+- Réponds UNIQUEMENT avec un objet JSON valide de la forme {"title": "...", "description": "...", "markdown": "..."}.
 - Ne renvoie rien d'autre que cet objet JSON. Le champ "markdown" doit contenir l'article complet.`;
 
-    const completion = await openai.chat.completions.create({
-        model: "gpt-4",
-        messages: [
-            {role: "system", content: systemPrompt},
-            {role: "user", content: finalUserPrompt},
-        ],
-        temperature: 0.7,
-    });
+    const attempt = async (strict: boolean, temperature: number): Promise<GeneratedArticle | null> => {
+        const finalUserPrompt = `${userPrompt}
+${baseInstructions}
+${strict ? '- Si tu ne peux pas répondre en JSON strict, renvoie un JSON vide {}.' : ''}`;
 
-    const raw = completion.choices[0]?.message?.content ?? "";
-    if (!raw) {
-        throw new Error("L'IA n'a pas renvoyé de contenu.");
+        const completion = await openai.chat.completions.create({
+            model: "gpt-5.1",
+            messages: [
+                {role: "system", content: systemPrompt},
+                {role: "user", content: finalUserPrompt},
+            ],
+            temperature,
+            response_format: {type: "json_object"},
+        });
+
+        const raw = completion.choices[0]?.message?.content ?? "";
+        if (!raw) {
+            return null;
+        }
+
+        const cleaned = raw.trim()
+            .replace(/^```(?:json)?/i, "")
+            .replace(/```$/, "")
+            .trim();
+
+        let parsed: Partial<GeneratedArticle> | null = null;
+        try {
+            parsed = JSON.parse(cleaned) as Partial<GeneratedArticle>;
+        } catch (err) {
+            return null;
+        }
+        if (!parsed.markdown || !parsed.title || !parsed.description) {
+            return null;
+        }
+
+        return {
+            title: parsed.title,
+            description: parsed.description,
+            markdown: parsed.markdown,
+        };
+    };
+
+    const firstAttempt = await attempt(false, 0.4);
+    if (firstAttempt) {
+        return firstAttempt;
     }
 
-    const cleaned = raw.trim()
-        .replace(/^```(?:json)?/i, "")
-        .replace(/```$/, "")
-        .trim();
-
-    let parsed: GeneratedArticle;
-    try {
-        parsed = JSON.parse(cleaned);
-    } catch (e) {
-        throw new Error("Réponse IA illisible (JSON attendu).");
-    }
-
-    if (!parsed.markdown || !parsed.title || !parsed.description) {
-        throw new Error("Réponse IA incomplète (title, description, markdown attendus).");
-    }
-    return parsed;
+    return await attempt(true, 0.0);
 }
 
 async function saveLearningResourceFromArticle(
