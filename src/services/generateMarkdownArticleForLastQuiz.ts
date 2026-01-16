@@ -221,7 +221,7 @@ ${baseInstructions}`;
         ],
         temperature: 0.2,
         response_format: {type: "json_object"},
-        max_completion_tokens: 900,
+        max_completion_tokens: 1800,
     });
 
     const raw = completion.choices[0]?.message?.content ?? "";
