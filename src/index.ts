@@ -8,6 +8,7 @@ import path from "path";
 // import {parseDateStrings} from "./utils/parseDateStrings";
 import {initRedis} from "./config/redis";
 import {startQuizGenerationWorker} from "./services/quiz_generation.worker";
+import {startArticleGenerationWorker} from "./services/article_generation.worker";
 
 dotenv.config();
 
@@ -45,6 +46,7 @@ app.listen(port, () => {
     initRedis().then((client) => {
         if (client) {
             startQuizGenerationWorker();
+            startArticleGenerationWorker();
         }
     }).catch((err) => {
         console.error('Failed to initialize Redis', err);

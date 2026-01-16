@@ -7,7 +7,13 @@ export type QuizGenerationJob = {
     userJobId: string;
 };
 
+export type ArticleGenerationJob = {
+    userId: string;
+    userJobId: string;
+};
+
 const QUIZ_GENERATION_QUEUE = 'queue:quiz_generation';
+const ARTICLE_GENERATION_QUEUE = 'queue:article_generation';
 
 let client: RedisClientType | null = null;
 
@@ -45,6 +51,24 @@ export const popQuizGenerationJob = async (timeoutSeconds = 5): Promise<QuizGene
         return JSON.parse(result.element) as QuizGenerationJob;
     } catch (err) {
         console.error('Invalid quiz generation job payload', err);
+        return null;
+    }
+};
+
+export const enqueueArticleGenerationJob = async (job: ArticleGenerationJob): Promise<boolean> => {
+    if (!client) return false;
+    await client.lPush(ARTICLE_GENERATION_QUEUE, JSON.stringify(job));
+    return true;
+};
+
+export const popArticleGenerationJob = async (timeoutSeconds = 5): Promise<ArticleGenerationJob | null> => {
+    if (!client) return null;
+    const result = await client.brPop(ARTICLE_GENERATION_QUEUE, timeoutSeconds);
+    if (!result) return null;
+    try {
+        return JSON.parse(result.element) as ArticleGenerationJob;
+    } catch (err) {
+        console.error('Invalid article generation job payload', err);
         return null;
     }
 };

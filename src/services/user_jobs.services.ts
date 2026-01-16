@@ -15,7 +15,7 @@ import {
 import {prisma} from "../config/db";
 import {resolveFields} from "../i18n/translate";
 import {buildGenerateQuizInput} from "./quiz_gen/build-generate-quiz-input";
-import {enqueueQuizGenerationJob, getRedisClient} from "../config/redis";
+import {enqueueArticleGenerationJob, enqueueQuizGenerationJob, getRedisClient} from "../config/redis";
 import {generateMarkdownArticleForLastQuiz} from "./generateMarkdownArticleForLastQuiz";
 import {computeWaveformFromMediaUrl} from "../utils/waveform";
 import {trackEvent} from "./quests.services";
@@ -1876,9 +1876,15 @@ export const saveUserQuizAnswers = async (
 
     let generatedArticle = null;
     try {
-        generatedArticle = await generateMarkdownArticleForLastQuiz(userJobId, userId);
+        const enqueued = await enqueueArticleGenerationJob({userJobId, userId});
+        if (!enqueued) {
+            setImmediate(() => {
+                generateMarkdownArticleForLastQuiz(userJobId, userId)
+                    .catch((err) => console.error('Failed to auto-generate markdown article after quiz completion', err));
+            });
+        }
     } catch (err) {
-        console.error('Failed to auto-generate markdown article after quiz completion', err);
+        console.error('Failed to enqueue markdown article generation', err);
     }
 
     return {...quizResult, generatedArticle};
