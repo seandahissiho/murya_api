@@ -36,6 +36,7 @@ interface QuestionSummary {
     questionText: string;
     userAnswer?: string[];
     freeTextAnswer?: string;
+    correctAnswer?: string[];
 }
 
 const MAX_CONTEXT_QUESTION_LENGTH = 160;
@@ -49,10 +50,16 @@ function truncateText(value: string | null | undefined, maxLength: number): stri
     return `${text.slice(0, maxLength - 1)}…`;
 }
 
+function formatAnswerList(values?: string[], fallback = 'non renseignée') {
+    const text = (values ?? []).map(v => v.trim()).filter(Boolean).join(", ");
+    return text || fallback;
+}
+
 const getArticlePromptUserSide = (quizContext: QuizContext) => {
     const systemPrompt = `
 Tu es un expert pédagogique.
-Tu écris des articles d'apprentissage clairs et progressifs pour aider un utilisateur à progresser sur un métier.
+Tu écris des articles d'apprentissage clairs, précis et progressifs pour aider un utilisateur à progresser sur un métier.
+Tu t'appuies sur le contexte fourni pour expliquer les points faibles avec des exemples concrets.
 Tu dois produire un article COMPLET en Markdown, sans intro de type "En tant que modèle de langage", etc.
 `;
     const userPrompt = `
@@ -69,7 +76,7 @@ ${quizContext.competencies.slice(0, 3).map(c =>
 
 Questions difficiles (max 3):
 ${quizContext.weakPoints.slice(0, 3).map(q =>
-        `- [${q.competencyName}] ${truncateText(q.questionText, MAX_CONTEXT_QUESTION_LENGTH)} (réponse: ${truncateText((q.userAnswer ?? []).join(", ") || q.freeTextAnswer, MAX_CONTEXT_ANSWERS_LENGTH)})`
+        `- [${q.competencyName}] ${truncateText(q.questionText, MAX_CONTEXT_QUESTION_LENGTH)} (réponse: ${truncateText(q.freeTextAnswer || formatAnswerList(q.userAnswer), MAX_CONTEXT_ANSWERS_LENGTH)}${(q.correctAnswer ?? []).length > 0 ? ` | attendu: ${truncateText(formatAnswerList(q.correctAnswer), MAX_CONTEXT_ANSWERS_LENGTH)}` : ""})`
     ).join("\n")}
 
 Questions bien réussies (max 2):
@@ -79,11 +86,11 @@ ${quizContext.strongPoints.slice(0, 2).map(q =>
 
 Contraintes pour l'article :
 - Format : Markdown uniquement.
-- 1 seul H1 (<= 45 caractères).
-- 2 intertitres max (H2/H3).
-- 3 à 4 paragraphes.
-- 220 à 320 mots.
 - Ton clair, concret, motivant.
+- Analyse 2 erreurs probables à partir des questions difficiles (sans parler de quiz).
+- Explique la bonne logique ou méthode attendue pour chaque erreur.
+- Propose un mini-plan d'entraînement en 3 actions très concrètes.
+- Évite les généralités vagues, privilégie des conseils actionnables.
 - Ne mentionne pas le quiz ni la base de données.
 `;
 
@@ -98,7 +105,7 @@ const getLastQuizForUserJob = async (userJobId: string) => {
             quiz: {include: {job: true}},
             answers: {
                 include: {
-                    question: {include: {competency: true}},
+                    question: {include: {competency: true, responses: true}},
                     options: {include: {response: true}},
                 },
             },
@@ -149,10 +156,12 @@ export const generateMarkdownArticleForLastQuiz = async (userJobId: string, user
         .map(a => ({
             competencyName: a.question.competency.name,
             questionText: a.question.text,
-            userAnswerSummary: [
-                a.options.map(o => o.response.text).join(", "),
-                a.freeTextAnswer,
-            ].filter(Boolean).join(" | "),
+            userAnswer: a.options.map(o => o.response.text).filter(Boolean),
+            freeTextAnswer: a.freeTextAnswer ?? undefined,
+            correctAnswer: a.question.responses
+                .filter(r => r.isCorrect)
+                .map(r => r.text)
+                .filter(Boolean),
         }));
 
     const strongQuestions: QuestionSummary[] = lastUserQuiz.answers
@@ -215,14 +224,14 @@ Consignes de sortie :
 ${baseInstructions}`;
 
     const completion = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
+        model: "gpt-5.2",
         messages: [
             {role: "system", content: systemPrompt},
             {role: "user", content: finalUserPrompt},
         ],
-        temperature: 0.2,
+        temperature: 0.4,
         response_format: {type: "json_object"},
-        max_completion_tokens: 1800,
+        max_completion_tokens: 5000,
     });
 
     const raw = completion.choices[0]?.message?.content ?? "";
