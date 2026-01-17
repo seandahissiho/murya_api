@@ -31,3 +31,10 @@ export function sendResponse<T>(
 export async function encryptPassword(password: string): Promise<string> {
     return await bcrypt.hash(password, 10);
 }
+
+export function getSingleParam(value: string | string[] | undefined): string | undefined {
+    if (Array.isArray(value)) {
+        return value[0];
+    }
+    return value;
+}

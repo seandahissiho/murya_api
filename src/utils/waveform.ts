@@ -94,7 +94,7 @@ export async function computeWaveformFromMediaUrl(
     const rmsValues: number[] = [];
     let windowSumSq = 0;
     let windowCount = 0;
-    let leftover = Buffer.alloc(0);
+    let leftover: Buffer = Buffer.alloc(0);
     let stopProcessing = false;
 
     const ffmpegArgs = [

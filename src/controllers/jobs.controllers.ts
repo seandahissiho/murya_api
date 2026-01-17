@@ -1,6 +1,6 @@
 import {NextFunction, Request, Response} from "express";
 import * as jobService from "../services/jobs.services";
-import {sendResponse} from "../utils/helpers";
+import {getSingleParam, sendResponse} from "../utils/helpers";
 import {detectLanguage} from "../middlewares/i18n";
 
 
@@ -43,7 +43,7 @@ export const getJobsFamiliesAndSubFamilies = async (req: Request, res: Response,
 
 export const getJobDetails = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const jobId = req.params.id;
+        const jobId = getSingleParam(req.params.id);
         if (!jobId) {
             return sendResponse(res, 400, {error: 'L’identifiant du job est requis.'});
         }
@@ -71,7 +71,7 @@ export const getJobDetails = async (req: Request, res: Response, next: NextFunct
 
 export const getJobDetailsByName = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const name = req.params.slug;
+        const name = getSingleParam(req.params.slug);
         if (!name) {
             return sendResponse(res, 400, {error: 'Le nom normalisé du job est requis.'});
         }
@@ -97,8 +97,8 @@ export const getJobDetailsByName = async (req: Request, res: Response, next: Nex
 
 export const getCompetencyFamilyDetailsForJob = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const jobId = req.params.jobId;
-        const cfId = req.params.cfId;
+        const jobId = getSingleParam(req.params.jobId);
+        const cfId = getSingleParam(req.params.cfId);
         if (!jobId || !cfId) {
             return sendResponse(res, 400, {error: 'jobId et cfId sont requis.'});
         }

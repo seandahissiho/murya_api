@@ -1,11 +1,11 @@
 import {NextFunction, Request, Response} from 'express';
-import {sendResponse} from '../utils/helpers';
+import {getSingleParam, sendResponse} from '../utils/helpers';
 import * as resourceService from '../services/resources.services';
 
 export const collectResource = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = (req as any).user?.userId;
-        const resourceId = req.params.id;
+        const resourceId = getSingleParam(req.params.id);
         const timezone = typeof req.body.timezone === 'string'
             ? req.body.timezone
             : undefined;

@@ -1,6 +1,6 @@
 import {NextFunction, Request, Response} from "express";
 import * as uploadService from "../services/upload.services";
-import {sendResponse} from "../utils/helpers";
+import {getSingleParam, sendResponse} from "../utils/helpers";
 
 export const getAllFiles = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -26,8 +26,11 @@ export const getAllFiles = async (req: Request, res: Response, next: NextFunctio
 }
 
 export const getFileById = async (req: Request, res: Response, next: NextFunction) => {
-    const id = req.params.id;
+    const id = getSingleParam(req.params.id);
     try {
+        if (!id) {
+            return res.status(400).json({message: 'Identifiant de fichier requis'});
+        }
         const upload = await uploadService.getUploadById(id);
         if (!upload) {
             return res.status(404).json({message: 'Fichier non trouvée'});
@@ -91,7 +94,10 @@ export const uploadFile = async (req: Request, res: Response, next: NextFunction
 export const updateFile = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = (req as any).user.userId;
-        const id = req.params.id;
+        const id = getSingleParam(req.params.id);
+        if (!id) {
+            return res.status(400).json({message: 'Identifiant de fichier requis'});
+        }
         if (!req.file) {
             return res.status(400).json({error: "file is required"});
         }
@@ -128,8 +134,11 @@ export const updateFile = async (req: Request, res: Response, next: NextFunction
 }
 
 export const deleteFile = async (req: Request, res: Response, next: NextFunction) => {
-    const id = req.params.id;
+    const id = getSingleParam(req.params.id);
     try {
+        if (!id) {
+            return res.status(400).json({message: 'Identifiant de fichier requis'});
+        }
         const deletedUpload = await uploadService.deleteUpload(id);
         if (!deletedUpload) {
             return res.status(404).json({message: 'Fichier non trouvée'});

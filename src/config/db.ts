@@ -9,7 +9,18 @@ import {
 } from "@prisma/client";
 import multer from "multer";
 
-const removeLandingForModules = async (client: PrismaClient, moduleIds: string[]) => {
+type LandingModuleClient = {
+    userLandingModule: {
+        findMany: (...args: any[]) => any;
+        updateMany: (...args: any[]) => any;
+    };
+    userLandingModuleEvent: {
+        createMany: (...args: any[]) => any;
+    };
+    $transaction: (...args: any[]) => any;
+};
+
+const removeLandingForModules = async (client: LandingModuleClient, moduleIds: string[]) => {
     if (moduleIds.length === 0) return;
 
     const now = new Date();
@@ -26,7 +37,7 @@ const removeLandingForModules = async (client: PrismaClient, moduleIds: string[]
             data: {removedAt: now},
         }),
         client.userLandingModuleEvent.createMany({
-            data: landingRows.map((row) => ({
+            data: landingRows.map((row: {userId: string; moduleId: string}) => ({
                 userId: row.userId,
                 moduleId: row.moduleId,
                 action: LandingModuleAction.REMOVE,
@@ -54,7 +65,9 @@ const prismaExtension = Prisma.defineExtension((prisma) =>
                         (result.status === ModuleStatus.INACTIVE ||
                             result.status === ModuleStatus.ARCHIVED)
                     ) {
-                        await removeLandingForModules(prisma, [result.id]);
+                        if (result?.id) {
+                            await removeLandingForModules(prisma, [result.id]);
+                        }
                     }
                     return result;
                 },

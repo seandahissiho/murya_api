@@ -1,6 +1,6 @@
 import {NextFunction, Request, Response} from "express";
 import * as moduleService from "../services/modules.services";
-import {sendResponse} from "../utils/helpers";
+import {getSingleParam, sendResponse} from "../utils/helpers";
 import {ServiceError} from "../utils/serviceError";
 import {detectLanguage} from "../middlewares/i18n";
 
@@ -45,7 +45,7 @@ export const listModules = async (req: Request, res: Response, next: NextFunctio
 
 export const listUserModules = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const userId = req.params.userId;
+        const userId = getSingleParam(req.params.userId);
         if (!userId) {
             return sendResponse(res, 400, {error: "L'identifiant utilisateur est requis."});
         }
@@ -60,7 +60,7 @@ export const listUserModules = async (req: Request, res: Response, next: NextFun
 
 export const listUserLandingModules = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const userId = req.params.userId;
+        const userId = getSingleParam(req.params.userId);
         if (!userId || typeof userId !== "string") {
             return sendResponse(res, 400, {error: "L'identifiant utilisateur est requis."});
         }
@@ -75,7 +75,7 @@ export const listUserLandingModules = async (req: Request, res: Response, next: 
 
 export const addUserLandingModule = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const userId = req.params.userId;
+        const userId = getSingleParam(req.params.userId);
         const moduleId = req.body?.moduleId;
         const order = req.body?.order;
 
@@ -99,8 +99,8 @@ export const addUserLandingModule = async (req: Request, res: Response, next: Ne
 
 export const removeUserLandingModule = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const userId = req.params.userId;
-        const moduleId = req.params.moduleId;
+        const userId = getSingleParam(req.params.userId);
+        const moduleId = getSingleParam(req.params.moduleId);
 
         if (!userId || !moduleId) {
             return sendResponse(res, 400, {error: "userId et moduleId sont requis."});
@@ -116,7 +116,7 @@ export const removeUserLandingModule = async (req: Request, res: Response, next:
 
 export const reorderUserLandingModules = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const userId = req.params.userId;
+        const userId = getSingleParam(req.params.userId);
         const orders = req.body?.orders;
 
         if (!userId) {
@@ -158,7 +158,7 @@ export const listUserLandingModulesAudit = async (
     next: NextFunction,
 ) => {
     try {
-        const userId = req.params.userId;
+        const userId = getSingleParam(req.params.userId);
         if (!userId) {
             return sendResponse(res, 400, {error: "L'identifiant utilisateur est requis."});
         }

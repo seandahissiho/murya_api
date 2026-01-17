@@ -1,6 +1,6 @@
 import {NextFunction, Request, Response} from "express";
 import * as jobService from "../services/user_jobs.services";
-import {sendResponse} from "../utils/helpers";
+import {getSingleParam, sendResponse} from "../utils/helpers";
 import {generateMarkdownArticleForLastQuiz} from "../services/generateMarkdownArticleForLastQuiz";
 import {detectLanguage} from "../middlewares/i18n";
 
@@ -34,7 +34,7 @@ export const retrieveCurrentUserJob = async (req: Request, res: Response, next: 
 export const setCurrentUserJob = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = (req as any).user?.userId;
-        const jobId = req.params.jobId;
+        const jobId = getSingleParam(req.params.jobId);
 
         if (!jobId) {
             return sendResponse(res, 400, {error: 'L’identifiant du job est requis.'});
@@ -62,7 +62,7 @@ export const setCurrentUserJob = async (req: Request, res: Response, next: NextF
 export const setCurrentUserJobFamily = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = (req as any).user?.userId;
-        const jobFamilyId = req.params.jobFamilyId;
+        const jobFamilyId = getSingleParam(req.params.jobFamilyId);
 
         if (!jobFamilyId) {
             return sendResponse(res, 400, {error: 'L’identifiant de la famille de métiers est requis.'});
@@ -89,7 +89,7 @@ export const setCurrentUserJobFamily = async (req: Request, res: Response, next:
 
 export const updateUserJobFamilySelection = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const userJobId = req.params.userJobId;
+        const userJobId = getSingleParam(req.params.userJobId);
         const selectedJobIds = req.body?.selectedJobIds;
 
         if (!userJobId) {
@@ -113,7 +113,7 @@ export const updateUserJobFamilySelection = async (req: Request, res: Response, 
 
 export const getJobLeaderboard = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const {jobId} = req.params;
+        const jobId = getSingleParam(req.params.jobId);
 
         if (!jobId) {
             return res.status(400).json({error: 'jobId is required'});
@@ -172,7 +172,7 @@ export const getJobLeaderboard = async (req: Request, res: Response, next: NextF
 export const retrieveDailyQuizForJob = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = (req as any).user?.userId;
-        const jobId = req.params.jobId;
+        const jobId = getSingleParam(req.params.jobId);
         if (!jobId) {
             return sendResponse(res, 400, {error: 'L’identifiant du job ou de la famille est requis.'});
         }
@@ -199,8 +199,8 @@ export const retrieveDailyQuizForJob = async (req: Request, res: Response, next:
 export const saveDailyQuizAnswers = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = (req as any).user?.userId;
-        const jobId = req.params.jobId;
-        const quizId = req.params.quizId;
+        const jobId = getSingleParam(req.params.jobId);
+        const quizId = getSingleParam(req.params.quizId);
         const answers = req.body.answers;
         const doneAt : any = typeof req.body.doneAt === 'string' ? req.body.doneAt : undefined;
         const timezone = typeof req.body.timezone === 'string' ? req.body.timezone : undefined;
@@ -242,7 +242,7 @@ export const saveDailyQuizAnswers = async (req: Request, res: Response, next: Ne
 export const listLearningResourcesForUserJob = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = (req as any).user?.userId;
-        const userJobId = req.params.userJobId;
+        const userJobId = getSingleParam(req.params.userJobId);
 
         if (!userJobId) {
             return sendResponse(res, 400, {error: 'L’identifiant du job utilisateur est requis.'});
@@ -266,7 +266,7 @@ export const listLearningResourcesForUserJob = async (req: Request, res: Respons
 export const getUserJob = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = (req as any).user?.userId;
-        const jobId = req.params.jobId;
+        const jobId = getSingleParam(req.params.jobId);
 
         if (!jobId) {
             return sendResponse(res, 400, {error: 'L’identifiant du job est requis.'});
@@ -293,9 +293,12 @@ export const getUserJob = async (req: Request, res: Response, next: NextFunction
 
 export const getUserJobCompetencyProfileHandler = async (req: Request, res: Response, next: NextFunction) => {
     const userId = (req as any).user?.userId;
-    const userJobId = req.params.userJobId as string; // ou query/body
+    const userJobId = getSingleParam(req.params.userJobId); // ou query/body
 
     try {
+        if (!userJobId) {
+            return sendResponse(res, 400, {error: 'L’identifiant du job utilisateur est requis.'});
+        }
         const profile = await jobService.getUserJobCompetencyProfile(userId, userJobId, await detectLanguage(req));
         sendResponse(res, 200, {data: profile});
     } catch (e: any) {
@@ -311,7 +314,7 @@ export const getUserJobCompetencyProfileHandler = async (req: Request, res: Resp
 export const generateMarkdownArticleForLastQuiz2 = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = (req as any).user?.userId;
-        const userJobId = req.params.userJobId;
+        const userJobId = getSingleParam(req.params.userJobId);
 
         if (!userJobId) {
             return sendResponse(res, 400, {error: 'L’identifiant du job utilisateur est requis.'});

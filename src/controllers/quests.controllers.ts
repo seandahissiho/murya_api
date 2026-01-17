@@ -1,5 +1,5 @@
 import {NextFunction, Request, Response} from 'express';
-import {sendResponse} from '../utils/helpers';
+import {getSingleParam, sendResponse} from '../utils/helpers';
 import * as questService from '../services/quests.services';
 
 export const listQuests = async (req: Request, res: Response, next: NextFunction) => {
@@ -67,7 +67,7 @@ export const listQuestGroups = async (req: Request, res: Response, next: NextFun
 export const claimQuestReward = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = (req as any).user?.userId;
-        const questId = req.params.id;
+        const questId = getSingleParam(req.params.id);
         const timezone = typeof req.body?.timezone === 'string'
             ? req.body.timezone
             : undefined;
@@ -93,7 +93,7 @@ export const claimQuestReward = async (req: Request, res: Response, next: NextFu
 export const claimUserQuestReward = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = (req as any).user?.userId;
-        const questId = req.params.id;
+        const questId = getSingleParam(req.params.id);
         const timezone = typeof req.body?.timezone === 'string'
             ? req.body.timezone
             : undefined;

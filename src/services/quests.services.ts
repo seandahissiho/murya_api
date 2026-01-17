@@ -447,7 +447,7 @@ export const getQuestWindow = (
             break;
         case QuestPeriod.ONCE:
             start = base.startOf('day');
-            end = DateTime.fromISO('9999-12-31T23:59:59', {zone: base.zoneName});
+            end = DateTime.fromISO('9999-12-31T23:59:59', {zone});
             break;
         default:
             start = base.startOf('day');

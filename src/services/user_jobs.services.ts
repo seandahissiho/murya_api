@@ -27,7 +27,7 @@ async function resolveJobOrFamilyId(targetId: string) {
         select: {id: true},
     });
     if (job) {
-        return {scope: UserJobScope.JOB as const, jobId: job.id, jobFamilyId: null};
+        return {scope: UserJobScope.JOB, jobId: job.id, jobFamilyId: null};
     }
 
     const jobFamily = await prisma.jobFamily.findUnique({
@@ -35,7 +35,7 @@ async function resolveJobOrFamilyId(targetId: string) {
         select: {id: true},
     });
     if (jobFamily) {
-        return {scope: UserJobScope.JOB_FAMILY as const, jobId: null, jobFamilyId: jobFamily.id};
+        return {scope: UserJobScope.JOB_FAMILY, jobId: null, jobFamilyId: jobFamily.id};
     }
 
     throw new Error('Job not found');
@@ -341,14 +341,15 @@ export async function getCurrentUserJob(userId: any, lang: string = 'en') {
     if (!userJob.jobFamily) {
         throw new Error('JobFamily manquante pour un UserJob de scope JOB_FAMILY.');
     }
+    const jobFamily = userJob.jobFamily;
 
     const localizedJobFamily = await resolveFields({
         entity: 'JobFamily',
-        entityId: userJob.jobFamily.id,
+        entityId: jobFamily.id,
         fields: ['name'],
         lang,
-        base: userJob.jobFamily,
-    });
+        base: jobFamily,
+    }) as typeof jobFamily;
 
     const selectedJobs = await Promise.all(
         userJob.selectedJobs.map(async (selection) => {
@@ -530,12 +531,6 @@ export async function updateUserJobFamilySelection(userJobId: string, selectedJo
     if (!userJob) {
         throw new Error('UserJob not found');
     }
-    if (!userJob.job) {
-        throw new Error('Job manquant pour ce UserJob');
-    }
-    if (!userJob.job) {
-        throw new Error('Job manquant pour ce UserJob');
-    }
     if (userJob.scope !== UserJobScope.JOB_FAMILY || !userJob.jobFamilyId) {
         throw new Error('UserJob is not a job family track');
     }
@@ -615,14 +610,15 @@ export async function getUserJob(jobId: string, userId: any, lang: string = 'en'
         if (!userJob.jobFamily) {
             throw new Error('JobFamily manquante pour ce UserJob.');
         }
+        const jobFamily = userJob.jobFamily;
 
         const localizedJobFamily = await resolveFields({
             entity: 'JobFamily',
-            entityId: userJob.jobFamily.id,
+            entityId: jobFamily.id,
             fields: ['name'],
             lang,
-            base: userJob.jobFamily,
-        });
+            base: jobFamily,
+        }) as typeof jobFamily;
 
         const selectedJobs = await Promise.all(
             userJob.selectedJobs.map(async (selection) => {
@@ -657,6 +653,9 @@ export async function getUserJob(jobId: string, userId: any, lang: string = 'en'
 
     if (!userJob) {
         throw new Error('UserJob not found');
+    }
+    if (!userJob.job) {
+        throw new Error('Job manquant pour ce UserJob.');
     }
 
     const localizedJob = await resolveFields({
@@ -1079,7 +1078,7 @@ type AnswerInput = {
 async function updateUserJobStats(
     userJobId: string,
     doneAt: string,
-    client: Prisma.TransactionClient | typeof prisma = prisma,
+    client: Prisma.TransactionClient = prisma as unknown as Prisma.TransactionClient,
 ) {
     const userJobScope = await client.userJob.findUnique({
         where: {id: userJobId},
@@ -1093,11 +1092,19 @@ async function updateUserJobStats(
     }
 
     const selectedJobIds = new Set(
-        userJobScope.selectedJobs?.map((selection) => selection.jobId) ?? []
+        userJobScope.selectedJobs?.map((selection: {jobId: string}) => selection.jobId) ?? []
     );
 
     // 5. Recalculer les agrégats sur UserJob
-    const allQuizzes = await client.userQuiz.findMany({
+    const allQuizzes: Array<{
+        status: UserQuizStatus;
+        totalScore: number | null;
+        maxScore: number | null;
+        bonusPoints: number | null;
+        maxScoreWithBonus: number;
+        completedAt: Date | null;
+        jobsSnapshot: unknown;
+    }> = await client.userQuiz.findMany({
         where: {userJobId: userJobId},
         select: {
             status: true,
@@ -1117,7 +1124,7 @@ async function updateUserJobStats(
                 if (!snapshot.length) {
                     return true;
                 }
-                return snapshot.some((jobId) => selectedJobIds.has(String(jobId)));
+                return snapshot.some((jobId: unknown) => selectedJobIds.has(String(jobId)));
             })
             : allQuizzes;
 
@@ -1126,13 +1133,16 @@ async function updateUserJobStats(
         (q) => q.status === UserQuizStatus.COMPLETED
     ).length;
     const totalScoreSum = filteredQuizzes.reduce(
-        (sum, q) => {
+        (sum: number, q) => {
             const total = (q.totalScore ?? 0) + (q.bonusPoints ?? 0);
             return sum + total;
         },
         0
     );
-    const maxScoreSum = filteredQuizzes.reduce((sum, q) => sum + q.maxScoreWithBonus, 0);
+    const maxScoreSum = filteredQuizzes.reduce(
+        (sum: number, q) => sum + q.maxScoreWithBonus,
+        0,
+    );
 
     // const lastQuizAt = allQuizzes.reduce<Date | null>((latest, q) => {
     //     if (!q.completedAt) return latest;
@@ -1819,7 +1829,7 @@ export const saveUserQuizAnswers = async (
                     select: {value: true},
                 }))?.value ?? 0;
             } else {
-                const selectedJobIds = userJob.selectedJobs.map((selection) => selection.jobId);
+                const selectedJobIds = userJob.selectedJobs.map((selection: {jobId: string}) => selection.jobId);
                 if (selectedJobIds.length) {
                     const jobKiviats = await tx.jobKiviat.findMany({
                         where: {
@@ -1830,8 +1840,12 @@ export const saveUserQuizAnswers = async (
                         select: {level: true, value: true},
                     });
                     const avg = (level: JobProgressionLevel) => {
-                        const values = jobKiviats.filter((k) => k.level === level).map((k) => Number(k.value));
-                        return values.length ? values.reduce((sum, v) => sum + v, 0) / values.length : 0;
+                        const values = jobKiviats
+                            .filter((k: {level: JobProgressionLevel; value: unknown}) => k.level === level)
+                            .map((k: {value: unknown}) => Number(k.value));
+                        return values.length
+                            ? values.reduce((sum: number, v: number) => sum + v, 0) / values.length
+                            : 0;
                     };
                     JuniorValue = avg(JobProgressionLevel.JUNIOR);
                     MidLevelValue = avg(JobProgressionLevel.MIDLEVEL);
