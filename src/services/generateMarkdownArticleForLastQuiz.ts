@@ -1,6 +1,7 @@
 import {prisma} from "../config/db";
 import {CompetencyType, Level, UserQuizStatus} from "@prisma/client";
 import OpenAI from "openai";
+import {realtimeBus} from "../realtime/realtimeBus";
 
 const openai = new OpenAI({
     apiKey: process.env.OPENAI_API_KEY!,
@@ -295,6 +296,16 @@ async function saveLearningResourceFromArticle(
                 connect: {id: userId}
             }
         },
+    });
+
+    realtimeBus.publishToUser(userId, 'content.available', {
+        resourceId: resource.id,
+        userJobId,
+        scope: resource.scope,
+        type: resource.type,
+        title: resource.title,
+        description: resource.description,
+        auto_display: true,
     });
 
     return resource;

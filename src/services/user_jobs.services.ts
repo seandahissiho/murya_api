@@ -19,6 +19,7 @@ import {enqueueArticleGenerationJob, enqueueQuizGenerationJob, getRedisClient} f
 import {generateMarkdownArticleForLastQuiz} from "./generateMarkdownArticleForLastQuiz";
 import {computeWaveformFromMediaUrl} from "../utils/waveform";
 import {assignPositioningQuestsForUserJob, trackEvent} from "./quests.services";
+import {realtimeBus} from "../realtime/realtimeBus";
 
 async function resolveJobOrFamilyId(targetId: string) {
     const job = await prisma.job.findUnique({
@@ -1895,6 +1896,18 @@ export const saveUserQuizAnswers = async (
             timezone,
             userId,
         );
+
+        realtimeBus.publishToUser(userId, 'progress.updated', {
+            userJobId,
+            jobId,
+            quizId: updatedUserQuiz.quizId,
+            quizType: updatedUserQuiz.type,
+            percentage: updatedUserQuiz.percentage ?? 0,
+            totalScore: updatedUserQuiz.totalScore,
+            maxScore: updatedUserQuiz.maxScore,
+            bonusPoints: updatedUserQuiz.bonusPoints ?? 0,
+            completedAt: updatedUserQuiz.completedAt ?? undefined,
+        });
     }
 
     const quizResult = await generateNextQuiz(updatedUserQuiz, userJobId, userId, jobId);
