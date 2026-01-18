@@ -19,18 +19,21 @@ const USERS = [
         password: 'SeedBtsCiel#1',
         firstname: 'Sébastien',
         lastname: 'Biney',
+        avatarUrl: 'https://firebasestorage.googleapis.com/v0/b/murya-c861b.firebasestorage.app/o/7616e48c518c94214b1eef37c878f9d4ded0b63d.jpg?alt=media&token=29f1f0fd-9b42-4a42-a6e3-e0380474e4db',
     },
     {
         email: 'jonathan.dahissiho@murya.app',
         password: 'SeedBtsCiel#2',
         firstname: 'Jonathan',
         lastname: 'Dahissiho',
+        avatarUrl: 'https://firebasestorage.googleapis.com/v0/b/murya-c861b.firebasestorage.app/o/ce924aca47d3891e52adea739a6bb64ad6bd641d.jpg?alt=media&token=65543425-fc83-4bff-936c-c2de8666dc75',
     },
     {
         email: 'arnaud.lissajoux@murya.app',
         password: 'SeedBtsCiel#3',
         firstname: 'Arnaud',
         lastname: 'Lissajoux',
+        avatarUrl: 'https://firebasestorage.googleapis.com/v0/b/murya-c861b.firebasestorage.app/o/f76d151531ebdbd180eea9d853fbcbff00c7a3cf.jpg?alt=media&token=4f032ee0-6b47-47b1-973c-246f7c932a8e',
     },
 ];
 
@@ -184,16 +187,17 @@ const ensureSeedUser = async (
     password: string,
     firstname: string,
     lastname: string,
+    avatarUrl: string,
 ) => {
     const existing = await prisma.user.findUnique({
         where: {email},
     });
     const user = existing ?? await register(email, undefined, undefined, password);
 
-    if (user.firstname !== firstname || user.lastname !== lastname) {
+    if (user.firstname !== firstname || user.lastname !== lastname || user.avatarUrl !== avatarUrl) {
         return prisma.user.update({
             where: {id: user.id},
-            data: {firstname, lastname},
+            data: {firstname, lastname, avatarUrl},
         });
     }
 
@@ -221,6 +225,7 @@ export async function seedBtsCielUsers() {
             userSeed.password,
             userSeed.firstname,
             userSeed.lastname,
+            userSeed.avatarUrl,
         );
         await setCurrentUserJobFamily(user.id, jobFamily.id, LOCALE);
 

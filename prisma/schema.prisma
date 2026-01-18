@@ -244,32 +244,32 @@ enum LandingModuleActor {
 }
 
 model Address {
-  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  ref         String    @unique
-  name        String?   @unique
-  shortName   String?
-  street      String
-  zip         String?
-  city        String
-  countryId   String // ← Foreign key column
-  status      Int       @default(1) // 1 = actif, 0 = inactif
-  isVirtual   Boolean?  @default(false) // false = interne, true = externe
-  googleMapsUrl String? @db.VarChar(700)
-  googlePlaceId String? @db.VarChar(128)
-  latitude    Float?
-  longitude   Float?
-  createdAt   DateTime  @default(now()) @db.Timestamp(0)
-  updatedAt   DateTime  @default(now()) @updatedAt @db.Timestamp(0)
-  createdById String?   @db.Uuid // identifiant de l'utilisateur qui a créé cette adresse
-  updatedById String?   @db.Uuid // identifiant de l'utilisateur qui a mis à jour cette adresse
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  ref           String    @unique
+  name          String?   @unique
+  shortName     String?
+  street        String
+  zip           String?
+  city          String
+  countryId     String // ← Foreign key column
+  status        Int       @default(1) // 1 = actif, 0 = inactif
+  isVirtual     Boolean?  @default(false) // false = interne, true = externe
+  googleMapsUrl String?   @db.VarChar(700)
+  googlePlaceId String?   @db.VarChar(128)
+  latitude      Float?
+  longitude     Float?
+  createdAt     DateTime  @default(now()) @db.Timestamp(0)
+  updatedAt     DateTime  @default(now()) @updatedAt @db.Timestamp(0)
+  createdById   String?   @db.Uuid // identifiant de l'utilisateur qui a créé cette adresse
+  updatedById   String?   @db.Uuid // identifiant de l'utilisateur qui a mis à jour cette adresse
   // Metadata for auditing
   // Relations
-  country     Country   @relation(fields: [countryId], references: [isoCode], onUpdate: Cascade, onDelete: NoAction) // ← Relation to Country model
-  companies   Company[] // Entreprises associées à cette adresse
-  users       User[] // Utilisateurs associés à cette adresse
-  rewards     Reward[]
-  createdBy   User?     @relation(name: "AddressCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_addresses_created_by")
-  updatedBy   User?     @relation(name: "AddressUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_addresses_updated_by")
+  country       Country   @relation(fields: [countryId], references: [isoCode], onUpdate: Cascade, onDelete: NoAction) // ← Relation to Country model
+  companies     Company[] // Entreprises associées à cette adresse
+  users         User[] // Utilisateurs associés à cette adresse
+  rewards       Reward[]
+  createdBy     User?     @relation(name: "AddressCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_addresses_created_by")
+  updatedBy     User?     @relation(name: "AddressUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: NoAction, map: "FK_addresses_updated_by")
 
   @@unique([street, zip, city, countryId], map: "unique_address")
 }
@@ -398,65 +398,6 @@ model CurrencyLedger {
 
   @@unique([currency, refType, refId])
   @@index([userId, createdAt])
-}
-
-model Reward {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code        String   @unique @db.VarChar(80)
-  title       String   @db.VarChar(160)
-  description String?  @db.Text
-  kind        RewardKind @default(OTHER)
-  city        String   @db.VarChar(120)
-  imageUrl    String   @db.VarChar(500)
-  addressId   String?  @db.Uuid
-  address     Address? @relation(fields: [addressId], references: [id], onUpdate: Cascade, onDelete: SetNull)
-  costDiamonds Int     @default(0)
-  totalStock     Int?
-  remainingStock Int   @default(0)
-  isActive     Boolean  @default(true)
-  visibleFrom  DateTime? @db.Timestamp(0)
-  visibleTo    DateTime? @db.Timestamp(0)
-  fulfillmentMode   RewardFulfillmentMode @default(LOCAL)
-  providerKey       String? @db.VarChar(80)
-  externalProductId String? @db.VarChar(120)
-  redeemMethod       RewardRedeemMethod @default(CODE)
-  redeemInstructions String? @db.Text
-  meta        Json?
-  createdAt   DateTime @default(now()) @db.Timestamp(0)
-  updatedAt   DateTime @default(now()) @updatedAt @db.Timestamp(0)
-  purchases   RewardPurchase[]
-
-  @@index([isActive, city])
-  @@index([kind])
-  @@index([remainingStock])
-  @@index([addressId])
-}
-
-model RewardPurchase {
-  id                String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId            String @db.Uuid
-  rewardId          String @db.Uuid
-  quantity          Int    @default(1)
-  unitCostDiamonds  Int
-  totalCostDiamonds Int
-  status            RewardPurchaseStatus @default(CONFIRMED)
-  idempotencyKey    String @db.VarChar(80)
-  voucherCode       String? @db.VarChar(120)
-  voucherQrPayload  String? @db.Text
-  voucherLink       String? @db.VarChar(700)
-  externalOrderId   String? @db.VarChar(160)
-  providerRaw       Json?
-  purchasedAt       DateTime @default(now()) @db.Timestamp(0)
-  readyAt           DateTime? @db.Timestamp(0)
-  redeemedAt        DateTime? @db.Timestamp(0)
-  cancelledAt       DateTime? @db.Timestamp(0)
-  user              User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  reward            Reward @relation(fields: [rewardId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, idempotencyKey])
-  @@index([userId, purchasedAt])
-  @@index([rewardId, purchasedAt])
-  @@index([status])
 }
 
 model Job {
@@ -784,6 +725,65 @@ model QuizResponse {
   answerOptions UserQuizAnswerOption[]
 
   @@index([questionId])
+}
+
+model Reward {
+  id                 String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code               String                @unique @db.VarChar(80)
+  title              String                @db.VarChar(160)
+  description        String?               @db.Text
+  kind               RewardKind            @default(OTHER)
+  city               String                @db.VarChar(120)
+  imageUrl           String                @db.VarChar(500)
+  addressId          String?               @db.Uuid
+  address            Address?              @relation(fields: [addressId], references: [id], onUpdate: Cascade, onDelete: SetNull)
+  costDiamonds       Int                   @default(0)
+  totalStock         Int?
+  remainingStock     Int                   @default(0)
+  isActive           Boolean               @default(true)
+  visibleFrom        DateTime?             @db.Timestamp(0)
+  visibleTo          DateTime?             @db.Timestamp(0)
+  fulfillmentMode    RewardFulfillmentMode @default(LOCAL)
+  providerKey        String?               @db.VarChar(80)
+  externalProductId  String?               @db.VarChar(120)
+  redeemMethod       RewardRedeemMethod    @default(CODE)
+  redeemInstructions String?               @db.Text
+  meta               Json?
+  createdAt          DateTime              @default(now()) @db.Timestamp(0)
+  updatedAt          DateTime              @default(now()) @updatedAt @db.Timestamp(0)
+  purchases          RewardPurchase[]
+
+  @@index([isActive, city])
+  @@index([kind])
+  @@index([remainingStock])
+  @@index([addressId])
+}
+
+model RewardPurchase {
+  id                String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String               @db.Uuid
+  rewardId          String               @db.Uuid
+  quantity          Int                  @default(1)
+  unitCostDiamonds  Int
+  totalCostDiamonds Int
+  status            RewardPurchaseStatus @default(CONFIRMED)
+  idempotencyKey    String               @db.VarChar(80)
+  voucherCode       String?              @db.VarChar(120)
+  voucherQrPayload  String?              @db.Text
+  voucherLink       String?              @db.VarChar(700)
+  externalOrderId   String?              @db.VarChar(160)
+  providerRaw       Json?
+  purchasedAt       DateTime             @default(now()) @db.Timestamp(0)
+  readyAt           DateTime?            @db.Timestamp(0)
+  redeemedAt        DateTime?            @db.Timestamp(0)
+  cancelledAt       DateTime?            @db.Timestamp(0)
+  user              User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reward            Reward               @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, purchasedAt])
+  @@index([rewardId, purchasedAt])
+  @@index([status])
 }
 
 model Role {

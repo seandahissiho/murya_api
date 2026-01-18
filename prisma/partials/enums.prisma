@@ -138,6 +138,38 @@ enum CurrencyType {
   LEAGUE_POINTS
 }
 
+enum RewardKind {
+  CINEMA
+  CONCERT
+  THEATRE
+  SPORTS
+  THEME_PARK
+  OTHER
+}
+
+enum RewardFulfillmentMode {
+  LOCAL
+  EXTERNAL
+}
+
+enum RewardRedeemMethod {
+  NONE
+  CODE
+  QR_CODE
+  LINK
+}
+
+enum RewardPurchaseStatus {
+  CONFIRMED
+  FULFILLING
+  READY
+  REDEEMED
+  CANCELLED
+  REFUNDED
+  FAILED
+  EXPIRED
+}
+
 enum QuestCategory {
   MAIN
   BRANCH
