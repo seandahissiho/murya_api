@@ -5,7 +5,6 @@ model UserJobSelectedJob {
   isSelected Boolean  @default(true)
   createdAt  DateTime @default(now()) @db.Timestamp(0)
   updatedAt  DateTime @default(now()) @updatedAt @db.Timestamp(0)
-
   userJob    UserJob  @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   job        Job      @relation(fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
 

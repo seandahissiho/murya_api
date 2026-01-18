@@ -55,6 +55,7 @@ model User {
   userLandingModuleEvents    UserLandingModuleEvent[]
   userStreaks                UserStreak[]
   currencyLedgers            CurrencyLedger[]
+  rewardPurchases            RewardPurchase[]
   userQuests                 UserQuest[]
   userQuestGroups            UserQuestGroup[]
 

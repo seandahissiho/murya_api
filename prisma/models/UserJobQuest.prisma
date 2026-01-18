@@ -1,17 +1,17 @@
 model UserJobQuest {
-  id                String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userJobId         String       @db.Uuid
-  questDefinitionId String       @db.Uuid
-  periodStartAt     DateTime     @db.Timestamp(0)
-  periodEndAt       DateTime     @db.Timestamp(0)
-  progressCount     Int          @default(0)
-  status            QuestStatus  @default(ACTIVE)
+  id                String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userJobId         String          @db.Uuid
+  questDefinitionId String          @db.Uuid
+  periodStartAt     DateTime        @db.Timestamp(0)
+  periodEndAt       DateTime        @db.Timestamp(0)
+  progressCount     Int             @default(0)
+  status            QuestStatus     @default(ACTIVE)
   meta              Json?
-  completedAt       DateTime?    @db.Timestamp(0)
-  claimedAt         DateTime?    @db.Timestamp(0)
-  createdAt         DateTime     @default(now()) @db.Timestamp(0)
-  updatedAt         DateTime     @default(now()) @updatedAt @db.Timestamp(0)
-  userJob           UserJob      @relation(fields: [userJobId], references: [id], onDelete: Cascade)
+  completedAt       DateTime?       @db.Timestamp(0)
+  claimedAt         DateTime?       @db.Timestamp(0)
+  createdAt         DateTime        @default(now()) @db.Timestamp(0)
+  updatedAt         DateTime        @default(now()) @updatedAt @db.Timestamp(0)
+  userJob           UserJob         @relation(fields: [userJobId], references: [id], onDelete: Cascade)
   questDefinition   QuestDefinition @relation(fields: [questDefinitionId], references: [id], onDelete: Cascade)
 
   @@unique([userJobId, questDefinitionId, periodStartAt])

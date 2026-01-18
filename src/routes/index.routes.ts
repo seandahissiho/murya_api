@@ -12,6 +12,9 @@ import userJobQuestsRoutes from "./userJobQuests.routes";
 import userQuestsRoutes from "./userQuests.routes";
 import resourcesRoutes from "./resources.routes";
 import realtimeRoutes from "./realtime.routes";
+import rewardsRoutes from "./rewards.routes";
+import meRoutes from "./me.routes";
+import adminRewardsRoutes from "./admin.rewards.routes";
 
 
 const router = require("express").Router();
@@ -28,6 +31,9 @@ router.use("/user-job-quests", userJobQuestsRoutes);
 router.use("/user-quests", userQuestsRoutes);
 router.use("/resources", resourcesRoutes);
 router.use("/realtime", realtimeRoutes);
+router.use("/rewards", rewardsRoutes);
+router.use("/me", meRoutes);
+router.use("/admin", adminRewardsRoutes);
 router.use("/", modulesRoutes);
 
 export default router;

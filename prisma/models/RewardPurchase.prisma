@@ -1,0 +1,26 @@
+model RewardPurchase {
+  id                String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String @db.Uuid
+  rewardId          String @db.Uuid
+  quantity          Int    @default(1)
+  unitCostDiamonds  Int
+  totalCostDiamonds Int
+  status            RewardPurchaseStatus @default(CONFIRMED)
+  idempotencyKey    String @db.VarChar(80)
+  voucherCode       String? @db.VarChar(120)
+  voucherQrPayload  String? @db.Text
+  voucherLink       String? @db.VarChar(700)
+  externalOrderId   String? @db.VarChar(160)
+  providerRaw       Json?
+  purchasedAt       DateTime @default(now()) @db.Timestamp(0)
+  readyAt           DateTime? @db.Timestamp(0)
+  redeemedAt        DateTime? @db.Timestamp(0)
+  cancelledAt       DateTime? @db.Timestamp(0)
+  user              User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reward            Reward @relation(fields: [rewardId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, purchasedAt])
+  @@index([rewardId, purchasedAt])
+  @@index([status])
+}

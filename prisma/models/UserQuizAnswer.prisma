@@ -12,7 +12,7 @@ model UserQuizAnswer {
   question       QuizQuestion           @relation(fields: [questionId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   options        UserQuizAnswerOption[]
 
+  @@unique([userQuizId, questionId])
   @@index([userQuizId], map: "idx_user_quiz_answer_user_quiz")
   @@index([questionId], map: "idx_user_quiz_answer_question")
-  @@unique([userQuizId, questionId])
 }

@@ -1,0 +1,31 @@
+model Reward {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code        String   @unique @db.VarChar(80)
+  title       String   @db.VarChar(160)
+  description String?  @db.Text
+  kind        RewardKind @default(OTHER)
+  city        String   @db.VarChar(120)
+  imageUrl    String   @db.VarChar(500)
+  addressId   String?  @db.Uuid
+  address     Address? @relation(fields: [addressId], references: [id], onUpdate: Cascade, onDelete: SetNull)
+  costDiamonds Int     @default(0)
+  totalStock     Int?
+  remainingStock Int   @default(0)
+  isActive     Boolean  @default(true)
+  visibleFrom  DateTime? @db.Timestamp(0)
+  visibleTo    DateTime? @db.Timestamp(0)
+  fulfillmentMode   RewardFulfillmentMode @default(LOCAL)
+  providerKey       String? @db.VarChar(80)
+  externalProductId String? @db.VarChar(120)
+  redeemMethod       RewardRedeemMethod @default(CODE)
+  redeemInstructions String? @db.Text
+  meta        Json?
+  createdAt   DateTime @default(now()) @db.Timestamp(0)
+  updatedAt   DateTime @default(now()) @updatedAt @db.Timestamp(0)
+  purchases   RewardPurchase[]
+
+  @@index([isActive, city])
+  @@index([kind])
+  @@index([remainingStock])
+  @@index([addressId])
+}

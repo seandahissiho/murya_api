@@ -162,6 +162,33 @@ export const checkPermissions = (
     };
 };
 
+export const requireAdmin = async (req: Request, res: Response, next: NextFunction) => {
+    const userId = (req as any)?.user?.userId;
+    if (!userId) {
+        return sendResponse(res, 401, {
+            error: "Veuillez vous connecter pour accéder à cette ressource",
+        });
+    }
+
+    try {
+        const user = await prisma.user.findUnique({
+            where: {id: userId},
+            select: {isAdmin: true},
+        });
+        if (!user?.isAdmin) {
+            return sendResponse(res, 403, {
+                error: "Vous n'avez pas les permissions nécessaires pour accéder à cette ressource",
+            });
+        }
+        return next();
+    } catch (error) {
+        console.log(error);
+        return sendResponse(res, 500, {
+            error: "Une erreur est survenue",
+        });
+    }
+};
+
 const checkValidationResult = (req: Request, res: Response, next: NextFunction) => {
     const result = validationResult(req);
     if (!result.isEmpty()) {

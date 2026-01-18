@@ -1,25 +1,25 @@
 model QuizQuestion {
-  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  competencyId       String           @db.Uuid
-  text               String
-  level              Level
-  type               QuizQuestionType @default(single_choice)
-  mediaUrl           String           @default("")
-  metadata           Json?
-  createdAt          DateTime         @default(now()) @db.Timestamp(0)
-  updatedAt          DateTime         @updatedAt @db.Timestamp(0)
-  defaultTimeLimitS  Int              @default(30)
-  defaultPoints      Int              @default(1)
-  irtB               Float            @default(0)
-  irtA               Float            @default(1)
-  irtC               Float            @default(0)
-  calibratedAt       DateTime?        @db.Timestamp(0)
-  exposureCount      Int              @default(0)
-  isBankActive       Boolean          @default(true)
-  userAnswers        UserQuizAnswer[]
-  competency         Competency       @relation("CompetencyQuizQuestions", fields: [competencyId], references: [id])
-  responses          QuizResponse[]
-  items              QuizItem[]
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  competencyId      String           @db.Uuid
+  text              String
+  level             Level
+  type              QuizQuestionType @default(single_choice)
+  mediaUrl          String           @default("")
+  metadata          Json?
+  createdAt         DateTime         @default(now()) @db.Timestamp(0)
+  updatedAt         DateTime         @updatedAt @db.Timestamp(0)
+  defaultTimeLimitS Int              @default(30)
+  defaultPoints     Int              @default(1)
+  irtB              Float            @default(0)
+  irtA              Float            @default(1)
+  irtC              Float            @default(0)
+  calibratedAt      DateTime?        @db.Timestamp(0)
+  exposureCount     Int              @default(0)
+  isBankActive      Boolean          @default(true)
+  userAnswers       UserQuizAnswer[]
+  competency        Competency       @relation("CompetencyQuizQuestions", fields: [competencyId], references: [id])
+  responses         QuizResponse[]
+  items             QuizItem[]
 
   @@index([competencyId])
 }
