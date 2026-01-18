@@ -1,0 +1,15 @@
+model QuizItem {
+  quizId             String       @db.Uuid
+  questionId         String       @db.Uuid
+  index              Int
+  pointsOverride     Int?
+  timeLimitOverrideS Int?
+  createdAt          DateTime     @default(now()) @db.Timestamp(0)
+
+  quiz               Quiz         @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  question           QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@id([quizId, questionId])
+  @@unique([quizId, index])
+  @@index([questionId])
+}

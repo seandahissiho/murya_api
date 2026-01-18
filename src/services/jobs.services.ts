@@ -400,7 +400,7 @@ export const getJobFamilyDetails = async (jobFamilyId: string, lang: string = 'e
         select: {
             competenciesFamilyId: true,
             level: true,
-            value: true,
+            radarScore0to5: true,
         },
     });
 
@@ -415,10 +415,11 @@ export const getJobFamilyDetails = async (jobFamilyId: string, lang: string = 'e
         return levels.map((level) => {
             const values = jobKiviats
                 .filter((k) => k.competenciesFamilyId === familyId && k.level === level)
-                .map((k) => Number(k.value));
-            const value = values.length
+                .map((k) => Number(k.radarScore0to5));
+            const radarScore0to5 = values.length
                 ? values.reduce((sum, v) => sum + v, 0) / values.length
                 : 0;
+            const continuous0to10 = radarScore0to5 * 2;
             return {
                 id: `${familyId}:${level}`,
                 jobId: null,
@@ -426,7 +427,10 @@ export const getJobFamilyDetails = async (jobFamilyId: string, lang: string = 'e
                 userJobId: null,
                 competenciesFamilyId: familyId,
                 level,
-                value,
+                rawScore0to10: continuous0to10,
+                radarScore0to5,
+                continuous0to10,
+                masteryAvg0to1: continuous0to10 / 10,
                 jobFamily: {id: jobFamily.id, name: localizedJobFamily.name, slug: jobFamily.slug},
                 competenciesFamily: localizedFamilies.find((f) => f.id === familyId) ?? null,
             };
@@ -1107,7 +1111,7 @@ export const savePositioningQuizzesForJob = async (payload: PositioningQuizImpor
                 title: quizPayload.title,
                 description: quizPayload.description ?? '',
                 level: quizLevel,
-                questions: {
+                items: {
                     create: quizPayload.questions
                         .sort((a, b) => a.index - b.index)
                         .map((question) => {
@@ -1119,23 +1123,27 @@ export const savePositioningQuizzesForJob = async (payload: PositioningQuizImpor
                             }
 
                             return {
-                                text: question.text,
-                                competencyId,
-                                timeLimitInSeconds: question.timeLimitInSeconds,
-                                points: question.points,
-                                level: difficultyToLevel(question.difficulty),
-                                mediaUrl: question.mediaUrl ?? '',
                                 index: question.index,
-                                metadata: question.metadata ?? undefined,
-                                responses: {
-                                    create: question.responses
-                                        .sort((a, b) => a.index - b.index)
-                                        .map((response) => ({
-                                            text: response.text,
-                                            metadata: response.metadata ?? undefined,
-                                            isCorrect: response.isCorrect,
-                                            index: response.index,
-                                        })),
+                                question: {
+                                    create: {
+                                        text: question.text,
+                                        competencyId,
+                                        defaultTimeLimitS: question.timeLimitInSeconds,
+                                        defaultPoints: question.points,
+                                        level: difficultyToLevel(question.difficulty),
+                                        mediaUrl: question.mediaUrl ?? '',
+                                        metadata: question.metadata ?? undefined,
+                                        responses: {
+                                            create: question.responses
+                                                .sort((a, b) => a.index - b.index)
+                                                .map((response) => ({
+                                                    text: response.text,
+                                                    metadata: response.metadata ?? undefined,
+                                                    isCorrect: response.isCorrect,
+                                                    index: response.index,
+                                                })),
+                                        },
+                                    },
                                 },
                             };
                         }),
@@ -1145,10 +1153,15 @@ export const savePositioningQuizzesForJob = async (payload: PositioningQuizImpor
             const createdQuiz = await tx.quiz.create({
                 data: data,
                 include: {
-                    questions: {
+                    items: {
                         include: {
-                            responses: true,
+                            question: {
+                                include: {
+                                    responses: true,
+                                },
+                            },
                         },
+                        orderBy: {index: 'asc'},
                     },
                 },
             });

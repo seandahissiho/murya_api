@@ -2,9 +2,11 @@ model UserJobKiviatHistory {
   id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userJobKiviatId String               @db.Uuid
   userQuizId      String               @db.Uuid
+  rawScore0to10   Int
+  radarScore0to5  Int
+  continuous0to10 Float
+  masteryAvg0to1  Float
   level           JobProgressionLevel?
-  value           Decimal              @db.Decimal(2, 1) // 1.0, 1.5, ..., 5.0 max si tu contrôles côté app
-  percentage      Float
   createdAt       DateTime             @default(now()) @db.Timestamp(0)
   userJobKiviat   UserJobKiviat        @relation(fields: [userJobKiviatId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   userQuiz        UserQuiz             @relation(fields: [userQuizId], references: [id], onUpdate: Cascade, onDelete: Cascade)

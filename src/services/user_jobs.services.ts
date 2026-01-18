@@ -21,6 +21,69 @@ import {computeWaveformFromMediaUrl} from "../utils/waveform";
 import {assignPositioningQuestsForUserJob, trackEvent} from "./quests.services";
 import {realtimeBus} from "../realtime/realtimeBus";
 
+const IRT_LEARNING_RATE = 0.1;
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+
+const sigmoid = (x: number) => 1 / (1 + Math.exp(-x));
+
+const getEffectivePoints = (item: any, question: any) =>
+    item.pointsOverride ?? question.defaultPoints ?? 0;
+
+const getEffectiveTimeLimit = (item: any, question: any) =>
+    item.timeLimitOverrideS ?? question.defaultTimeLimitS ?? 0;
+
+const mapQuizItemsToQuestions = (quiz: any) => {
+    const items = Array.isArray(quiz?.items) ? [...quiz.items] : [];
+    items.sort((a, b) => a.index - b.index);
+    return items.map((item) => {
+        const question = item.question;
+        return {
+            ...question,
+            index: item.index,
+            points: getEffectivePoints(item, question),
+            timeLimitInSeconds: getEffectiveTimeLimit(item, question),
+            quizItemId: {quizId: item.quizId, questionId: item.questionId},
+        };
+    });
+};
+
+const buildServiceError = (message: string, statusCode: number) => {
+    const error = new Error(message) as Error & {statusCode?: number};
+    error.statusCode = statusCode;
+    return error;
+};
+
+const STREAK_BONUS_BY_COUNT = new Map<number, number>([
+    [2, 20],
+    [3, 50],
+    [4, 90],
+    [5, 140],
+    [6, 200],
+    [7, 270],
+    [8, 350],
+    [9, 440],
+    [10, 540],
+]);
+
+const getStreakBonus = (streak: number): number => {
+    if (streak < 2) {
+        return 0;
+    }
+    if (streak >= 10) {
+        return 540;
+    }
+    return STREAK_BONUS_BY_COUNT.get(streak) ?? 0;
+};
+
+const getMaxStreakBonus = (questionCount: number): number => {
+    let total = 0;
+    for (let i = 1; i <= questionCount; i += 1) {
+        total += getStreakBonus(i);
+    }
+    return total;
+};
+
 async function resolveJobOrFamilyId(targetId: string) {
     const job = await prisma.job.findUnique({
         where: {id: targetId},
@@ -111,8 +174,9 @@ async function localizeQuizContent(quiz: any, lang: string) {
         base: {title: quiz.title, description: quiz.description},
     });
 
+    const derivedQuestions = mapQuizItemsToQuestions(quiz);
     const questions = await Promise.all(
-        (quiz.questions ?? []).map(async (q: any) => {
+        derivedQuestions.map(async (q: any) => {
             const localizedQuestion = await resolveFields({
                 entity: 'QuizQuestion',
                 entityId: q.id,
@@ -205,7 +269,7 @@ async function buildFamilyKiviatsForJobs(
             jobId: true,
             competenciesFamilyId: true,
             level: true,
-            value: true,
+            radarScore0to5: true,
         },
     });
 
@@ -224,7 +288,10 @@ async function buildFamilyKiviatsForJobs(
         competenciesFamily: {id: string; name: string; slug: string};
         competenciesFamilyId: string;
         level: JobProgressionLevel;
-        value: number;
+        rawScore0to10: number;
+        radarScore0to5: number;
+        continuous0to10: number;
+        masteryAvg0to1: number;
         jobFamily: {id: string; name: string; slug: string} | null;
     }> = [];
 
@@ -232,10 +299,11 @@ async function buildFamilyKiviatsForJobs(
         for (const level of levels) {
             const values = jobKiviats
                 .filter((k) => k.competenciesFamilyId === family.id && k.level === level)
-                .map((k) => Number(k.value));
-            const value = values.length
+                .map((k) => Number(k.radarScore0to5));
+            const radarScore0to5 = values.length
                 ? values.reduce((sum, v) => sum + v, 0) / values.length
                 : 0;
+            const continuous0to10 = radarScore0to5 * 2;
 
             entries.push({
                 id: `${family.id}:${level}`,
@@ -245,7 +313,10 @@ async function buildFamilyKiviatsForJobs(
                 competenciesFamily: family,
                 competenciesFamilyId: family.id,
                 level,
-                value,
+                rawScore0to10: continuous0to10,
+                radarScore0to5,
+                continuous0to10,
+                masteryAvg0to1: continuous0to10 / 10,
                 jobFamily,
             });
         }
@@ -717,15 +788,19 @@ export const retrievePositioningQuizForJob = async (userJob: any, lang: string =
     const quiz = await prisma.quiz.findUnique({
         where: {id: positioningQuiz.quizId},
         include: {
-            questions: {
+            items: {
                 include: {
-                    responses: {
+                    question: {
                         include: {
-                            answerOptions: true,
+                            responses: {
+                                include: {
+                                    answerOptions: true,
+                                },
+                                orderBy: {index: 'asc'},
+                            },
+                            competency: true,
                         },
-                        orderBy: {index: 'asc'},
                     },
-                    competency: true,
                 },
                 orderBy: {index: 'asc'},
             },
@@ -743,10 +818,15 @@ async function createUserQuizzesForJob(userJobId: string, jobId: string, userId:
                     where: {type: QuizType.POSITIONING},
                     select: {
                         id: true,
-                        questions: {
+                        items: {
                             select: {
-                                points: true,
-                            }
+                                pointsOverride: true,
+                                question: {
+                                    select: {
+                                        defaultPoints: true,
+                                    },
+                                },
+                            },
                         },
                     },
                     orderBy: {createdAt: 'asc'},
@@ -774,7 +854,10 @@ async function createUserQuizzesForJob(userJobId: string, jobId: string, userId:
                     type: QuizType.POSITIONING,
                     status: UserQuizStatus.ASSIGNED,
                     index: index++,
-                    maxScore: quiz.questions.reduce((sum, q) => sum + q.points, 0),
+                    maxScore: quiz.items.reduce(
+                        (sum, item) => sum + getEffectivePoints(item, item.question),
+                        0,
+                    ),
                 }
             });
             userQuizzes.push(userQuiz);
@@ -813,7 +896,12 @@ async function createUserQuizzesForJobFamily(userJobId: string, jobFamilyId: str
             isActive: true,
         },
         include: {
-            questions: {select: {points: true}},
+            items: {
+                select: {
+                    pointsOverride: true,
+                    question: {select: {defaultPoints: true}},
+                },
+            },
         },
         orderBy: {createdAt: 'asc'},
     });
@@ -832,7 +920,10 @@ async function createUserQuizzesForJobFamily(userJobId: string, jobFamilyId: str
                 type: QuizType.POSITIONING,
                 status: UserQuizStatus.ASSIGNED,
                 index: index++,
-                maxScore: quiz.questions.reduce((sum, q) => sum + q.points, 0),
+                maxScore: quiz.items.reduce(
+                    (sum, item) => sum + getEffectivePoints(item, item.question),
+                    0,
+                ),
             },
         });
         created.push(userQuiz);
@@ -902,13 +993,17 @@ export const retrieveDailyQuizForJob = async (jobId: string, userId: string, lan
             const quiz = await prisma.quiz.findUnique({
                 where: {id: refreshedQuiz.quizId},
                 include: {
-                    questions: {
+                    items: {
                         include: {
-                            responses: {
-                                include: {answerOptions: true},
-                                orderBy: {index: 'asc'},
+                            question: {
+                                include: {
+                                    responses: {
+                                        include: {answerOptions: true},
+                                        orderBy: {index: 'asc'},
+                                    },
+                                    competency: true,
+                                },
                             },
-                            competency: true,
                         },
                         orderBy: {index: 'asc'},
                     },
@@ -922,13 +1017,17 @@ export const retrieveDailyQuizForJob = async (jobId: string, userId: string, lan
         const quiz = await prisma.quiz.findUnique({
             where: {id: positioningQuiz.quizId},
             include: {
-                    questions: {
+                    items: {
                         include: {
-                            responses: {
-                                include: {answerOptions: true},
-                                orderBy: {index: 'asc'},
+                            question: {
+                                include: {
+                                    responses: {
+                                        include: {answerOptions: true},
+                                        orderBy: {index: 'asc'},
+                                    },
+                                    competency: true,
+                                },
                             },
-                            competency: true,
                         },
                         orderBy: {index: 'asc'},
                     },
@@ -979,13 +1078,17 @@ export const retrieveDailyQuizForJob = async (jobId: string, userId: string, lan
         const quiz = await prisma.quiz.findUnique({
             where: {id: assignedDaily.quizId},
             include: {
-                questions: {
+                items: {
                     include: {
-                        responses: {
-                            include: {answerOptions: true},
-                            orderBy: {index: 'asc'},
+                        question: {
+                            include: {
+                                responses: {
+                                    include: {answerOptions: true},
+                                    orderBy: {index: 'asc'},
+                                },
+                                competency: true,
+                            },
                         },
-                        competency: true,
                     },
                     orderBy: {index: 'asc'},
                 },
@@ -1050,13 +1153,17 @@ export const retrieveDailyQuizForJob = async (jobId: string, userId: string, lan
     const quiz = await prisma.quiz.findUnique({
         where: {id: dailyQuiz.quizId},
         include: {
-            questions: {
+            items: {
                 include: {
-                    responses: {
-                        include: {answerOptions: true},
-                        orderBy: {index: 'asc'},
+                    question: {
+                        include: {
+                            responses: {
+                                include: {answerOptions: true},
+                                orderBy: {index: 'asc'},
+                            },
+                            competency: true,
+                        },
                     },
-                    competency: true,
                 },
                 orderBy: {index: 'asc'},
             },
@@ -1077,7 +1184,7 @@ type AnswerInput = {
 
 async function updateUserJobStats(
     userJobId: string,
-    doneAt: string,
+    doneAt: Date,
     client: Prisma.TransactionClient = prisma as unknown as Prisma.TransactionClient,
 ) {
     const userJobScope = await client.userJob.findUnique({
@@ -1332,7 +1439,8 @@ export async function generateAndPersistDailyQuiz(userId: string, userJobId: str
     }
 
     const jobIdsForQuiz = userJob.scope === UserJobScope.JOB ? [userJob.jobId!] : activeJobIds;
-    const quizJobId = jobIdsForQuiz[0];
+    const quizJobId = userJob.scope === UserJobScope.JOB ? userJob.jobId! : null;
+    const quizJobFamilyId = userJob.scope === UserJobScope.JOB_FAMILY ? userJob.jobFamilyId : null;
 
     const jobsForCompetencies = await prisma.job.findMany({
         where: {id: {in: jobIdsForQuiz}},
@@ -1348,41 +1456,51 @@ export async function generateAndPersistDailyQuiz(userId: string, userJobId: str
     const quiz = await prisma.quiz.create({
         data: {
             jobId: quizJobId,
+            jobFamilyId: quizJobFamilyId,
             title: generated.title,
             description: generated.description ?? '',
             level: mapDifficultyToLevel(generated.level),
             type: QuizType.DAILY,
-            questions: {
-                create: generated.questions.map((q) => {
+            items: {
+                create: generated.questions.map((q, idx) => {
                     const competencyId = competencyMap.get(q.competencySlug);
                     if (!competencyId) {
                         throw new Error(`Compétence inconnue pour le slug "${q.competencySlug}"`);
                     }
+                    const index = q.index ?? idx;
                     return {
-                        text: q.text,
-                        competencyId,
-                        timeLimitInSeconds: q.timeLimitInSeconds ?? 30,
-                        points: q.points ?? 1,
-                        level: mapDifficultyToLevel(q.difficulty),
-                        type: mapQuestionType(q.type),
-                        mediaUrl: q.mediaUrl ?? '',
-                        index: q.index ?? 0,
-                        metadata: q.metadata ?? undefined,
-                        responses: {
-                            create: q.responses.map((r, idx) => ({
-                                text: r.text,
-                                metadata: r.metadata ?? undefined,
-                                isCorrect: r.isCorrect,
-                                index: r.index ?? idx,
-                            })),
+                        index,
+                        question: {
+                            create: {
+                                text: q.text,
+                                competencyId,
+                                defaultTimeLimitS: q.timeLimitInSeconds ?? 30,
+                                defaultPoints: q.points ?? 1,
+                                level: mapDifficultyToLevel(q.difficulty),
+                                type: mapQuestionType(q.type),
+                                mediaUrl: q.mediaUrl ?? '',
+                                metadata: q.metadata ?? undefined,
+                                responses: {
+                                    create: q.responses.map((r, rIdx) => ({
+                                        text: r.text,
+                                        metadata: r.metadata ?? undefined,
+                                        isCorrect: r.isCorrect,
+                                        index: r.index ?? rIdx,
+                                    })),
+                                },
+                            },
                         },
                     };
                 }),
             },
         },
         include: {
-            questions: {
-                include: {responses: true, competency: true},
+            items: {
+                include: {
+                    question: {
+                        include: {responses: true, competency: true},
+                    },
+                },
                 orderBy: {index: 'asc'},
             },
         },
@@ -1394,11 +1512,11 @@ export async function generateAndPersistDailyQuiz(userId: string, userJobId: str
     });
     const nextIndex = (maxIndex._max.index ?? -1) + 1;
 
-    const maxScore = quiz.questions.reduce((sum, q) => sum + q.points, 0);
-    const maxScoreWithBonus = quiz.questions.reduce(
-        (sum, q) => sum + q.points + (q.timeLimitInSeconds ?? 0),
+    const maxScore = quiz.items.reduce(
+        (sum, item) => sum + getEffectivePoints(item, item.question),
         0,
-    ) + getMaxStreakBonus(quiz.questions.length);
+    );
+    const maxScoreWithBonus = maxScore;
 
     const userQuiz = await prisma.userQuiz.create({
         data: {
@@ -1414,10 +1532,14 @@ export async function generateAndPersistDailyQuiz(userId: string, userJobId: str
         include: {
             quiz: {
                 include: {
-                    questions: {
+                    items: {
                         include: {
-                            responses: true,
-                            competency: true,
+                            question: {
+                                include: {
+                                    responses: true,
+                                    competency: true,
+                                },
+                            },
                         },
                         orderBy: {index: 'asc'},
                     },
@@ -1487,296 +1609,407 @@ async function generateNextQuiz(updatedUserQuiz: any, userJobId: string, userId:
     return updatedUserQuiz;
 }
 
-const STREAK_BONUS_BY_COUNT = new Map<number, number>([
-    [2, 20],
-    [3, 50],
-    [4, 90],
-    [5, 140],
-    [6, 200],
-    [7, 270],
-    [8, 350],
-    [9, 440],
-    [10, 540],
-]);
-
-function getStreakBonus(streak: number): number {
-    if (streak < 2) {
-        return 0;
-    }
-    if (streak >= 10) {
-        return 540;
-    }
-    return STREAK_BONUS_BY_COUNT.get(streak) ?? 0;
-}
-
-function getMaxStreakBonus(questionCount: number): number {
-    let total = 0;
-    for (let i = 1; i <= questionCount; i += 1) {
-        total += getStreakBonus(i);
-    }
-    return total;
-}
-
-export const saveUserQuizAnswers = async (
+export const saveQuizAnswersAndComplete = async (
     jobId: string,
-    userQuizId: string,
+    quizId: string,
     userId: string,
     answers: AnswerInput[],
     doneAt: string,
     timezone: string = 'UTC',
     lang: string = 'en',
 ) => {
-    const {updatedUserQuiz, userJobId, wasAlreadyCompleted} = await prisma.$transaction(async (tx: any) => {
-        const resolved = await resolveJobOrFamilyId(jobId);
+    const completedAt = doneAt ? new Date(doneAt) : new Date();
 
-        // 0. Récupérer le UserJob
-        const userJob = await tx.userJob.findUnique({
-            where: resolved.scope === UserJobScope.JOB
-                ? {userId_jobId: {userId, jobId: resolved.jobId!}}
-                : {userId_jobFamilyId: {userId, jobFamilyId: resolved.jobFamilyId!}},
-            select: {
-                id: true,
-                jobId: true,
-                jobFamilyId: true,
-                job: {select: {competenciesFamilies: true}},
-                selectedJobs: {where: {isSelected: true}, select: {jobId: true}},
-            },
-        });
-        if (!userJob) {
-            throw new Error("Job introuvable pour cet utilisateur.");
-        }
+    type ResolvedAnswer = {
+        questionId: string;
+        competencyId: string;
+        item: any;
+        question: any;
+        points: number;
+        isCorrect: boolean;
+        score: number;
+        timeToAnswer: number;
+        responseIds: string[];
+        freeTextAnswer: string | null;
+    };
 
-        // 1. Charger le UserQuiz + quiz + questions + réponses
-        const userQuiz = await tx.userQuiz.findUnique({
-            where: {
-                userJobId_quizId: {userJobId: userJob.id, quizId: userQuizId},
-            },
+    const {
+        updatedUserQuiz,
+        userJob,
+        wasAlreadyCompleted,
+        radar,
+        leagueTier,
+        leaguePoints,
+    } = await prisma.$transaction(async (tx: any) => {
+        const quiz = await tx.quiz.findUnique({
+            where: {id: quizId},
             include: {
-                quiz: {
+                job: {select: {id: true}},
+                jobFamily: {select: {id: true}},
+                items: {
                     include: {
-                        job: {include: {competenciesFamilies: true}},
-                        questions: {
+                        question: {
                             include: {
                                 responses: true,
-                                competency: {
-                                    include: {
-                                        families: true,
-                                    },
-                                },
+                                competency: {include: {families: true}},
                             },
                         },
                     },
+                    orderBy: {index: 'asc'},
                 },
             },
         });
-
-        if (!userQuiz) {
-            throw new Error("Quiz introuvable pour cet utilisateur et ce job.");
+        if (!quiz) {
+            throw buildServiceError("Quiz introuvable.", 404);
+        }
+        if (!quiz.isActive) {
+            throw buildServiceError("Quiz inactif.", 409);
         }
 
-        const jobForStats = userJob.job ?? userQuiz.quiz.job ?? null;
-
-        const wasAlreadyCompleted = userQuiz.status === UserQuizStatus.COMPLETED;
-
-        // Map questionId -> QuizQuestion
-        const questionMap = new Map(
-            userQuiz.quiz.questions.map((q: any) => [q.id, q])
-        );
-
-        // 2. Supprimer les anciennes réponses
-        await tx.userQuizAnswer.deleteMany({
-            where: {userQuizId: userQuiz.id},
+        const userJobs = await tx.userJob.findMany({
+            where: {
+                userId,
+                OR: [{jobId}, {jobFamilyId: jobId}],
+            },
+            select: {
+                id: true,
+                scope: true,
+                jobId: true,
+                jobFamilyId: true,
+                leagueTier: true,
+                leaguePoints: true,
+                createdAt: true,
+                selectedJobs: {where: {isSelected: true}, select: {jobId: true}},
+            },
         });
+        if (!userJobs.length) {
+            throw buildServiceError("Job introuvable pour cet utilisateur.", 404);
+        }
 
-        let totalScore = 0;
-        let bonusPoints = 0;
-        let streak = 0;
-        const maxScore = userQuiz.quiz.questions.reduce(
-            (sum: any, q: any) => sum + q.points,
-            0
-        );
-        const maxScoreWithBonus = userQuiz.quiz.questions.reduce(
-            (sum: any, q: any) => sum + q.points + (q.timeLimitInSeconds ?? 0),
-            0
-        ) + getMaxStreakBonus(userQuiz.quiz.questions.length);
+        let candidates = userJobs;
+        if (quiz.jobId) {
+            candidates = candidates.filter((candidate: any) => candidate.jobId === quiz.jobId);
+        }
+        if (quiz.jobFamilyId) {
+            candidates = candidates.filter((candidate: any) => candidate.jobFamilyId === quiz.jobFamilyId);
+        }
+        if (!candidates.length) {
+            throw buildServiceError("Quiz non disponible dans ce scope utilisateur.", 404);
+        }
 
-        // *** NOUVEAU : agrégation par compétence pour CE quiz ***
-        const competencyAgg = new Map<
-            string,
-            { score: number; maxScore: number }
-        >();
-        const familyAgg = new Map<string, { score: number; maxScore: number }>();
-        const familiesById = new Map<string, {id: string}>();
+        const candidateIds = candidates.map((candidate: any) => candidate.id);
+        const userQuizzes = await tx.userQuiz.findMany({
+            where: {
+                quizId,
+                userJobId: {in: candidateIds},
+                isActive: true,
+            },
+            orderBy: {assignedAt: 'desc'},
+        });
+        if (!userQuizzes.length) {
+            throw buildServiceError("Quiz non assigné à ce userJob.", 404);
+        }
 
-        // 3. Créer les réponses
-        for (const rawAnswer of answers) {
-            const question: any = questionMap.get(rawAnswer.questionId);
-            if (!question) {
-                throw new Error(`Question inconnue: ${rawAnswer.questionId}`);
+        let userQuiz = userQuizzes[0];
+        if (userQuizzes.length > 1) {
+            const pendingActive = userQuizzes.find(
+                (uq: any) => uq.status !== UserQuizStatus.COMPLETED && uq.status !== UserQuizStatus.EXPIRED,
+            );
+            const pending = pendingActive ?? userQuizzes.find((uq: any) => uq.status !== UserQuizStatus.COMPLETED);
+            if (pending) {
+                userQuiz = pending;
+            }
+        }
+
+        const resolvedUserJob = candidates.find((candidate: any) => candidate.id === userQuiz.userJobId);
+        if (!resolvedUserJob) {
+            throw buildServiceError("UserJob introuvable pour ce quiz.", 404);
+        }
+
+        await tx.$queryRaw`SELECT id FROM "UserQuiz" WHERE id = ${userQuiz.id}::uuid FOR UPDATE`;
+        const lockedUserQuiz = await tx.userQuiz.findUnique({
+            where: {id: userQuiz.id},
+        });
+        if (!lockedUserQuiz) {
+            throw buildServiceError("Quiz introuvable pour cet utilisateur.", 404);
+        }
+        userQuiz = lockedUserQuiz;
+
+        if (userQuiz.status === UserQuizStatus.EXPIRED) {
+            throw buildServiceError("Quiz expiré.", 409);
+        }
+
+        if (userQuiz.status === UserQuizStatus.COMPLETED) {
+            const existingRadar = await tx.userJobKiviat.findMany({
+                where: {userJobId: resolvedUserJob.id},
+            });
+            return {
+                updatedUserQuiz: userQuiz,
+                userJob: resolvedUserJob,
+                wasAlreadyCompleted: true,
+                radar: existingRadar,
+                leagueTier: resolvedUserJob.leagueTier,
+                leaguePoints: resolvedUserJob.leaguePoints,
+            };
+        }
+
+        if (!answers || !Array.isArray(answers) || answers.length === 0) {
+            throw buildServiceError("Les réponses du quiz sont requises.", 400);
+        }
+
+        const items = [...quiz.items].sort((a: any, b: any) => a.index - b.index);
+        const expectedQuestionIds = items.map((item: any) => item.questionId);
+        const expectedSet = new Set(expectedQuestionIds);
+
+        if (answers.length !== expectedQuestionIds.length) {
+            throw buildServiceError("Le nombre de réponses ne correspond pas au quiz.", 400);
+        }
+
+        const payloadQuestionIds = answers.map((answer) => answer.questionId);
+        const payloadSet = new Set(payloadQuestionIds);
+        if (payloadSet.size !== payloadQuestionIds.length) {
+            throw buildServiceError("Le payload contient des questionId dupliqués.", 400);
+        }
+        if (payloadSet.size !== expectedSet.size || !payloadQuestionIds.every((id) => expectedSet.has(id))) {
+            throw buildServiceError("Les questions ne correspondent pas au quiz.", 400);
+        }
+
+        const itemByQuestionId = new Map(items.map((item: any) => [item.questionId, item]));
+
+        for (const answer of answers) {
+            const item = itemByQuestionId.get(answer.questionId);
+            if (!item) {
+                throw buildServiceError(`Question inconnue: ${answer.questionId}`, 400);
+            }
+            const question = item.question;
+            const responseIds = Array.isArray(answer.responseIds) ? answer.responseIds : [];
+            const freeTextAnswer = typeof answer.freeTextAnswer === 'string' ? answer.freeTextAnswer.trim() : '';
+
+            if (typeof answer.timeToAnswer !== 'number') {
+                throw buildServiceError(`timeToAnswer invalide pour la question ${answer.questionId}`, 400);
             }
 
-            const responseIds = rawAnswer.responseIds ?? [];
-
-            let isCorrect = false;
-            let score = 0;
+            if (question.type === QuizQuestionType.single_choice || question.type === QuizQuestionType.true_false) {
+                if (responseIds.length !== 1) {
+                    throw buildServiceError(`Réponse invalide pour la question ${answer.questionId}`, 400);
+                }
+            } else if (question.type === QuizQuestionType.multiple_choice) {
+                if (responseIds.length < 1) {
+                    throw buildServiceError(`Réponse invalide pour la question ${answer.questionId}`, 400);
+                }
+            } else if (
+                question.type === QuizQuestionType.short_answer
+                || question.type === QuizQuestionType.fill_in_the_blank
+            ) {
+                if (!freeTextAnswer) {
+                    throw buildServiceError(`Réponse texte manquante pour la question ${answer.questionId}`, 400);
+                }
+            }
 
             if (
-                question.type === "single_choice" ||
-                question.type === "multiple_choice" ||
-                question.type === "true_false"
+                question.type === QuizQuestionType.single_choice
+                || question.type === QuizQuestionType.multiple_choice
+                || question.type === QuizQuestionType.true_false
             ) {
-                const correctResponses = question.responses.filter((r: any) => r.isCorrect);
-                const correctIds = correctResponses.map((r: any) => r.id);
-
-                const selectedSet = new Set(responseIds);
-                const correctSet = new Set(correctIds);
-
-                const sameSize = selectedSet.size === correctSet.size;
-                const allCorrectIncluded = correctIds.every((id: any) =>
-                    selectedSet.has(id)
-                );
-
-                isCorrect = sameSize && allCorrectIncluded;
-
-                score = isCorrect ? question.points : 0;
-                if (isCorrect) {
-                    streak += 1;
-                    const timeBonus = (question.timeLimitInSeconds ?? 0) - (rawAnswer.timeToAnswer ?? 0);
-                    bonusPoints += timeBonus + getStreakBonus(streak);
-                } else {
-                    streak = 0;
-                }
-            } else {
-                isCorrect = false;
-                score = 0;
-                streak = 0;
-            }
-
-            totalScore += score;
-
-            // *** NOUVEAU : alimenter la map par compétence ***
-            // QuizQuestion a un champ competencyId dans ton schéma
-            const competencyId = question.competencyId;
-            if (competencyId) {
-                const current =
-                    competencyAgg.get(competencyId) ?? {score: 0, maxScore: 0};
-                current.score += score;
-                // maxScore de la question = ses points, indépendamment de la réponse
-                current.maxScore += question.points;
-                competencyAgg.set(competencyId, current);
-
-
-                const families = question.competency?.families ?? [];
-                for (const family of families) {
-                    const existingFamilyAgg = familyAgg.get(family.id) ?? {score: 0, maxScore: 0};
-                    existingFamilyAgg.score += score;
-                    existingFamilyAgg.maxScore += question.points;
-                    familyAgg.set(family.id, existingFamilyAgg);
-                    familiesById.set(family.id, family);
+                const validResponseIds = new Set((question.responses ?? []).map((r: any) => r.id));
+                for (const responseId of responseIds) {
+                    if (!validResponseIds.has(responseId)) {
+                        throw buildServiceError(`Réponse invalide pour la question ${answer.questionId}`, 400);
+                    }
                 }
             }
+        }
 
-            // 3.2 Créer UserQuizAnswer
-            const createdAnswer = await tx.userQuizAnswer.create({
-                data: {
-                    userQuizId: userQuiz.id,
+        const existingAnswers = await tx.userQuizAnswer.findMany({
+            where: {userQuizId: userQuiz.id},
+            include: {options: true},
+        });
+        const existingQuestionIds = new Set(existingAnswers.map((answer: any) => answer.questionId));
+        const hasFullExistingAnswers =
+            existingAnswers.length === expectedQuestionIds.length
+            && expectedQuestionIds.every((id) => existingQuestionIds.has(id));
+
+        if (!hasFullExistingAnswers && existingAnswers.length) {
+            await tx.userQuizAnswerOption.deleteMany({
+                where: {userQuizAnswerId: {in: existingAnswers.map((answer: any) => answer.id)}},
+            });
+            await tx.userQuizAnswer.deleteMany({
+                where: {userQuizId: userQuiz.id},
+            });
+        }
+
+        const resolvedAnswers: ResolvedAnswer[] = [];
+        const resolvedByQuestionId = new Map<string, ResolvedAnswer>();
+
+        if (hasFullExistingAnswers) {
+            for (const answer of existingAnswers) {
+                const item = itemByQuestionId.get(answer.questionId);
+                if (!item) {
+                    throw buildServiceError(`Réponse hors quiz: ${answer.questionId}`, 400);
+                }
+                const question = item.question;
+                const points = getEffectivePoints(item, question);
+                const resolved: ResolvedAnswer = {
+                    questionId: answer.questionId,
+                    competencyId: question.competencyId,
+                    item,
+                    question,
+                    points,
+                    isCorrect: Boolean(answer.isCorrect),
+                    score: Number(answer.score ?? 0),
+                    timeToAnswer: Number(answer.timeToAnswer ?? 0),
+                    responseIds: (answer.options ?? []).map((option: any) => option.responseId),
+                    freeTextAnswer: answer.freeTextAnswer ?? null,
+                };
+                resolvedAnswers.push(resolved);
+                resolvedByQuestionId.set(resolved.questionId, resolved);
+            }
+        } else {
+            for (const rawAnswer of answers) {
+                const item = itemByQuestionId.get(rawAnswer.questionId);
+                if (!item) {
+                    throw buildServiceError(`Question inconnue: ${rawAnswer.questionId}`, 400);
+                }
+                const question = item.question;
+                const responseIds = Array.isArray(rawAnswer.responseIds) ? rawAnswer.responseIds : [];
+                const freeTextAnswer = typeof rawAnswer.freeTextAnswer === 'string' ? rawAnswer.freeTextAnswer.trim() : '';
+                const points = getEffectivePoints(item, question);
+
+                let isCorrect = false;
+
+                if (
+                    question.type === QuizQuestionType.single_choice
+                    || question.type === QuizQuestionType.true_false
+                ) {
+                    const selected = question.responses.find((r: any) => r.id === responseIds[0]);
+                    isCorrect = Boolean(selected?.isCorrect);
+                } else if (question.type === QuizQuestionType.multiple_choice) {
+                    const correctIds = question.responses.filter((r: any) => r.isCorrect).map((r: any) => r.id);
+                    const selectedSet = new Set(responseIds);
+                    const correctSet = new Set(correctIds);
+                    isCorrect = selectedSet.size === correctSet.size
+                        && correctIds.every((id: string) => selectedSet.has(id));
+                } else if (
+                    question.type === QuizQuestionType.short_answer
+                    || question.type === QuizQuestionType.fill_in_the_blank
+                ) {
+                    const accepted = Array.isArray(question.metadata?.acceptedAnswers)
+                        ? question.metadata.acceptedAnswers
+                        : [];
+                    const normalized = freeTextAnswer.toLowerCase();
+                    const acceptedNormalized = accepted.map((value: string) => value.trim().toLowerCase());
+                    isCorrect = acceptedNormalized.includes(normalized);
+                }
+
+                const score = isCorrect ? points : 0;
+                const resolved: ResolvedAnswer = {
                     questionId: question.id,
-                    timeToAnswer: rawAnswer.timeToAnswer ?? 0,
-                    freeTextAnswer: rawAnswer.freeTextAnswer ?? null,
+                    competencyId: question.competencyId,
+                    item,
+                    question,
+                    points,
                     isCorrect,
                     score,
-                },
-            });
+                    timeToAnswer: Number(rawAnswer.timeToAnswer ?? 0),
+                    responseIds,
+                    freeTextAnswer: freeTextAnswer || null,
+                };
+                resolvedAnswers.push(resolved);
+                resolvedByQuestionId.set(resolved.questionId, resolved);
+            }
 
-            // 3.3 Créer UserQuizAnswerOption
-            if (responseIds.length > 0) {
-                await tx.userQuizAnswerOption.createMany({
-                    data: responseIds.map((responseId) => ({
-                        userQuizAnswerId: createdAnswer.id,
-                        responseId,
-                    })),
+            for (const resolved of resolvedAnswers) {
+                const createdAnswer = await tx.userQuizAnswer.create({
+                    data: {
+                        userQuizId: userQuiz.id,
+                        questionId: resolved.questionId,
+                        timeToAnswer: resolved.timeToAnswer ?? 0,
+                        freeTextAnswer: resolved.freeTextAnswer,
+                        isCorrect: resolved.isCorrect,
+                        score: resolved.score,
+                    },
                 });
+
+                if (resolved.responseIds.length > 0) {
+                    await tx.userQuizAnswerOption.createMany({
+                        data: resolved.responseIds.map((responseId) => ({
+                            userQuizAnswerId: createdAnswer.id,
+                            responseId,
+                        })),
+                    });
+                }
             }
         }
 
-        const percentage = maxScore > 0 ? (totalScore / maxScore) * 100 : 0;
+        const maxScore = items.reduce(
+            (sum: number, item: any) => sum + getEffectivePoints(item, item.question),
+            0,
+        );
+        const maxTimeBonus = items.reduce(
+            (sum: number, item: any) => sum + getEffectiveTimeLimit(item, item.question),
+            0,
+        );
+        const maxScoreWithBonus = maxScore + maxTimeBonus + getMaxStreakBonus(items.length);
 
-        // 4. Mettre à jour le UserQuiz
-        const updatedUserQuiz = await tx.userQuiz.update({
-            where: {id: userQuiz.id},
-            data: {
-                totalScore,
-                maxScore,
-                bonusPoints,
-                maxScoreWithBonus,
-                percentage,
-                status: UserQuizStatus.COMPLETED,
-                completedAt: doneAt,
-                startedAt: userQuiz.startedAt ?? doneAt,
-            },
-        });
-
-        // 5. Mettre à jour les stats globales du UserJob
-        await updateUserJobStats(userJob.id, doneAt, tx);
-
-        // *** 5bis. NOUVEAU : persister la progression par compétence ***
-        // Pour chaque compétence impactée par CE quiz :
-        for (const [competencyId, agg] of competencyAgg.entries()) {
-            const localPercentage =
-                agg.maxScore > 0 ? (agg.score / agg.maxScore) * 100 : 0;
-
-            // Upsert sur UserJobCompetency (état global)
-            const ujc = await tx.userJobCompetency.upsert({
-                where: {
-                    userJobId_competencyId: {
-                        userJobId: userJob.id,
-                        competencyId,
-                    },
-                },
-                update: {
-                    currentScore: {increment: agg.score},
-                    maxScore: {increment: agg.maxScore},
-                    attemptsCount: {increment: 1},
-                    lastQuizAt: updatedUserQuiz.completedAt ?? doneAt,
-                },
-                create: {
-                    userJobId: userJob.id,
-                    competencyId,
-                    currentScore: agg.score,
-                    maxScore: agg.maxScore,
-                    attemptsCount: 1,
-                    bestScore: agg.score,
-                    percentage: localPercentage,
-                    lastQuizAt: updatedUserQuiz.completedAt ?? doneAt,
-                },
-            });
-
-            // recalcul du pourcentage global + bestScore
-            const globalPercentage =
-                ujc.maxScore > 0 ? (ujc.currentScore / ujc.maxScore) * 100 : 0;
-
-            await tx.userJobCompetency.update({
-                where: {id: ujc.id},
-                data: {
-                    percentage: globalPercentage,
-                    bestScore: ujc.bestScore < agg.score ? agg.score : ujc.bestScore,
-                },
-            });
-
-            // Créer l'entrée d’historique pour CE quiz et CETTE compétence
-            await tx.userJobCompetencyHistory.create({
-                data: {
-                    userJobCompetencyId: ujc.id,
-                    userQuizId: updatedUserQuiz.id,
-                    score: agg.score,
-                    maxScore: agg.maxScore,
-                    percentage: localPercentage,
-                    createdAt: updatedUserQuiz.completedAt ?? doneAt,
-                },
-            });
+        const totalScore = resolvedAnswers.reduce((sum, answer) => sum + answer.score, 0);
+        let bonusPoints = 0;
+        let streak = 0;
+        for (const item of items) {
+            const resolved = resolvedByQuestionId.get(item.questionId);
+            if (!resolved) {
+                continue;
+            }
+            if (resolved.isCorrect) {
+                streak += 1;
+                const timeLimit = getEffectiveTimeLimit(item, resolved.question);
+                const timeBonus = timeLimit - resolved.timeToAnswer;
+                bonusPoints += timeBonus + getStreakBonus(streak);
+            } else {
+                streak = 0;
+            }
         }
 
-        // 6. Update des diamants
+        const percentage = maxScoreWithBonus > 0
+            ? ((totalScore + bonusPoints) / maxScoreWithBonus) * 100
+            : 0;
+
+        let effectiveJobIds: string[] = [];
+        if (resolvedUserJob.scope === UserJobScope.JOB_FAMILY) {
+            const snapshotIds = Array.isArray(userQuiz.jobsSnapshot)
+                ? userQuiz.jobsSnapshot.map((id: any) => String(id))
+                : [];
+            if (snapshotIds.length) {
+                effectiveJobIds = snapshotIds;
+            } else if (resolvedUserJob.selectedJobs?.length) {
+                effectiveJobIds = resolvedUserJob.selectedJobs.map((selection: any) => selection.jobId);
+            } else if (resolvedUserJob.jobFamilyId) {
+                const family = await tx.jobFamily.findUnique({
+                    where: {id: resolvedUserJob.jobFamilyId},
+                    select: {jobs: {select: {id: true}}},
+                });
+                effectiveJobIds = family?.jobs.map((job: any) => job.id) ?? [];
+            }
+        }
+
+        const userQuizUpdateData: any = {
+            totalScore,
+            maxScore,
+            bonusPoints,
+            maxScoreWithBonus,
+            percentage,
+            status: UserQuizStatus.COMPLETED,
+            completedAt: completedAt,
+            startedAt: userQuiz.startedAt ?? completedAt,
+        };
+        if (effectiveJobIds.length && (!Array.isArray(userQuiz.jobsSnapshot) || userQuiz.jobsSnapshot.length === 0)) {
+            userQuizUpdateData.jobsSnapshot = effectiveJobIds;
+        }
+
+        const updatedUserQuiz = await tx.userQuiz.update({
+            where: {id: userQuiz.id},
+            data: userQuizUpdateData,
+        });
+
         await tx.user.update({
             where: {id: userId},
             data: {
@@ -1786,119 +2019,480 @@ export const saveUserQuizAnswers = async (
             },
         });
 
-        // 7. Mettre à jour les JobKiviats utilisateur + historique
-        const allFamilies = jobForStats?.competenciesFamilies ?? Array.from(familiesById.values());
-        for (const family of allFamilies) {
-            const familyId = family.id;
-            const currentAgg = familyAgg.get(familyId) ?? {score: 0, maxScore: 0};
-            const familyPercentage = currentAgg.maxScore > 0 ? (currentAgg.score / currentAgg.maxScore) * 100 : 0;
-            const value = Math.max(0, Math.min(5, familyPercentage / 20));
-            let JuniorValue = 0;
-            let MidLevelValue = 0;
-            let SeniorValue = 0;
+        const competencyAgg = new Map<
+            string,
+            {
+                scorePoints: number;
+                maxPoints: number;
+                correctCount: number;
+                totalCount: number;
+                totalTime: number;
+                sumB: number;
+                itemCount: number;
+            }
+        >();
 
-            if (jobForStats) {
-                JuniorValue = (await tx.jobKiviat.findUnique({
-                    where: {
-                        jobId_competenciesFamilyId_level: {
-                            jobId: jobForStats.id,
-                            competenciesFamilyId: familyId,
-                            level: JobProgressionLevel.JUNIOR,
-                        },
+        for (const resolved of resolvedAnswers) {
+            const agg = competencyAgg.get(resolved.competencyId) ?? {
+                scorePoints: 0,
+                maxPoints: 0,
+                correctCount: 0,
+                totalCount: 0,
+                totalTime: 0,
+                sumB: 0,
+                itemCount: 0,
+            };
+            agg.scorePoints += resolved.score;
+            agg.maxPoints += resolved.points;
+            agg.correctCount += resolved.isCorrect ? 1 : 0;
+            agg.totalCount += 1;
+            agg.totalTime += resolved.timeToAnswer;
+            agg.sumB += Number(resolved.question.irtB ?? 0);
+            agg.itemCount += 1;
+            competencyAgg.set(resolved.competencyId, agg);
+        }
+
+        const competencyIds = Array.from(competencyAgg.keys());
+        if (!competencyIds.length) {
+            throw buildServiceError("Aucune compétence trouvée pour ce quiz.", 400);
+        }
+
+        const existingUjcs = await tx.userJobCompetency.findMany({
+            where: {
+                userJobId: resolvedUserJob.id,
+                competencyId: {in: competencyIds},
+            },
+        });
+        const existingUjcIds = new Set(existingUjcs.map((ujc: any) => ujc.competencyId));
+        const missingCompetencyIds = competencyIds.filter((id) => !existingUjcIds.has(id));
+
+        if (missingCompetencyIds.length) {
+            await tx.userJobCompetency.createMany({
+                data: missingCompetencyIds.map((competencyId) => ({
+                    userJobId: resolvedUserJob.id,
+                    competencyId,
+                })),
+                skipDuplicates: true,
+            });
+        }
+
+        const userJobCompetencies = missingCompetencyIds.length
+            ? await tx.userJobCompetency.findMany({
+                where: {
+                    userJobId: resolvedUserJob.id,
+                    competencyId: {in: competencyIds},
+                },
+            })
+            : existingUjcs;
+
+        const ujcByCompetencyId = new Map(
+            userJobCompetencies.map((ujc: any) => [ujc.competencyId, ujc])
+        );
+
+        const competencyState = new Map<
+            string,
+            {
+                ujc: any;
+                theta: number;
+                thetaVar: number;
+                thetaBefore: number | null;
+                thetaUpdatedAt: Date | null;
+                halfLifeDays: number;
+                halfLifeBefore: number;
+                halfLifeAfter: number;
+                lastPracticedAt: Date | null;
+                hlrUpdatedAt: Date | null;
+            }
+        >();
+
+        for (const ujc of userJobCompetencies) {
+            competencyState.set(ujc.competencyId, {
+                ujc,
+                theta: Number(ujc.theta ?? 0),
+                thetaVar: Number(ujc.thetaVar ?? 1),
+                thetaBefore: null,
+                thetaUpdatedAt: ujc.thetaUpdatedAt ?? null,
+                halfLifeDays: Number(ujc.halfLifeDays ?? 1),
+                halfLifeBefore: Number(ujc.halfLifeDays ?? 1),
+                halfLifeAfter: Number(ujc.halfLifeDays ?? 1),
+                lastPracticedAt: ujc.lastPracticedAt ?? null,
+                hlrUpdatedAt: ujc.hlrUpdatedAt ?? null,
+            });
+        }
+
+        for (const item of items) {
+            const resolved = resolvedByQuestionId.get(item.questionId);
+            if (!resolved) {
+                continue;
+            }
+            const state = competencyState.get(resolved.competencyId);
+            if (!state) {
+                continue;
+            }
+            if (state.thetaBefore === null) {
+                state.thetaBefore = state.theta;
+            }
+            const p = sigmoid(state.theta - Number(resolved.question.irtB ?? 0));
+            const y = resolved.isCorrect ? 1 : 0;
+            state.theta = state.theta + IRT_LEARNING_RATE * (y - p);
+            const info = p * (1 - p);
+            const currentVar = state.thetaVar > 0 ? state.thetaVar : 1;
+            state.thetaVar = 1 / (1 / currentVar + info);
+            state.thetaUpdatedAt = completedAt;
+        }
+
+        const bRefRows = await tx.quizQuestion.findMany({
+            where: {
+                competencyId: {in: competencyIds},
+                isBankActive: true,
+            },
+            select: {competencyId: true, irtB: true},
+        });
+        const bRefValues = new Map<string, number[]>();
+        for (const row of bRefRows) {
+            const list = bRefValues.get(row.competencyId) ?? [];
+            list.push(Number(row.irtB ?? 0));
+            bRefValues.set(row.competencyId, list);
+        }
+
+        const computeMedian = (values: number[]) => {
+            if (!values.length) return 0;
+            const sorted = [...values].sort((a, b) => a - b);
+            const mid = Math.floor(sorted.length / 2);
+            if (sorted.length % 2) {
+                return sorted[mid];
+            }
+            return (sorted[mid - 1] + sorted[mid]) / 2;
+        };
+
+        const families = await tx.competenciesFamily.findMany({
+            include: {competencies: {select: {id: true}}},
+            orderBy: {slug: 'asc'},
+        });
+        const familyIds = families.map((family: any) => family.id);
+
+        let targetValuesByFamily = new Map<
+            string,
+            {junior: number; mid: number; senior: number}
+        >();
+        if (resolvedUserJob.jobId) {
+            const jobKiviats = await tx.jobKiviat.findMany({
+                where: {
+                    jobId: resolvedUserJob.jobId,
+                    competenciesFamilyId: {in: familyIds},
+                    level: {
+                        in: [
+                            JobProgressionLevel.JUNIOR,
+                            JobProgressionLevel.MIDLEVEL,
+                            JobProgressionLevel.SENIOR,
+                        ],
                     },
-                    select: {value: true},
-                }))?.value ?? 0;
-                MidLevelValue = (await tx.jobKiviat.findUnique({
-                    where: {
-                        jobId_competenciesFamilyId_level: {
-                            jobId: jobForStats.id,
-                            competenciesFamilyId: familyId,
-                            level: JobProgressionLevel.MIDLEVEL,
-                        },
-                    },
-                    select: {value: true},
-                }))?.value ?? 0;
-                SeniorValue = (await tx.jobKiviat.findUnique({
-                    where: {
-                        jobId_competenciesFamilyId_level: {
-                            jobId: jobForStats.id,
-                            competenciesFamilyId: familyId,
-                            level: JobProgressionLevel.SENIOR,
-                        },
-                    },
-                    select: {value: true},
-                }))?.value ?? 0;
-            } else {
-                const selectedJobIds = userJob.selectedJobs.map((selection: {jobId: string}) => selection.jobId);
-                if (selectedJobIds.length) {
-                    const jobKiviats = await tx.jobKiviat.findMany({
-                        where: {
-                            jobId: {in: selectedJobIds},
-                            competenciesFamilyId: familyId,
-                            level: {in: [JobProgressionLevel.JUNIOR, JobProgressionLevel.MIDLEVEL, JobProgressionLevel.SENIOR]},
-                        },
-                        select: {level: true, value: true},
-                    });
-                    const avg = (level: JobProgressionLevel) => {
-                        const values = jobKiviats
-                            .filter((k: {level: JobProgressionLevel; value: unknown}) => k.level === level)
-                            .map((k: {value: unknown}) => Number(k.value));
-                        return values.length
-                            ? values.reduce((sum: number, v: number) => sum + v, 0) / values.length
-                            : 0;
-                    };
-                    JuniorValue = avg(JobProgressionLevel.JUNIOR);
-                    MidLevelValue = avg(JobProgressionLevel.MIDLEVEL);
-                    SeniorValue = avg(JobProgressionLevel.SENIOR);
+                },
+                select: {competenciesFamilyId: true, level: true, radarScore0to5: true},
+            });
+            for (const familyId of familyIds) {
+                const values = jobKiviats.filter((k: any) => k.competenciesFamilyId === familyId);
+                if (!values.length) {
+                    continue;
                 }
+                const getValue = (level: JobProgressionLevel) =>
+                    Number(values.find((k: any) => k.level === level)?.radarScore0to5 ?? 0);
+                targetValuesByFamily.set(familyId, {
+                    junior: getValue(JobProgressionLevel.JUNIOR),
+                    mid: getValue(JobProgressionLevel.MIDLEVEL),
+                    senior: getValue(JobProgressionLevel.SENIOR),
+                });
+            }
+        } else if (resolvedUserJob.scope === UserJobScope.JOB_FAMILY && resolvedUserJob.selectedJobs?.length) {
+            const selectedJobIds = resolvedUserJob.selectedJobs.map((selection: any) => selection.jobId);
+            const jobKiviats = await tx.jobKiviat.findMany({
+                where: {
+                    jobId: {in: selectedJobIds},
+                    competenciesFamilyId: {in: familyIds},
+                    level: {
+                        in: [
+                            JobProgressionLevel.JUNIOR,
+                            JobProgressionLevel.MIDLEVEL,
+                            JobProgressionLevel.SENIOR,
+                        ],
+                    },
+                },
+                select: {competenciesFamilyId: true, level: true, radarScore0to5: true},
+            });
+            for (const familyId of familyIds) {
+                const entries = jobKiviats.filter((k: any) => k.competenciesFamilyId === familyId);
+                if (!entries.length) {
+                    continue;
+                }
+                const avg = (level: JobProgressionLevel) => {
+                    const values = entries
+                        .filter((k: any) => k.level === level)
+                        .map((k: any) => Number(k.radarScore0to5));
+                    return values.length ? values.reduce((sum: number, v: number) => sum + v, 0) / values.length : 0;
+                };
+                targetValuesByFamily.set(familyId, {
+                    junior: avg(JobProgressionLevel.JUNIOR),
+                    mid: avg(JobProgressionLevel.MIDLEVEL),
+                    senior: avg(JobProgressionLevel.SENIOR),
+                });
+            }
+        }
+
+        for (const [competencyId, state] of competencyState.entries()) {
+            const agg = competencyAgg.get(competencyId);
+            if (!agg) {
+                continue;
             }
 
-            const level: JobProgressionLevel = value <= JuniorValue ? JobProgressionLevel.JUNIOR
-                : value <= MidLevelValue ? JobProgressionLevel.MIDLEVEL
-                    : value <= SeniorValue ? JobProgressionLevel.SENIOR
-                        : JobProgressionLevel.EXPERT;
+            const pSession = agg.totalCount > 0 ? agg.correctCount / agg.totalCount : 0;
+            const lastPracticedAt = state.lastPracticedAt;
+            const lagSecondsSincePrev = lastPracticedAt
+                ? Math.max(0, Math.round((completedAt.getTime() - lastPracticedAt.getTime()) / 1000))
+                : null;
 
-            const userJobKiviat = await tx.userJobKiviat.upsert({
-                where: {
-                    userJobId_competenciesFamilyId: {
-                        userJobId: userJob.id,
-                        competenciesFamilyId: familyId,
-                    },
+            let nextHalfLife = state.halfLifeDays;
+            if (!lastPracticedAt) {
+                nextHalfLife = 1 + 2 * pSession;
+            } else if (pSession >= 0.8) {
+                nextHalfLife *= 1.25;
+            } else if (pSession >= 0.5) {
+                nextHalfLife *= 1.05;
+            } else {
+                nextHalfLife *= 0.7;
+            }
+
+            nextHalfLife = clamp(nextHalfLife, 0.25, 365);
+            state.halfLifeBefore = state.halfLifeDays;
+            state.halfLifeAfter = nextHalfLife;
+            state.halfLifeDays = nextHalfLife;
+            state.lastPracticedAt = completedAt;
+            state.hlrUpdatedAt = completedAt;
+
+            const bRef = computeMedian(bRefValues.get(competencyId) ?? []);
+            const pSkill = sigmoid(state.theta - bRef);
+            const masteryNow = pSkill;
+            const mastery30d = pSkill * Math.pow(2, -30 / nextHalfLife);
+
+            const newCurrentScore = Number(state.ujc.currentScore ?? 0) + agg.scorePoints;
+            const newMaxScore = Number(state.ujc.maxScore ?? 0) + agg.maxPoints;
+            const newPercentage = newMaxScore > 0 ? (newCurrentScore / newMaxScore) * 100 : 0;
+            const bestScore = Math.max(Number(state.ujc.bestScore ?? 0), agg.scorePoints);
+
+            await tx.userJobCompetency.update({
+                where: {id: state.ujc.id},
+                data: {
+                    currentScore: newCurrentScore,
+                    maxScore: newMaxScore,
+                    percentage: newPercentage,
+                    attemptsCount: Number(state.ujc.attemptsCount ?? 0) + 1,
+                    bestScore,
+                    lastQuizAt: completedAt,
+                    theta: state.theta,
+                    thetaVar: state.thetaVar,
+                    thetaUpdatedAt: state.thetaUpdatedAt ?? completedAt,
+                    halfLifeDays: state.halfLifeDays,
+                    lastPracticedAt: state.lastPracticedAt,
+                    hlrUpdatedAt: state.hlrUpdatedAt,
+                    masteryNow,
+                    mastery30d,
                 },
-                update: {
-                    value,
-                    level,
-                },
-                create: {
-                    userJobId: userJob.id,
-                    competenciesFamilyId: familyId,
-                    value,
-                    level,
-                },
-                include: {histories: false},
             });
 
-            await tx.userJobKiviatHistory.create({
+            const featuresSnapshot: Record<string, unknown> = {
+                k: agg.totalCount,
+                r: agg.correctCount,
+                p_session: pSession,
+                avgTime: agg.totalCount ? agg.totalTime / agg.totalCount : 0,
+                meanB: agg.itemCount ? agg.sumB / agg.itemCount : 0,
+                theta_before: state.thetaBefore ?? state.theta,
+                attempts_total: Number(state.ujc.attemptsCount ?? 0),
+                quizId: quiz.id,
+                scope: resolvedUserJob.scope,
+            };
+
+            if (resolvedUserJob.scope === UserJobScope.JOB_FAMILY) {
+                featuresSnapshot.effectiveJobIds = effectiveJobIds;
+            }
+
+            await tx.userJobCompetencyHistory.create({
                 data: {
-                    value,
-                    percentage: familyPercentage,
-                    createdAt: updatedUserQuiz.completedAt ?? doneAt,
-                    userJobKiviat: {
-                        connect: {id: userJobKiviat.id},
-                    },
-                    userQuiz: {
-                        connect: {id: updatedUserQuiz.id},
-                    }
+                    userJobCompetencyId: state.ujc.id,
+                    userQuizId: updatedUserQuiz.id,
+                    score: agg.correctCount,
+                    maxScore: agg.totalCount,
+                    percentage: pSession,
+                    lagSecondsSincePrev,
+                    featuresSnapshot,
+                    thetaBefore: state.thetaBefore ?? state.theta,
+                    thetaAfter: state.theta,
+                    halfLifeBeforeDays: state.halfLifeBefore,
+                    halfLifeAfterDays: state.halfLifeAfter,
+                    createdAt: completedAt,
                 },
             });
         }
 
-        return {updatedUserQuiz, userJobId: userJob.id, wasAlreadyCompleted};
+        const allCompetencyIds = families.flatMap((family: any) =>
+            family.competencies.map((comp: any) => comp.id)
+        );
+        const allUjcs = await tx.userJobCompetency.findMany({
+            where: {
+                userJobId: resolvedUserJob.id,
+                competencyId: {in: allCompetencyIds},
+            },
+            select: {competencyId: true, mastery30d: true, masteryNow: true},
+        });
+        const masteryByAllCompetencyId = new Map(
+            allUjcs.map((ujc: any) => [
+                ujc.competencyId,
+                {
+                    mastery30d: Number(ujc.mastery30d ?? 0),
+                    masteryNow: Number(ujc.masteryNow ?? ujc.mastery30d ?? 0),
+                },
+            ])
+        );
+
+        const daysSinceStart = resolvedUserJob.createdAt
+            ? (completedAt.getTime() - new Date(resolvedUserJob.createdAt).getTime()) / (1000 * 60 * 60 * 24)
+            : 0;
+        const masteryBlendWeight = clamp(1 - daysSinceStart / 30, 0, 1);
+
+        const mapRawToRadar = (raw: number) => {
+            if (raw <= 0) return 0;
+            if (raw === 1) return 1;
+            if (raw <= 5) return 2;
+            if (raw <= 7) return 3;
+            if (raw <= 9) return 4;
+            return 5;
+        };
+
+        const radarRows = [];
+        for (const family of families) {
+            const competencyIdsForFamily = family.competencies.map((comp: any) => comp.id);
+            const continuous0to10 = competencyIdsForFamily.reduce(
+                (sum: number, compId: string) => {
+                    const mastery = masteryByAllCompetencyId.get(compId) ?? {mastery30d: 0, masteryNow: 0};
+                    const blended = masteryBlendWeight * mastery.masteryNow
+                        + (1 - masteryBlendWeight) * mastery.mastery30d;
+                    return sum + blended;
+                },
+                0,
+            );
+            const rawScore0to10 = clamp(Math.round(continuous0to10), 0, 10);
+            const masteryAvg0to1 = competencyIdsForFamily.length
+                ? continuous0to10 / competencyIdsForFamily.length
+                : 0;
+            const radarScore0to5 = mapRawToRadar(rawScore0to10);
+
+            const targets = targetValuesByFamily.get(family.id);
+            let level: JobProgressionLevel | null = null;
+            if (targets) {
+                level = radarScore0to5 <= targets.junior
+                    ? JobProgressionLevel.JUNIOR
+                    : radarScore0to5 <= targets.mid
+                        ? JobProgressionLevel.MIDLEVEL
+                        : radarScore0to5 <= targets.senior
+                            ? JobProgressionLevel.SENIOR
+                            : JobProgressionLevel.EXPERT;
+            }
+
+            const userJobKiviat = await tx.userJobKiviat.upsert({
+                where: {
+                    userJobId_competenciesFamilyId: {
+                        userJobId: resolvedUserJob.id,
+                        competenciesFamilyId: family.id,
+                    },
+                },
+                update: {
+                    rawScore0to10,
+                    radarScore0to5,
+                    continuous0to10,
+                    masteryAvg0to1,
+                    level,
+                },
+                create: {
+                    userJobId: resolvedUserJob.id,
+                    competenciesFamilyId: family.id,
+                    rawScore0to10,
+                    radarScore0to5,
+                    continuous0to10,
+                    masteryAvg0to1,
+                    level,
+                },
+            });
+
+            await tx.userJobKiviatHistory.create({
+                data: {
+                    rawScore0to10,
+                    radarScore0to5,
+                    continuous0to10,
+                    masteryAvg0to1,
+                    level,
+                    createdAt: completedAt,
+                    userJobKiviat: {connect: {id: userJobKiviat.id}},
+                    userQuiz: {connect: {id: updatedUserQuiz.id}},
+                },
+            });
+
+            radarRows.push(userJobKiviat);
+        }
+
+        const totalRaw = radarRows.reduce((sum: number, row: any) => sum + Number(row.rawScore0to10 ?? 0), 0);
+        const nextTier = totalRaw <= 10
+            ? LeagueTier.IRON
+            : totalRaw <= 20
+                ? LeagueTier.BRONZE
+                : totalRaw <= 30
+                    ? LeagueTier.SILVER
+                    : totalRaw <= 40
+                        ? LeagueTier.GOLD
+                        : LeagueTier.PLATINUM;
+        const nextLeaguePoints = totalRaw;
+
+        const previousTier = resolvedUserJob.leagueTier;
+        const previousPoints = resolvedUserJob.leaguePoints ?? 0;
+        const tierChanged = previousTier !== nextTier;
+
+        const userJobUpdateData: any = {
+            leagueTier: nextTier,
+            leaguePoints: nextLeaguePoints,
+        };
+        if (tierChanged) {
+            userJobUpdateData.lastLeagueChange = completedAt;
+        }
+        await tx.userJob.update({
+            where: {id: resolvedUserJob.id},
+            data: userJobUpdateData,
+        });
+
+        if (tierChanged) {
+            await tx.userJobLeagueHistory.create({
+                data: {
+                    userJobId: resolvedUserJob.id,
+                    fromTier: previousTier,
+                    toTier: nextTier,
+                    deltaPoints: nextLeaguePoints - previousPoints,
+                    reason: "QUIZ_COMPLETED",
+                    createdAt: completedAt,
+                },
+            });
+        }
+
+        await updateUserJobStats(resolvedUserJob.id, completedAt, tx);
+
+        return {
+            updatedUserQuiz,
+            userJob: resolvedUserJob,
+            wasAlreadyCompleted: false,
+            radar: radarRows,
+            leagueTier: nextTier,
+            leaguePoints: nextLeaguePoints,
+        };
     });
 
     if (!wasAlreadyCompleted) {
         await trackEvent(
-            userJobId,
+            userJob.id,
             'QUIZ_COMPLETED',
             {
                 quizType: updatedUserQuiz.type,
@@ -1912,8 +2506,8 @@ export const saveUserQuizAnswers = async (
         );
 
         realtimeBus.publishToUser(userId, 'progress.updated', {
-            userJobId,
-            jobId,
+            userJobId: userJob.id,
+            jobId: userJob.jobId ?? jobId,
             quizId: updatedUserQuiz.quizId,
             quizType: updatedUserQuiz.type,
             percentage: updatedUserQuiz.percentage ?? 0,
@@ -1924,38 +2518,47 @@ export const saveUserQuizAnswers = async (
         });
     }
 
-    const quizResult = await generateNextQuiz(updatedUserQuiz, userJobId, userId, jobId);
-
-    let generatedArticle = null;
-    try {
-        const enqueued = await enqueueArticleGenerationJob({userJobId, userId});
-        if (!enqueued) {
-            setImmediate(() => {
-                generateMarkdownArticleForLastQuiz(userJobId, userId)
-                    .catch((err) => console.error('Failed to auto-generate markdown article after quiz completion', err));
-            });
-        }
-    } catch (err) {
-        console.error('Failed to enqueue markdown article generation', err);
+    let quizResult = updatedUserQuiz;
+    if (!wasAlreadyCompleted) {
+        const jobIdForGeneration = userJob.jobId ?? jobId;
+        quizResult = await generateNextQuiz(updatedUserQuiz, userJob.id, userId, jobIdForGeneration);
     }
 
-    return {...quizResult, generatedArticle};
+    let generatedArticle = null;
+    if (!wasAlreadyCompleted) {
+        try {
+            const enqueued = await enqueueArticleGenerationJob({userJobId: userJob.id, userId});
+            if (!enqueued) {
+                setImmediate(() => {
+                    generateMarkdownArticleForLastQuiz(userJob.id, userId)
+                        .catch((err) => console.error('Failed to auto-generate markdown article after quiz completion', err));
+                });
+            }
+        } catch (err) {
+            console.error('Failed to enqueue markdown article generation', err);
+        }
+    }
+
+    return {
+        ...quizResult,
+        radar,
+        leagueTier,
+        leaguePoints,
+        generatedArticle,
+    };
 };
 
 
 export type UserJobRankingRow = {
-    userJobId: string;
-    userId: string;
-    firstname: string | null;
-    lastname: string | null;
-    jobId: string;
-    jobTitle: string;
-    totalScore: number;
-    maxScoreSum: number;
-    percentage: number;
-    completedQuizzes: number;
-    lastQuizAt: Date | null;
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    profilePictureUrl: string | null;
+    diamonds: number;
     rank: number;
+    questionsAnswered: number;
+    performance: number;
+    sinceDate: Date;
 };
 
 export type GetRankingForJobParams = {
@@ -2035,9 +2638,9 @@ export async function listLearningResourcesForUserJob(userJobId: string, userId:
 
 export async function getRankingForJob({jobId, from, to,}: GetRankingForJobParams): Promise<UserJobRankingRow[]> {
     const resolved = await resolveJobOrFamilyId(jobId);
-    if (resolved.scope === UserJobScope.JOB_FAMILY) {
-        throw new Error('Ranking is only supported for job tracks.');
-    }
+    const scopeFilter = resolved.scope === UserJobScope.JOB_FAMILY
+        ? Prisma.sql`AND uj.scope = ${UserJobScope.JOB_FAMILY} AND uj."jobFamilyId" = ${resolved.jobFamilyId!}::uuid`
+        : Prisma.sql`AND uj.scope = ${UserJobScope.JOB} AND uj."jobId" = ${resolved.jobId!}::uuid`;
 
     // fragments pour la période
     const fromFilter =
@@ -2047,72 +2650,68 @@ export async function getRankingForJob({jobId, from, to,}: GetRankingForJobParam
 
     // language=SQL format=false
     const rows = await prisma.$queryRaw<UserJobRankingRow[]>`
-        SELECT
-            uj.id AS "userJobId",
-            uj."userId",
-            u.firstname,
-            u.lastname,
-            uj."jobId",
-            j.title AS "jobTitle",
-
-            -- CAST en INTEGER pour éviter les bigint sur SUM:contentReference[oaicite:4]{index=4}.
-            COALESCE(CAST(SUM(uq."totalScore") AS INTEGER), 0) AS "totalScore",
-            COALESCE(CAST(SUM(uq."maxScore")   AS INTEGER), 0) AS "maxScoreSum",
-
-            -- Pourcentage : conversion en double precision puis round sur numeric:contentReference[oaicite:5]{index=5}.
-            CASE
-                WHEN COALESCE(SUM(uq."maxScore"), 0) > 0
-                    THEN
-                    ROUND(
-                            (
-                                100.0
-                                    * COALESCE(SUM(uq."totalScore")::double precision, 0)
-                                    / NULLIF(
-                                        COALESCE(SUM(uq."maxScore")::double precision, 0),
-                                        0
-                                      )
-                                )::numeric,
-                            2
-                    )::double precision
-        ELSE 0
-        END AS "percentage",
-
-      -- CAST en INTEGER pour éviter bigint sur COUNT:contentReference[oaicite:6]{index=6}.
-      COALESCE(CAST(COUNT(uq.id) AS INTEGER), 0) AS "completedQuizzes",
-
-      -- Date du dernier quiz complété (peut être NULL).
-      MAX(uq."completedAt") AS "lastQuizAt",
-
-      -- RANG : cast en INTEGER car rank() → bigint:contentReference[oaicite:7]{index=7}.
-      CAST(
-        RANK() OVER (
-          PARTITION BY uj."jobId"
-          ORDER BY
-            COALESCE(SUM(uq."totalScore"), 0) DESC,
-            MAX(uq."completedAt") ASC
+        WITH base AS (
+            SELECT
+                uj.id,
+                uj."userId",
+                uj."createdAt" AS "sinceDate"
+            FROM "UserJob" uj
+            WHERE 1=1
+            ${scopeFilter}
+        ),
+        quiz_stats AS (
+            SELECT
+                b.id AS "userJobId",
+                COALESCE(CAST(SUM(uq."totalScore" + uq."bonusPoints") AS INTEGER), 0) AS "diamonds"
+            FROM base b
+            LEFT JOIN "UserQuiz" uq
+                ON uq."userJobId" = b.id
+                AND uq.status = 'COMPLETED'
+                ${fromFilter}
+                ${toFilter}
+            GROUP BY b.id
+        ),
+        answer_stats AS (
+            SELECT
+                b.id AS "userJobId",
+                COALESCE(CAST(COUNT(uqa.id) AS INTEGER), 0) AS "questionsAnswered",
+                COALESCE(CAST(SUM(CASE WHEN uqa."isCorrect" THEN 1 ELSE 0 END) AS INTEGER), 0) AS "correctCount"
+            FROM base b
+            LEFT JOIN "UserQuiz" uq
+                ON uq."userJobId" = b.id
+                AND uq.status = 'COMPLETED'
+                ${fromFilter}
+                ${toFilter}
+            LEFT JOIN "UserQuizAnswer" uqa
+                ON uqa."userQuizId" = uq.id
+            GROUP BY b.id
         )
-        AS INTEGER
-      ) AS "rank"
-
-    FROM "UserJob" uj
-    JOIN "User" u ON u.id = uj."userId"
-    JOIN "Job" j ON j.id = uj."jobId"
-
-    -- LEFT JOIN pour inclure les utilisateurs sans quiz complété.
-    LEFT JOIN "UserQuiz" uq
-      ON uq."userJobId" = uj.id
-      AND uq.status = 'COMPLETED'
-        ${fromFilter}
-        ${toFilter}
-
-        WHERE uj."jobId" = ${resolved.jobId!}::uuid
-        GROUP BY
-        uj.id,
-        uj."userId",
-        u.firstname,
-        u.lastname,
-        uj."jobId",
-        j.title;
+        SELECT
+            u.id AS "id",
+            u.firstname AS "firstName",
+            u.lastname AS "lastName",
+            u."avatarUrl" AS "profilePictureUrl",
+            COALESCE(qs."diamonds", 0) AS "diamonds",
+            CAST(
+                RANK() OVER (
+                    ORDER BY
+                        COALESCE(qs."diamonds", 0) DESC,
+                        b."sinceDate" ASC
+                )
+                AS INTEGER
+            ) AS "rank",
+            COALESCE(ans."questionsAnswered", 0) AS "questionsAnswered",
+            CASE
+                WHEN COALESCE(ans."questionsAnswered", 0) > 0
+                    THEN (ans."correctCount"::double precision / ans."questionsAnswered")
+                ELSE 0
+            END AS "performance",
+            b."sinceDate"
+        FROM base b
+        JOIN "User" u ON u.id = b."userId"
+        LEFT JOIN quiz_stats qs ON qs."userJobId" = b.id
+        LEFT JOIN answer_stats ans ON ans."userJobId" = b.id
+        ORDER BY "rank" ASC;
     `;
     return rows;
 }
@@ -2172,8 +2771,11 @@ export type JobKiviatDto = {
     jobId: string | null;
     userJobId: string | null;
     competenciesFamilyId: string;
-    level: string; // JobProgressionLevel en string
-    value: any;
+    level: string | null; // JobProgressionLevel en string
+    rawScore0to10: number;
+    radarScore0to5: number;
+    continuous0to10: number;
+    masteryAvg0to1: number;
     job?: any | null;
     userJob?: any | null;
     competenciesFamily?: any | null;
@@ -2293,7 +2895,10 @@ export async function getLastKiviatSnapshotsForUserJob(
                 userJobId: ujk.userJobId,
                 competenciesFamilyId: ujk.competenciesFamilyId,
                 level: ujk.level, // JobProgressionLevel en string
-                value: row.value,
+                rawScore0to10: row.rawScore0to10,
+                radarScore0to5: row.radarScore0to5,
+                continuous0to10: row.continuous0to10,
+                masteryAvg0to1: row.masteryAvg0to1,
                 job: userJob?.job ?? null,
                 userJob: userJob ?? null,
                 competenciesFamily: ujk.competenciesFamily ?? null,

@@ -9,6 +9,17 @@ model UserJobCompetency {
   attemptsCount Int                        @default(0) // nombre de quiz qui ont alimenté cette compétence
   bestScore     Float                      @default(0) // meilleur score pour cette compétence
   lastQuizAt    DateTime?                  @db.Timestamp(0)
+  // IRT (niveau latent)
+  theta         Float                      @default(0)
+  thetaVar      Float                      @default(1)
+  thetaUpdatedAt DateTime?                 @db.Timestamp(0)
+  // HLR (rétention)
+  halfLifeDays   Float                     @default(1)
+  lastPracticedAt DateTime?                @db.Timestamp(0)
+  hlrUpdatedAt   DateTime?                 @db.Timestamp(0)
+  // Maîtrise dérivée
+  masteryNow     Float                     @default(0)
+  mastery30d     Float                     @default(0)
   // Optionnel : niveau dérivé des scores (si tu veux mapper vers EASY/MEDIUM/HARD/EXPERT)
   level         Level?
   createdAt     DateTime                   @default(now()) @db.Timestamp(0)

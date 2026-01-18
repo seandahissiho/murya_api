@@ -14,4 +14,5 @@ model UserQuizAnswer {
 
   @@index([userQuizId], map: "idx_user_quiz_answer_user_quiz")
   @@index([questionId], map: "idx_user_quiz_answer_question")
+  @@unique([userQuizId, questionId])
 }

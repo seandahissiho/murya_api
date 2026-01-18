@@ -6,6 +6,12 @@ model UserJobCompetencyHistory {
   score               Float             @default(0)
   maxScore            Float             @default(0)
   percentage          Float             @default(0)
+  lagSecondsSincePrev Int?
+  featuresSnapshot    Json?
+  thetaBefore         Float?
+  thetaAfter          Float?
+  halfLifeBeforeDays  Float?
+  halfLifeAfterDays   Float?
   // Optionnel : snapshot du niveau à ce moment là
   level               Level?
   createdAt           DateTime          @default(now()) @db.Timestamp(0)

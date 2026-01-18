@@ -216,11 +216,25 @@ export const saveDailyQuizAnswers = async (req: Request, res: Response, next: Ne
         if (!userId) {
             return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
         }
-        if (!answers || !Array.isArray(answers)) {
-            return sendResponse(res, 400, {error: 'Les réponses du quiz sont requises et doivent être un tableau.'});
+        if (!answers || !Array.isArray(answers) || answers.length === 0) {
+            return sendResponse(res, 400, {error: 'Les réponses du quiz sont requises et doivent être un tableau non vide.'});
         }
 
-        const result = await jobService.saveUserQuizAnswers(
+        for (const answer of answers) {
+            if (!answer?.questionId) {
+                return sendResponse(res, 400, {error: 'Chaque réponse doit contenir un questionId.'});
+            }
+            if (typeof answer.timeToAnswer !== 'number') {
+                return sendResponse(res, 400, {error: 'Chaque réponse doit contenir un timeToAnswer numérique.'});
+            }
+            const hasResponseIds = Array.isArray(answer.responseIds) && answer.responseIds.length > 0;
+            const hasFreeText = typeof answer.freeTextAnswer === 'string' && answer.freeTextAnswer.trim().length > 0;
+            if (!hasResponseIds && !hasFreeText) {
+                return sendResponse(res, 400, {error: 'Chaque réponse doit contenir responseIds ou freeTextAnswer.'});
+            }
+        }
+
+        const result = await jobService.saveQuizAnswersAndComplete(
             jobId,
             quizId,
             userId,
@@ -232,7 +246,8 @@ export const saveDailyQuizAnswers = async (req: Request, res: Response, next: Ne
         return sendResponse(res, 200, {data: result});
     } catch (err) {
         console.error('saveDailyQuizAnswers error:', err);
-        return sendResponse(res, 500, {
+        const statusCode = typeof (err as any)?.statusCode === 'number' ? (err as any).statusCode : 500;
+        return sendResponse(res, statusCode, {
             error: "Une erreur s'est produite lors de l'enregistrement des réponses du quiz.",
             message: err instanceof Error ? err.message : 'Unknown error'
         });

@@ -464,14 +464,20 @@ export async function seedBtsCiel(options?: {reset?: boolean}) {
                 },
             },
             update: {
-                value: row.value,
+                rawScore0to10: Number(row.value) * 2,
+                radarScore0to5: Number(row.value),
+                continuous0to10: Number(row.value) * 2,
+                masteryAvg0to1: Number(row.value) / 5,
                 updatedAt: new Date(),
             },
             create: {
                 jobId: job.id,
                 competenciesFamilyId: family.familyId,
                 level: row.level,
-                value: row.value,
+                rawScore0to10: Number(row.value) * 2,
+                radarScore0to5: Number(row.value),
+                continuous0to10: Number(row.value) * 2,
+                masteryAvg0to1: Number(row.value) / 5,
                 updatedAt: new Date(),
             },
         });
@@ -530,26 +536,30 @@ export async function seedBtsCiel(options?: {reset?: boolean}) {
                 type: QuizType.POSITIONING,
                 isActive: true,
                 level: Level.MEDIUM,
-                questions: {
+                items: {
                     create: groups.map((group, index) => {
                         const competency = competencyMap.get(`${jobTitle}::${group.competencyName}`);
                         if (!competency) {
                             throw new Error(`Compétence introuvable pour "${jobTitle}" / "${group.competencyName}".`);
                         }
                         return {
-                            text: group.questionText,
-                            competencyId: competency.id,
-                            timeLimitInSeconds: group.timeLimitInSeconds ?? 30,
-                            level: competency.level ?? Level.MEDIUM,
-                            points: pointsForLevel(competency.level ?? Level.MEDIUM),
-                            type: QuizQuestionType.single_choice,
                             index,
-                            responses: {
-                                create: group.propositions.map((prop, propIndex) => ({
-                                    text: prop.text,
-                                    isCorrect: prop.isCorrect,
-                                    index: propIndex,
-                                })),
+                            question: {
+                                create: {
+                                    text: group.questionText,
+                                    competencyId: competency.id,
+                                    defaultTimeLimitS: group.timeLimitInSeconds ?? 30,
+                                    level: competency.level ?? Level.MEDIUM,
+                                    defaultPoints: pointsForLevel(competency.level ?? Level.MEDIUM),
+                                    type: QuizQuestionType.single_choice,
+                                    responses: {
+                                        create: group.propositions.map((prop, propIndex) => ({
+                                            text: prop.text,
+                                            isCorrect: prop.isCorrect,
+                                            index: propIndex,
+                                        })),
+                                    },
+                                },
                             },
                         };
                     }),

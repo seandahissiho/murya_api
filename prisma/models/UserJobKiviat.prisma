@@ -2,8 +2,11 @@ model UserJobKiviat {
   id                   String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userJobId            String                 @db.Uuid
   competenciesFamilyId String                 @db.Uuid
-  level                JobProgressionLevel
-  value                Decimal                @db.Decimal(2, 1) // 1.0, 1.5, ..., 5.0 max si tu contrôles côté app
+  rawScore0to10        Int                    @default(0)
+  radarScore0to5       Int                    @default(0)
+  continuous0to10      Float                  @default(0)
+  masteryAvg0to1       Float                  @default(0)
+  level                JobProgressionLevel?
   createdAt            DateTime               @default(now()) @db.Timestamp(0)
   updatedAt            DateTime               @default(now()) @updatedAt @db.Timestamp(0)
   userJob              UserJob                @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)

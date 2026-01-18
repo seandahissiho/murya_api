@@ -15,6 +15,7 @@ model UserQuiz {
   maxScoreWithBonus   Int                        @default(0)
   percentage          Float?                     @default(0)
   jobsSnapshot        Json?                      @db.JsonB
+  metadata            Json?
   createdAt           DateTime                   @default(now()) @db.Timestamp(0)
   updatedAt           DateTime                   @default(now()) @updatedAt @db.Timestamp(0)
   // Relations

@@ -252,10 +252,15 @@ export async function buildGenerateQuizInput(params: {
         include: {
             quiz: {
                 include: {
-                    questions: {
+                    items: {
                         include: {
-                            responses: true,
+                            question: {
+                                include: {
+                                    responses: {orderBy: {index: 'asc'}},
+                                },
+                            },
                         },
+                        orderBy: {index: 'asc'},
                     },
                 },
             },
@@ -295,14 +300,14 @@ export async function buildGenerateQuizInput(params: {
     const jobKiviatByFamilyId = new Map<string, { sum: number; count: number }>();
     for (const jk of jobKiviats) {
         const entry = jobKiviatByFamilyId.get(jk.competenciesFamilyId) ?? { sum: 0, count: 0 };
-        entry.sum += Number(jk.value);
+        entry.sum += Number(jk.radarScore0to5);
         entry.count += 1;
         jobKiviatByFamilyId.set(jk.competenciesFamilyId, entry);
     }
 
     const userKiviatByFamilyId = new Map<string, number>();
     for (const ujk of userJobKiviats) {
-        userKiviatByFamilyId.set(ujk.competenciesFamilyId, Number(ujk.value));
+        userKiviatByFamilyId.set(ujk.competenciesFamilyId, ujk.radarScore0to5);
     }
 
     // 6) Construction du bloc last5Quizzes + agrégats par compétence et par famille
@@ -342,9 +347,11 @@ export async function buildGenerateQuizInput(params: {
 
         const questions: LlmQuizQuestionHistory[] = [];
 
-        for (const q of uq.quiz.questions) {
+        for (const item of uq.quiz.items) {
+            const q = item.question;
             const answer = answersByQuestionId.get(q.id) || null;
             const meta = competencyMetaById.get(q.competencyId);
+            const timeLimitInSeconds = item.timeLimitOverrideS ?? q.defaultTimeLimitS ?? 30;
 
             // 6.1 Historique question pour LLM
             const questionHistory: LlmQuizQuestionHistory = {
@@ -357,8 +364,8 @@ export async function buildGenerateQuizInput(params: {
                 subFamilySlug: meta?.subFamilySlug ?? null,
                 level: q.level,
                 type: q.type,
-                timeLimitInSeconds: q.timeLimitInSeconds,
-                index: q.index,
+                timeLimitInSeconds,
+                index: item.index,
                 responses: q.responses.map((r) => ({
                     id: r.id,
                     text: r.text,
