@@ -2357,15 +2357,6 @@ export const saveQuizAnswersAndComplete = async (
             : 0;
         const masteryBlendWeight = clamp(1 - daysSinceStart / 30, 0, 1);
 
-        const mapRawToRadar = (raw: number) => {
-            if (raw <= 0) return 0;
-            if (raw === 1) return 1;
-            if (raw <= 5) return 2;
-            if (raw <= 7) return 3;
-            if (raw <= 9) return 4;
-            return 5;
-        };
-
         const radarRows = [];
         for (const family of families) {
             const competencyIdsForFamily = family.competencies.map((comp: any) => comp.id);
@@ -2378,11 +2369,11 @@ export const saveQuizAnswersAndComplete = async (
                 },
                 0,
             );
-            const rawScore0to10 = clamp(Math.round(continuous0to10), 0, 10);
+            const rawScore0to10 = clamp(continuous0to10, 0, 10);
             const masteryAvg0to1 = competencyIdsForFamily.length
                 ? continuous0to10 / competencyIdsForFamily.length
                 : 0;
-            const radarScore0to5 = mapRawToRadar(rawScore0to10);
+            const radarScore0to5 = clamp(rawScore0to10 / 2, 0, 5);
 
             const targets = targetValuesByFamily.get(family.id);
             let level: JobProgressionLevel | null = null;
@@ -2550,12 +2541,23 @@ export const saveQuizAnswersAndComplete = async (
 
 
 export type UserJobRankingRow = {
+    userJobId: string;
+    userId: string;
+    firstname: string | null;
+    lastname: string | null;
+    jobId: string | null;
+    jobTitle: string | null;
+    totalScore: number;
+    maxScoreSum: number;
+    percentage: number;
+    completedQuizzes: number;
+    lastQuizAt: Date | null;
+    rank: number;
     id: string;
     firstName: string | null;
     lastName: string | null;
     profilePictureUrl: string | null;
     diamonds: number;
-    rank: number;
     questionsAnswered: number;
     performance: number;
     sinceDate: Date;
@@ -2636,11 +2638,17 @@ export async function listLearningResourcesForUserJob(userJobId: string, userId:
     return resourcesWithWaveform;
 }
 
-export async function getRankingForJob({jobId, from, to,}: GetRankingForJobParams): Promise<UserJobRankingRow[]> {
+export async function getRankingForJob({jobId, from, to, lang,}: GetRankingForJobParams): Promise<UserJobRankingRow[]> {
     const resolved = await resolveJobOrFamilyId(jobId);
     const scopeFilter = resolved.scope === UserJobScope.JOB_FAMILY
-        ? Prisma.sql`AND uj.scope = ${UserJobScope.JOB_FAMILY} AND uj."jobFamilyId" = ${resolved.jobFamilyId!}::uuid`
-        : Prisma.sql`AND uj.scope = ${UserJobScope.JOB} AND uj."jobId" = ${resolved.jobId!}::uuid`;
+        ? Prisma.sql`AND uj.scope = ${UserJobScope.JOB_FAMILY}::"UserJobScope" AND uj."jobFamilyId" = ${resolved.jobFamilyId!}::uuid`
+        : Prisma.sql`AND uj.scope = ${UserJobScope.JOB}::"UserJobScope" AND uj."jobId" = ${resolved.jobId!}::uuid`;
+    const jobIdSelect = resolved.scope === UserJobScope.JOB_FAMILY
+        ? Prisma.sql`jf.id`
+        : Prisma.sql`uj."jobId"`;
+    const jobTitleSelect = resolved.scope === UserJobScope.JOB_FAMILY
+        ? Prisma.sql`jf.name`
+        : Prisma.sql`j.title`;
 
     // fragments pour la période
     const fromFilter =
@@ -2662,7 +2670,11 @@ export async function getRankingForJob({jobId, from, to,}: GetRankingForJobParam
         quiz_stats AS (
             SELECT
                 b.id AS "userJobId",
-                COALESCE(CAST(SUM(uq."totalScore" + uq."bonusPoints") AS INTEGER), 0) AS "diamonds"
+                COALESCE(CAST(SUM(uq."totalScore") AS INTEGER), 0) AS "totalScore",
+                COALESCE(CAST(SUM(uq."maxScore") AS INTEGER), 0) AS "maxScoreSum",
+                COALESCE(CAST(SUM(uq."totalScore" + uq."bonusPoints") AS INTEGER), 0) AS "diamonds",
+                COALESCE(CAST(COUNT(uq.id) AS INTEGER), 0) AS "completedQuizzes",
+                MAX(uq."completedAt") AS "lastQuizAt"
             FROM base b
             LEFT JOIN "UserQuiz" uq
                 ON uq."userJobId" = b.id
@@ -2687,6 +2699,29 @@ export async function getRankingForJob({jobId, from, to,}: GetRankingForJobParam
             GROUP BY b.id
         )
         SELECT
+            b.id AS "userJobId",
+            u.id AS "userId",
+            u.firstname,
+            u.lastname,
+            ${jobIdSelect} AS "jobId",
+            ${jobTitleSelect} AS "jobTitle",
+            COALESCE(qs."totalScore", 0) AS "totalScore",
+            COALESCE(qs."maxScoreSum", 0) AS "maxScoreSum",
+            CASE
+                WHEN COALESCE(qs."maxScoreSum", 0) > 0
+                    THEN
+                    ROUND(
+                            (
+                                100.0
+                                    * COALESCE(qs."totalScore", 0)::double precision
+                                    / NULLIF(qs."maxScoreSum"::double precision, 0)
+                                )::numeric,
+                            2
+                    )::double precision
+                ELSE 0
+            END AS "percentage",
+            COALESCE(qs."completedQuizzes", 0) AS "completedQuizzes",
+            qs."lastQuizAt" AS "lastQuizAt",
             u.id AS "id",
             u.firstname AS "firstName",
             u.lastname AS "lastName",
@@ -2709,11 +2744,56 @@ export async function getRankingForJob({jobId, from, to,}: GetRankingForJobParam
             b."sinceDate"
         FROM base b
         JOIN "User" u ON u.id = b."userId"
+        JOIN "UserJob" uj ON uj.id = b.id
+        LEFT JOIN "Job" j ON j.id = uj."jobId"
+        LEFT JOIN "JobFamily" jf ON jf.id = uj."jobFamilyId"
         LEFT JOIN quiz_stats qs ON qs."userJobId" = b.id
         LEFT JOIN answer_stats ans ON ans."userJobId" = b.id
         ORDER BY "rank" ASC;
     `;
-    return rows;
+    if (!rows.length || !lang) {
+        return rows;
+    }
+
+    if (resolved.scope === UserJobScope.JOB_FAMILY) {
+        const jobFamily = await prisma.jobFamily.findUnique({
+            where: {id: resolved.jobFamilyId!},
+            select: {id: true, name: true},
+        });
+        if (!jobFamily) {
+            return rows;
+        }
+        const localizedJobFamily = await resolveFields({
+            entity: 'JobFamily',
+            entityId: jobFamily.id,
+            fields: ['name'],
+            lang,
+            base: jobFamily,
+        }) as typeof jobFamily;
+        return rows.map((row) => ({
+            ...row,
+            jobTitle: localizedJobFamily.name,
+        }));
+    }
+
+    const job = await prisma.job.findUnique({
+        where: {id: resolved.jobId!},
+        select: {id: true, title: true},
+    });
+    if (!job) {
+        return rows;
+    }
+    const localizedJob = await resolveFields({
+        entity: 'Job',
+        entityId: job.id,
+        fields: ['title'],
+        lang,
+        base: job,
+    }) as typeof job;
+    return rows.map((row) => ({
+        ...row,
+        jobTitle: localizedJob.title,
+    }));
 }
 
 type UserJobCompetencyProfile = {

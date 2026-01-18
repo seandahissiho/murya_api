@@ -2,8 +2,8 @@ model UserJobKiviatHistory {
   id              String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userJobKiviatId String               @db.Uuid
   userQuizId      String               @db.Uuid
-  rawScore0to10   Int
-  radarScore0to5  Int
+  rawScore0to10   Float
+  radarScore0to5  Float
   continuous0to10 Float
   masteryAvg0to1  Float
   level           JobProgressionLevel?
