@@ -85,6 +85,11 @@ const getMaxStreakBonus = (questionCount: number): number => {
 };
 
 async function resolveJobOrFamilyId(targetId: string) {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetId);
+    if (!isUuid) {
+        throw new Error('Invalid job or job family id');
+    }
+
     const job = await prisma.job.findUnique({
         where: {id: targetId},
         select: {id: true},
@@ -2342,7 +2347,7 @@ export const saveQuizAnswersAndComplete = async (
             },
             select: {competencyId: true, mastery30d: true, masteryNow: true},
         });
-        const masteryByAllCompetencyId = new Map(
+        const masteryByAllCompetencyId = new Map<string, {mastery30d: number; masteryNow: number}>(
             allUjcs.map((ujc: any) => [
                 ujc.competencyId,
                 {

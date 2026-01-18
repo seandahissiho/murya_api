@@ -16,6 +16,7 @@ import {
 import fs from 'node:fs';
 import path from 'node:path';
 import {seedBtsCiel} from './seed_bts_ciel';
+import {seedBtsCielUsers} from './seed_bts_ciel_users';
 
 const prisma = new PrismaClient();
 
@@ -1508,6 +1509,7 @@ async function main() {
     await seedQuestDefinitions();
 
     await seedBtsCiel();
+    await seedBtsCielUsers();
     const learningResourcesPath = path.resolve(__dirname, '../uploads/Untitled-1.json');
     await seedLearningResourcesFromFile(learningResourcesPath);
 
