@@ -96,15 +96,23 @@ export const listRewards = async (
     const now = new Date();
     const skip = (page - 1) * limit;
     const where: Prisma.RewardWhereInput = buildVisibilityFilter(now);
+    const andFilters: Prisma.RewardWhereInput[] = Array.isArray(where.AND)
+        ? [...where.AND]
+        : where.AND
+            ? [where.AND]
+            : [];
 
     if (city) {
-        where.AND?.push({city: {equals: city, mode: "insensitive"}});
+        andFilters.push({city: {equals: city, mode: "insensitive"}});
     }
     if (kind) {
-        where.AND?.push({kind});
+        andFilters.push({kind});
     }
     if (onlyAvailable) {
-        where.AND?.push({remainingStock: {gt: 0}});
+        andFilters.push({remainingStock: {gt: 0}});
+    }
+    if (andFilters.length) {
+        where.AND = andFilters;
     }
 
     const [rewards, total] = await Promise.all([
