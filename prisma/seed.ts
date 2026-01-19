@@ -15,8 +15,8 @@ import {
 } from '@prisma/client';
 import fs from 'node:fs';
 import path from 'node:path';
-import {seedBtsCiel} from './seed_bts_ciel';
-import {seedBtsCielUsers} from './seed_bts_ciel_users';
+import { seedBtsCiel } from './seed_bts_ciel';
+import { seedBtsCielUsers } from './seed_bts_ciel_users';
 
 const prisma = new PrismaClient();
 
@@ -234,7 +234,7 @@ const DEFAULT_MODULES = [
 async function seedModules() {
     for (const module of DEFAULT_MODULES) {
         const record = await prisma.module.upsert({
-            where: {slug: module.slug},
+            where: { slug: module.slug },
             update: {
                 name: module.nameFr,
                 description: module.descriptionFr,
@@ -261,7 +261,7 @@ async function seedModules() {
                     langCode: 'fr',
                 },
             },
-            update: {value: module.nameFr},
+            update: { value: module.nameFr },
             create: {
                 entity: 'Module',
                 entityId: record.id,
@@ -280,7 +280,7 @@ async function seedModules() {
                     langCode: 'en',
                 },
             },
-            update: {value: module.nameEn},
+            update: { value: module.nameEn },
             create: {
                 entity: 'Module',
                 entityId: record.id,
@@ -299,7 +299,7 @@ async function seedModules() {
                     langCode: 'fr',
                 },
             },
-            update: {value: module.descriptionFr},
+            update: { value: module.descriptionFr },
             create: {
                 entity: 'Module',
                 entityId: record.id,
@@ -318,7 +318,7 @@ async function seedModules() {
                     langCode: 'en',
                 },
             },
-            update: {value: module.descriptionEn},
+            update: { value: module.descriptionEn },
             create: {
                 entity: 'Module',
                 entityId: record.id,
@@ -335,196 +335,31 @@ async function seedModules() {
 async function seedQuestDefinitions() {
     console.log(`\n=== Seeding quest definitions ===`);
 
-    const mainQuest = await prisma.questDefinition.upsert({
-        where: {code: 'WEEKLY_MAIN_5_DAILY_QUIZZES'},
-        update: {
-            title: '5 quizzes daily cette semaine',
-            description: 'Compléter 5 quizzes daily pendant la semaine.',
-            period: QuestPeriod.WEEKLY,
-            category: QuestCategory.MAIN,
-            scope: QuestScope.USER_JOB,
-            eventKey: 'QUIZ_COMPLETED',
-            targetCount: 5,
-            meta: {
-                weeklyMain: true,
-                quizType: 'DAILY',
-                weekendCatchupCap: 2,
+    await prisma.questDefinition.updateMany({
+        where: {
+            code: {
+                in: [
+                    'WEEKLY_MAIN_5_DAILY_QUIZZES',
+                    'WEEKLY_BRANCH_SCORE_80',
+                    'WEEKLY_BRANCH_COMPLETE_3_DAILY',
+                    'WEEKLY_COLLECTION_5_RESOURCES',
+                    'POSITIONING_COMPLETE_QUIZZES',
+                ],
             },
-            isActive: true,
-            uiOrder: 0,
-            updatedAt: new Date(),
         },
-        create: {
-            code: 'WEEKLY_MAIN_5_DAILY_QUIZZES',
-            title: '5 quizzes daily cette semaine',
-            description: 'Compléter 5 quizzes daily pendant la semaine.',
-            period: QuestPeriod.WEEKLY,
-            category: QuestCategory.MAIN,
-            scope: QuestScope.USER_JOB,
-            eventKey: 'QUIZ_COMPLETED',
-            targetCount: 5,
-            meta: {
-                weeklyMain: true,
-                quizType: 'DAILY',
-                weekendCatchupCap: 2,
-            },
-            isActive: true,
-            uiOrder: 0,
-        },
+        data: { isActive: false },
     });
 
-    await prisma.questReward.deleteMany({where: {questDefinitionId: mainQuest.id}});
-    await prisma.questReward.createMany({
-        data: [
-            {
-                questDefinitionId: mainQuest.id,
-                currency: CurrencyType.DIAMONDS,
-                amount: 50,
-            },
-            {
-                questDefinitionId: mainQuest.id,
-                currency: CurrencyType.LEAGUE_POINTS,
-                amount: 100,
-            },
-        ],
-    });
-
-    const branchDefs = [
-        {
-            code: 'WEEKLY_BRANCH_SCORE_80',
-            title: 'Score >= 80%',
-            description: 'Obtenir un score de 80% ou plus sur un quiz.',
-            period: QuestPeriod.WEEKLY,
-            category: QuestCategory.BRANCH,
-            scope: QuestScope.USER_JOB,
-            eventKey: 'QUIZ_COMPLETED',
-            targetCount: 1,
-            meta: {
-                minScore: 80,
-                requiresQuestCode: 'WEEKLY_MAIN_5_DAILY_QUIZZES',
-                requiresMinProgress: 1,
-            },
-            uiOrder: 1,
-            rewards: [{currency: CurrencyType.DIAMONDS, amount: 20}],
-        },
-        {
-            code: 'WEEKLY_BRANCH_COMPLETE_3_DAILY',
-            title: '3 quizzes daily',
-            description: 'Compléter 3 quizzes daily cette semaine.',
-            period: QuestPeriod.WEEKLY,
-            category: QuestCategory.BRANCH,
-            scope: QuestScope.USER_JOB,
-            eventKey: 'QUIZ_COMPLETED',
-            targetCount: 3,
-            meta: {
-                quizType: 'DAILY',
-                requiresQuestCode: 'WEEKLY_MAIN_5_DAILY_QUIZZES',
-                requiresMinProgress: 1,
-            },
-            uiOrder: 2,
-            rewards: [{currency: CurrencyType.DIAMONDS, amount: 30}],
-        },
-        {
-            code: 'WEEKLY_COLLECTION_5_RESOURCES',
-            title: 'Collecter 5 ressources',
-            description: 'Collecter 5 ressources générées cette semaine.',
-            period: QuestPeriod.WEEKLY,
-            category: QuestCategory.COLLECTION,
-            scope: QuestScope.USER_JOB,
-            eventKey: 'RESOURCE_COLLECTED',
-            targetCount: 5,
-            meta: {
-                requiresQuestCode: 'WEEKLY_MAIN_5_DAILY_QUIZZES',
-                requiresMinProgress: 2,
-            },
-            uiOrder: 3,
-            rewards: [{currency: CurrencyType.DIAMONDS, amount: 25}],
-        },
-    ];
-
-    for (const def of branchDefs) {
-        const quest = await prisma.questDefinition.upsert({
-            where: {code: def.code},
-            update: {
-                title: def.title,
-                description: def.description,
-                period: def.period,
-                category: def.category,
-                scope: def.scope,
-                eventKey: def.eventKey,
-                targetCount: def.targetCount,
-                meta: def.meta,
-                isActive: true,
-                parentId: mainQuest.id,
-                uiOrder: def.uiOrder,
-                updatedAt: new Date(),
-            },
-            create: {
-                code: def.code,
-                title: def.title,
-                description: def.description,
-                period: def.period,
-                category: def.category,
-                scope: def.scope,
-                eventKey: def.eventKey,
-                targetCount: def.targetCount,
-                meta: def.meta,
-                isActive: true,
-                parentId: mainQuest.id,
-                uiOrder: def.uiOrder,
-            },
-        });
-
-        await prisma.questReward.deleteMany({where: {questDefinitionId: quest.id}});
-        await prisma.questReward.createMany({
-            data: def.rewards.map((reward) => ({
-                questDefinitionId: quest.id,
-                currency: reward.currency,
-                amount: reward.amount,
-            })),
-        });
-    }
-
-    const positioningQuest = await prisma.questDefinition.upsert({
-        where: {code: 'POSITIONING_COMPLETE_QUIZZES'},
-        update: {
-            title: 'Completer les quizzes de positionnement',
-            description: 'Completer tous les quizzes de positionnement.',
-            period: QuestPeriod.ONCE,
-            category: QuestCategory.COLLECTION,
-            scope: QuestScope.USER_JOB,
-            eventKey: 'QUIZ_COMPLETED',
-            targetCount: 1,
-            meta: {quizType: 'POSITIONING', oneShot: true, dynamicTarget: 'POSITIONING'},
-            isActive: false,
-            uiOrder: 4,
-            updatedAt: new Date(),
-        },
-        create: {
-            code: 'POSITIONING_COMPLETE_QUIZZES',
-            title: 'Completer les quizzes de positionnement',
-            description: 'Completer tous les quizzes de positionnement.',
-            period: QuestPeriod.ONCE,
-            category: QuestCategory.COLLECTION,
-            scope: QuestScope.USER_JOB,
-            eventKey: 'QUIZ_COMPLETED',
-            targetCount: 1,
-            meta: {quizType: 'POSITIONING', oneShot: true, dynamicTarget: 'POSITIONING'},
-            isActive: false,
-            uiOrder: 4,
-        },
-    });
-
-    await prisma.questReward.deleteMany({where: {questDefinitionId: positioningQuest.id}});
+    // Pas de quêtes DAILY dans le seed.
 
     const positioningGroup = await prisma.questGroup.upsert({
-        where: {code: 'POSITIONING_PATH'},
+        where: { code: 'POSITIONING_PATH' },
         update: {
             title: 'Finaliser le parcours de positionnement',
             description: 'Completer chaque questionnaire de positionnement.',
             scope: QuestScope.USER_JOB,
             period: QuestPeriod.ONCE,
-            meta: {oneShot: true},
+            meta: { oneShot: true },
             isActive: true,
             uiOrder: 5,
             updatedAt: new Date(),
@@ -535,7 +370,7 @@ async function seedQuestDefinitions() {
             description: 'Completer chaque questionnaire de positionnement.',
             scope: QuestScope.USER_JOB,
             period: QuestPeriod.ONCE,
-            meta: {oneShot: true},
+            meta: { oneShot: true },
             isActive: true,
             uiOrder: 5,
         },
@@ -584,15 +419,19 @@ async function seedQuestDefinitions() {
         },
     ];
 
-    const positioningQuestIds: string[] = [];
+    const positioningByCode = new Map<string, { id: string; code: string }>();
     for (const def of positioningDefs) {
+        const parentId = def.requiresQuestCode
+            ? positioningByCode.get(def.requiresQuestCode)?.id ?? null
+            : null;
+        const isRoot = !def.requiresQuestCode;
         const quest = await prisma.questDefinition.upsert({
-            where: {code: def.code},
+            where: { code: def.code },
             update: {
                 title: def.title,
                 description: def.description,
                 period: QuestPeriod.ONCE,
-                category: QuestCategory.COLLECTION,
+                category: isRoot ? QuestCategory.MAIN : QuestCategory.BRANCH,
                 scope: QuestScope.USER_JOB,
                 eventKey: 'QUIZ_COMPLETED',
                 targetCount: 1,
@@ -600,9 +439,10 @@ async function seedQuestDefinitions() {
                     quizType: 'POSITIONING',
                     quizIndex: def.quizIndex,
                     oneShot: true,
-                    ...(def.requiresQuestCode ? {requiresQuestCode: def.requiresQuestCode} : {}),
+                    ...(def.requiresQuestCode ? { requiresQuestCode: def.requiresQuestCode } : {}),
                 },
                 isActive: true,
+                parentId,
                 uiOrder: def.uiOrder,
                 updatedAt: new Date(),
             },
@@ -611,7 +451,7 @@ async function seedQuestDefinitions() {
                 title: def.title,
                 description: def.description,
                 period: QuestPeriod.ONCE,
-                category: QuestCategory.COLLECTION,
+                category: isRoot ? QuestCategory.MAIN : QuestCategory.BRANCH,
                 scope: QuestScope.USER_JOB,
                 eventKey: 'QUIZ_COMPLETED',
                 targetCount: 1,
@@ -619,29 +459,30 @@ async function seedQuestDefinitions() {
                     quizType: 'POSITIONING',
                     quizIndex: def.quizIndex,
                     oneShot: true,
-                    ...(def.requiresQuestCode ? {requiresQuestCode: def.requiresQuestCode} : {}),
+                    ...(def.requiresQuestCode ? { requiresQuestCode: def.requiresQuestCode } : {}),
                 },
                 isActive: true,
+                parentId,
                 uiOrder: def.uiOrder,
             },
         });
-        positioningQuestIds.push(quest.id);
+        positioningByCode.set(def.code, { id: quest.id, code: def.code });
     }
 
     await prisma.questGroupItem.deleteMany({
-        where: {questGroupId: positioningGroup.id},
+        where: { questGroupId: positioningGroup.id },
     });
     await prisma.questGroupItem.createMany({
         data: positioningDefs.map((def, idx) => ({
             questGroupId: positioningGroup.id,
-            questDefinitionId: positioningQuestIds[idx],
+            questDefinitionId: positioningByCode.get(def.code)!.id,
             isRequired: true,
             uiOrder: def.uiOrder,
         })),
     });
 
     const shareQuest = await prisma.questDefinition.upsert({
-        where: {code: 'MONTHLY_SHARE_REFERRAL_SIGNUP'},
+        where: { code: 'MONTHLY_SHARE_REFERRAL_SIGNUP' },
         update: {
             title: '1 referral signup',
             description: 'Obtenir 1 inscription via referral ce mois-ci.',
@@ -670,7 +511,7 @@ async function seedQuestDefinitions() {
         },
     });
 
-    await prisma.questReward.deleteMany({where: {questDefinitionId: shareQuest.id}});
+    await prisma.questReward.deleteMany({ where: { questDefinitionId: shareQuest.id } });
     await prisma.questReward.createMany({
         data: [
             {
@@ -690,15 +531,15 @@ async function seedQuestDefinitions() {
 function defaultScoresForLevel(level: Level): Scores {
     switch (level) {
         case Level.EASY:
-            return {beginner: 1, intermediate: 1, advanced: 2, expert: 3, max: 4};
+            return { beginner: 1, intermediate: 1, advanced: 2, expert: 3, max: 4 };
         case Level.MEDIUM:
-            return {beginner: 1, intermediate: 2, advanced: 3, expert: 4, max: 5};
+            return { beginner: 1, intermediate: 2, advanced: 3, expert: 4, max: 5 };
         case Level.HARD:
-            return {beginner: 2, intermediate: 3, advanced: 4, expert: 4, max: 5};
+            return { beginner: 2, intermediate: 3, advanced: 4, expert: 4, max: 5 };
         case Level.EXPERT:
-            return {beginner: 2, intermediate: 3, advanced: 4, expert: 5, max: 5};
+            return { beginner: 2, intermediate: 3, advanced: 4, expert: 5, max: 5 };
         case Level.MIX:
-            return {beginner: 1, intermediate: 2, advanced: 3, expert: 4, max: 5};
+            return { beginner: 1, intermediate: 2, advanced: 3, expert: 4, max: 5 };
         default:
             throw new Error(`Unknown level: ${level}`);
     }
@@ -740,105 +581,105 @@ const JOB_PM: JobBlock = {
                     kind: 'Savoir-être',
                     level: Level.HARD,
                     subfamily: 'Vision',
-                    scores: {beginner: 2, intermediate: 3, advanced: 3, expert: 4, max: 4},
+                    scores: { beginner: 2, intermediate: 3, advanced: 3, expert: 4, max: 4 },
                 },
-                {name: 'Priorisation', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Vision'},
-                {name: 'Alignement', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Vision'},
-                {name: 'Objectifs', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Vision'},
-                {name: 'Positionnement', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Vision'},
-                {name: 'Segmentation', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Marché'},
-                {name: 'Concurrence', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Marché'},
+                { name: 'Priorisation', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Vision' },
+                { name: 'Alignement', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Vision' },
+                { name: 'Objectifs', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Vision' },
+                { name: 'Positionnement', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Vision' },
+                { name: 'Segmentation', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Marché' },
+                { name: 'Concurrence', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Marché' },
                 {
                     name: 'Pricing',
                     kind: 'Savoir-faire',
                     level: Level.HARD,
                     subfamily: 'Marché',
-                    scores: {beginner: 2, intermediate: 3, advanced: 4, expert: 4, max: 5},
+                    scores: { beginner: 2, intermediate: 3, advanced: 4, expert: 4, max: 5 },
                 },
-                {name: 'Partenariats', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Marché'},
-                {name: 'GoToMarket', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Marché'},
+                { name: 'Partenariats', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Marché' },
+                { name: 'GoToMarket', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Marché' },
             ],
         },
         {
             family: 'Produit',
             subfamilies: ['Roadmap', 'Découverte'],
             items: [
-                {name: 'Planification', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Roadmap'},
-                {name: 'Dépendances', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Roadmap'},
+                { name: 'Planification', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Roadmap' },
+                { name: 'Dépendances', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Roadmap' },
                 {
                     name: 'Release',
                     kind: 'Savoir-faire',
                     level: Level.MEDIUM,
                     subfamily: 'Roadmap',
-                    scores: {beginner: 1, intermediate: 2, advanced: 3, expert: 3, max: 4},
+                    scores: { beginner: 1, intermediate: 2, advanced: 3, expert: 3, max: 4 },
                 },
-                {name: 'Estimation', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Roadmap'},
-                {name: 'Backlog', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Roadmap'},
-                {name: 'Hypothèses', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Découverte'},
-                {name: 'Entretiens', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Découverte'},
-                {name: 'Personas', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Découverte'},
-                {name: 'Prototypage', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Découverte'},
-                {name: 'Tests', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Découverte'},
+                { name: 'Estimation', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Roadmap' },
+                { name: 'Backlog', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Roadmap' },
+                { name: 'Hypothèses', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Découverte' },
+                { name: 'Entretiens', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Découverte' },
+                { name: 'Personas', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Découverte' },
+                { name: 'Prototypage', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Découverte' },
+                { name: 'Tests', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Découverte' },
             ],
         },
         {
             family: 'Données',
             subfamilies: ['Analyse', 'Mesure'],
             items: [
-                {name: 'SQL', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Analyse'},
-                {name: 'Tableaux', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Analyse'},
-                {name: 'Cohortes', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Analyse'},
-                {name: 'A/B', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Analyse'},
+                { name: 'SQL', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Analyse' },
+                { name: 'Tableaux', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Analyse' },
+                { name: 'Cohortes', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Analyse' },
+                { name: 'A/B', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Analyse' },
                 {
                     name: 'Modélisation',
                     kind: 'Savoir-faire',
                     level: Level.HARD,
                     subfamily: 'Analyse',
-                    scores: {beginner: 2, intermediate: 3, advanced: 4, expert: 5, max: 5},
+                    scores: { beginner: 2, intermediate: 3, advanced: 4, expert: 5, max: 5 },
                 },
-                {name: 'KPI', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Mesure'},
-                {name: 'Instrumentation', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Mesure'},
-                {name: 'Attribution', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Mesure'},
-                {name: 'Rétention', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Mesure'},
-                {name: 'Monétisation', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Mesure'},
+                { name: 'KPI', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Mesure' },
+                { name: 'Instrumentation', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Mesure' },
+                { name: 'Attribution', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Mesure' },
+                { name: 'Rétention', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Mesure' },
+                { name: 'Monétisation', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Mesure' },
             ],
         },
         {
             family: 'Design',
             subfamilies: ['UX', 'Recherche'],
             items: [
-                {name: 'Parcours', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'UX'},
-                {name: 'Accessibilité', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'UX'},
-                {name: 'Microcopies', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'UX'},
-                {name: 'Information', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'UX'},
-                {name: 'Interaction', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'UX'},
-                {name: 'Méthodes', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Recherche'},
-                {name: 'Guides', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Recherche'},
-                {name: 'Synthèse', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Recherche'},
-                {name: 'Insight', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Recherche'},
-                {name: 'Journaux', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Recherche'},
+                { name: 'Parcours', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'UX' },
+                { name: 'Accessibilité', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'UX' },
+                { name: 'Microcopies', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'UX' },
+                { name: 'Information', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'UX' },
+                { name: 'Interaction', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'UX' },
+                { name: 'Méthodes', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Recherche' },
+                { name: 'Guides', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Recherche' },
+                { name: 'Synthèse', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Recherche' },
+                { name: 'Insight', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Recherche' },
+                { name: 'Journaux', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Recherche' },
             ],
         },
         {
             family: 'Leadership',
             subfamilies: ['Communication', 'Équipe'],
             items: [
-                {name: 'Storytelling', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Communication'},
-                {name: 'Négociation', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Communication'},
+                { name: 'Storytelling', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Communication' },
+                { name: 'Négociation', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Communication' },
                 {
                     name: 'Feedback',
                     kind: 'Savoir-être',
                     level: Level.MEDIUM,
                     subfamily: 'Communication',
-                    scores: {beginner: 1, intermediate: 2, advanced: 2, expert: 3, max: 4},
+                    scores: { beginner: 1, intermediate: 2, advanced: 2, expert: 3, max: 4 },
                 },
-                {name: 'Conflits', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Communication'},
-                {name: 'Influence', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Communication'},
-                {name: 'Mentorat', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Équipe'},
-                {name: 'Recrutement', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Équipe'},
-                {name: 'Culture', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Équipe'},
-                {name: 'Délégation', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Équipe'},
-                {name: 'Priorités', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Équipe'},
+                { name: 'Conflits', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Communication' },
+                { name: 'Influence', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Communication' },
+                { name: 'Mentorat', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Équipe' },
+                { name: 'Recrutement', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Équipe' },
+                { name: 'Culture', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Équipe' },
+                { name: 'Délégation', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Équipe' },
+                { name: 'Priorités', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Équipe' },
             ],
         },
     ],
@@ -855,27 +696,27 @@ const JOB_UI: JobBlock = {
             family: 'Interface',
             subfamilies: ['Layout', 'Composants'],
             items: [
-                {name: 'Grille', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Layout'},
-                {name: 'Hiérarchie', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Layout'},
+                { name: 'Grille', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Layout' },
+                { name: 'Hiérarchie', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Layout' },
                 {
                     name: 'Espacement',
                     kind: 'Savoir-faire',
                     level: Level.MEDIUM,
                     subfamily: 'Layout',
-                    scores: {beginner: 1, intermediate: 2, advanced: 3, expert: 3, max: 4},
+                    scores: { beginner: 1, intermediate: 2, advanced: 3, expert: 3, max: 4 },
                 },
-                {name: 'Réactivité', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Layout'},
-                {name: 'Empathie', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Layout'},
-                {name: 'Composants', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Composants'},
-                {name: 'États', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Composants'},
-                {name: 'Variants', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Composants'},
-                {name: 'Navigation', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Composants'},
+                { name: 'Réactivité', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Layout' },
+                { name: 'Empathie', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Layout' },
+                { name: 'Composants', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Composants' },
+                { name: 'États', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Composants' },
+                { name: 'Variants', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Composants' },
+                { name: 'Navigation', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Composants' },
                 {
                     name: 'Rigueur',
                     kind: 'Savoir-être',
                     level: Level.HARD,
                     subfamily: 'Composants',
-                    scores: {beginner: 2, intermediate: 3, advanced: 4, expert: 4, max: 5},
+                    scores: { beginner: 2, intermediate: 3, advanced: 4, expert: 4, max: 5 },
                 },
             ],
         },
@@ -883,81 +724,81 @@ const JOB_UI: JobBlock = {
             family: 'Visuel',
             subfamilies: ['Couleurs', 'Typo'],
             items: [
-                {name: 'Palette', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Couleurs'},
-                {name: 'Contraste', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Couleurs'},
-                {name: 'Harmonie', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Couleurs'},
-                {name: 'Marque', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Couleurs'},
-                {name: 'Sensibilité', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Couleurs'},
-                {name: 'Échelle', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Typo'},
+                { name: 'Palette', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Couleurs' },
+                { name: 'Contraste', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Couleurs' },
+                { name: 'Harmonie', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Couleurs' },
+                { name: 'Marque', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Couleurs' },
+                { name: 'Sensibilité', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Couleurs' },
+                { name: 'Échelle', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Typo' },
                 {
                     name: 'Lisibilité',
                     kind: 'Savoir-faire',
                     level: Level.MEDIUM,
                     subfamily: 'Typo',
-                    scores: {beginner: 1, intermediate: 2, advanced: 3, expert: 4, max: 5},
+                    scores: { beginner: 1, intermediate: 2, advanced: 3, expert: 4, max: 5 },
                 },
-                {name: 'Interlignage', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Typo'},
-                {name: 'Glyphes', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Typo'},
-                {name: 'Esthétique', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Typo'},
+                { name: 'Interlignage', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Typo' },
+                { name: 'Glyphes', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Typo' },
+                { name: 'Esthétique', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Typo' },
             ],
         },
         {
             family: 'Système',
             subfamilies: ['Designkit', 'Tokens'],
             items: [
-                {name: 'Bibliothèque', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Designkit'},
-                {name: 'Nomenclature', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Designkit'},
-                {name: 'Versioning', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Designkit'},
-                {name: 'Documentation', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Designkit'},
-                {name: 'Exigence', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Designkit'},
-                {name: 'Couleurs', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tokens'},
-                {name: 'Typo', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tokens'},
-                {name: 'Espaces', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tokens'},
-                {name: 'Rayons', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Tokens'},
-                {name: 'Discipline', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Tokens'},
+                { name: 'Bibliothèque', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Designkit' },
+                { name: 'Nomenclature', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Designkit' },
+                { name: 'Versioning', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Designkit' },
+                { name: 'Documentation', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Designkit' },
+                { name: 'Exigence', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Designkit' },
+                { name: 'Couleurs', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tokens' },
+                { name: 'Typo', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tokens' },
+                { name: 'Espaces', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tokens' },
+                { name: 'Rayons', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Tokens' },
+                { name: 'Discipline', kind: 'Savoir-être', level: Level.HARD, subfamily: 'Tokens' },
             ],
         },
         {
             family: 'Prototypage',
             subfamilies: ['Figma', 'Tests'],
             items: [
-                {name: 'AutoLayout', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Figma'},
-                {name: 'Interactions', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Figma'},
-                {name: 'Composants', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Figma'},
-                {name: 'Variants', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Figma'},
+                { name: 'AutoLayout', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Figma' },
+                { name: 'Interactions', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Figma' },
+                { name: 'Composants', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Figma' },
+                { name: 'Variants', kind: 'Savoir-faire', level: Level.HARD, subfamily: 'Figma' },
                 {
                     name: 'Curiosité',
                     kind: 'Savoir-être',
                     level: Level.MEDIUM,
                     subfamily: 'Figma',
-                    scores: {beginner: 1, intermediate: 2, advanced: 2, expert: 3, max: 4},
+                    scores: { beginner: 1, intermediate: 2, advanced: 2, expert: 3, max: 4 },
                 },
-                {name: 'Usabilité', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tests'},
-                {name: 'Scénarios', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tests'},
-                {name: 'Parcours', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tests'},
-                {name: 'Itérations', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tests'},
-                {name: 'Patience', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Tests'},
+                { name: 'Usabilité', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tests' },
+                { name: 'Scénarios', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tests' },
+                { name: 'Parcours', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tests' },
+                { name: 'Itérations', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Tests' },
+                { name: 'Patience', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Tests' },
             ],
         },
         {
             family: 'Collaboration',
             subfamilies: ['Handoff', 'Gestion'],
             items: [
-                {name: 'Specs', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Handoff'},
-                {name: 'Redlines', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Handoff'},
-                {name: 'Assets', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Handoff'},
-                {name: 'Export', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Handoff'},
-                {name: 'Clarté', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Handoff'},
-                {name: 'Feedback', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Gestion'},
-                {name: 'Planning', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Gestion'},
-                {name: 'Priorités', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Gestion'},
-                {name: 'Ateliers', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Gestion'},
+                { name: 'Specs', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Handoff' },
+                { name: 'Redlines', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Handoff' },
+                { name: 'Assets', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Handoff' },
+                { name: 'Export', kind: 'Savoir-faire', level: Level.EASY, subfamily: 'Handoff' },
+                { name: 'Clarté', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Handoff' },
+                { name: 'Feedback', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Gestion' },
+                { name: 'Planning', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Gestion' },
+                { name: 'Priorités', kind: 'Savoir-être', level: Level.MEDIUM, subfamily: 'Gestion' },
+                { name: 'Ateliers', kind: 'Savoir-faire', level: Level.MEDIUM, subfamily: 'Gestion' },
                 {
                     name: 'Alignement',
                     kind: 'Savoir-être',
                     level: Level.HARD,
                     subfamily: 'Gestion',
-                    scores: {beginner: 2, intermediate: 3, advanced: 4, expert: 4, max: 5},
+                    scores: { beginner: 2, intermediate: 3, advanced: 4, expert: 4, max: 5 },
                 },
             ],
         },
@@ -1020,9 +861,9 @@ async function upsertFamily(nameFr: string, parentId?: string | null) {
         updatedAt: new Date(),
     };
     const family = await prisma.competenciesFamily.upsert({
-        where: {name: nameFr},
+        where: { name: nameFr },
         update: base,
-        create: {...base, createdAt: new Date()},
+        create: { ...base, createdAt: new Date() },
     });
 
     const nameEn = toEn(nameFr);
@@ -1034,7 +875,7 @@ async function upsertFamily(nameFr: string, parentId?: string | null) {
 async function upsertCompetencyWithScores(nameFr: string, s: Scores, kind: string, level: Level) {
     const slug = slugify(nameFr);
     const competency = await prisma.competency.upsert({
-        where: {slug},
+        where: { slug },
         update: {
             slug,
             // beginnerScore: s.beginner,
@@ -1086,10 +927,10 @@ async function upsertCompetencyWithScores(nameFr: string, s: Scores, kind: strin
 // }
 
 async function upsertJob(jobFamilyId: string, titleEn: string, descriptionFr?: string | null) {
-    const existing = await prisma.job.findFirst({where: {title: titleEn, jobFamilyId}});
+    const existing = await prisma.job.findFirst({ where: { title: titleEn, jobFamilyId } });
     if (existing) {
         return prisma.job.update({
-            where: {id: existing.id},
+            where: { id: existing.id },
             data: {
                 slug: slugify(titleEn),
                 description: descriptionFr ?? existing.description,
@@ -1259,8 +1100,8 @@ async function upsertJob(jobFamilyId: string, titleEn: string, descriptionFr?: s
 async function seedRole(name: string) {
     console.log(`\n=== Seeding role: ${name} ===`);
     const role = await prisma.role.upsert({
-        where: {name},
-        update: {updatedAt: new Date()},
+        where: { name },
+        update: { updatedAt: new Date() },
         create: {
             name,
             createdAt: new Date(),
@@ -1296,7 +1137,7 @@ function normalizeUrl(url: string): string {
 }
 
 const ARTICLE_CONTENT_FILES = [
-    'uploads/fichier_1_SOC_comprendre_le_SOC.md',
+    'uploads/Murya_Apprendre_Gagner.md',
     'uploads/fichier_2_ANSSI_10_regles_or_securite_numerique.md',
     'uploads/fichier_3_PaloAlto_roles_responsabilites_SOC.md',
     'uploads/fichier_4_Wiz_guide_SOC.md',
@@ -1323,7 +1164,7 @@ async function seedLearningResourcesFromFile(filePath: string) {
 
     const articleContents = loadArticleContents();
 
-    const seedForJob = async (job: {id: string; title: string}, resources: LearningResourceSeed[]) => {
+    const seedForJob = async (job: { id: string; title: string }, resources: LearningResourceSeed[]) => {
         console.log(`\n=== Seeding learning resources for job: ${job.title} ===`);
 
         let articleIndex = 0;
@@ -1336,7 +1177,7 @@ async function seedLearningResourcesFromFile(filePath: string) {
                 : null;
 
             await prisma.learningResource.upsert({
-                where: {slug},
+                where: { slug },
                 update: {
                     scope: LearningResourceScope.JOB_DEFAULT,
                     type,
@@ -1358,7 +1199,7 @@ async function seedLearningResourcesFromFile(filePath: string) {
                             ? ARTICLE_CONTENT_FILES[Math.max(0, articleIndex - 1)]
                             : null,
                     },
-                    job: {connect: {id: job.id}},
+                    job: { connect: { id: job.id } },
                 },
                 create: {
                     scope: LearningResourceScope.JOB_DEFAULT,
@@ -1382,18 +1223,18 @@ async function seedLearningResourcesFromFile(filePath: string) {
                             ? ARTICLE_CONTENT_FILES[Math.max(0, articleIndex - 1)]
                             : null,
                     },
-                    job: {connect: {id: job.id}},
-            },
-        });
-    }
+                    job: { connect: { id: job.id } },
+                },
+            });
+        }
 
         console.log(`✓ Seeded ${resources.length} learning resources.`);
     };
 
     if (payload.jobFamilyName) {
         const jobFamily = await prisma.jobFamily.findFirst({
-            where: {name: payload.jobFamilyName},
-            select: {id: true, name: true},
+            where: { name: payload.jobFamilyName },
+            select: { id: true, name: true },
         });
         if (!jobFamily) {
             throw new Error(`JobFamily not found for learning resources seed: "${payload.jobFamilyName}".`);
@@ -1411,7 +1252,7 @@ async function seedLearningResourcesFromFile(filePath: string) {
                 : null;
 
             await prisma.learningResource.upsert({
-                where: {slug},
+                where: { slug },
                 update: {
                     scope: LearningResourceScope.JOB_DEFAULT,
                     type,
@@ -1433,7 +1274,7 @@ async function seedLearningResourcesFromFile(filePath: string) {
                             ? ARTICLE_CONTENT_FILES[Math.max(0, articleIndex - 1)]
                             : null,
                     },
-                    jobFamily: {connect: {id: jobFamily.id}},
+                    jobFamily: { connect: { id: jobFamily.id } },
                 },
                 create: {
                     scope: LearningResourceScope.JOB_DEFAULT,
@@ -1457,7 +1298,7 @@ async function seedLearningResourcesFromFile(filePath: string) {
                             ? ARTICLE_CONTENT_FILES[Math.max(0, articleIndex - 1)]
                             : null,
                     },
-                    jobFamily: {connect: {id: jobFamily.id}},
+                    jobFamily: { connect: { id: jobFamily.id } },
                 },
             });
         }
@@ -1471,8 +1312,8 @@ async function seedLearningResourcesFromFile(filePath: string) {
     }
 
     const job = await prisma.job.findFirst({
-        where: {title: payload.jobTitle},
-        select: {id: true, title: true},
+        where: { title: payload.jobTitle },
+        select: { id: true, title: true },
     });
 
     if (!job) {
@@ -1488,15 +1329,15 @@ async function seedLearningResourcesFromFile(filePath: string) {
 async function main() {
     // Langues (anglais par défaut)
     await prisma.language.upsert({
-        where: {code: 'en'},
-        update: {isDefault: true, name: 'English'},
-        create: {code: 'en', name: 'English', isDefault: true},
+        where: { code: 'en' },
+        update: { isDefault: true, name: 'English' },
+        create: { code: 'en', name: 'English', isDefault: true },
     });
 
     await prisma.language.upsert({
-        where: {code: 'fr'},
-        update: {name: 'Français'},
-        create: {code: 'fr', name: 'Français'},
+        where: { code: 'fr' },
+        update: { name: 'Français' },
+        create: { code: 'fr', name: 'Français' },
     });
 
     await seedRole('UNIDENTIFIED');

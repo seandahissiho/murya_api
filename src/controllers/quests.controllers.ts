@@ -64,6 +64,37 @@ export const listQuestGroups = async (req: Request, res: Response, next: NextFun
     }
 };
 
+export const listQuestLineage = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = (req as any).user?.userId;
+        if (!userId) {
+            return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
+        }
+
+        const timezone = typeof req.query.timezone === 'string'
+            ? req.query.timezone
+            : undefined;
+        const userJobId = typeof req.query.userJobId === 'string'
+            ? req.query.userJobId
+            : undefined;
+        const scopeParam = typeof req.query.scope === 'string'
+            ? req.query.scope
+            : undefined;
+        const scope = scopeParam === 'USER' || scopeParam === 'USER_JOB'
+            ? scopeParam as 'USER' | 'USER_JOB'
+            : 'ALL';
+
+        const lineage = await questService.listUserQuestLineage(userId, timezone, userJobId, scope);
+        return sendResponse(res, 200, {data: lineage});
+    } catch (err) {
+        console.error('listQuestLineage error:', err);
+        return sendResponse(res, 500, {
+            error: "Une erreur s'est produite lors de la récupération de la lignée principale.",
+            message: err instanceof Error ? err.message : 'Unknown error',
+        });
+    }
+};
+
 export const claimQuestReward = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = (req as any).user?.userId;
