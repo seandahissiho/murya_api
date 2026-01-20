@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import {Prisma, PrismaClient, CompetencyType, Level, JobProgressionLevel, QuizQuestionType, QuizType} from '@prisma/client';
+import { Prisma, PrismaClient, CompetencyType, Level, JobProgressionLevel, QuizQuestionType, QuizType } from '@prisma/client';
 import path from 'node:path';
 import xlsx from 'xlsx';
 
@@ -41,7 +41,7 @@ type QuestionGroup = {
     familyName: string;
     competencyName: string;
     questionText: string;
-    propositions: {text: string; isCorrect: boolean}[];
+    propositions: { text: string; isCorrect: boolean }[];
     timeLimitInSeconds: number | null;
 };
 
@@ -124,7 +124,7 @@ function loadTexts() {
     const familyDescriptions = new Map<string, string>();
 
     if (jobSheet) {
-        const rows = xlsx.utils.sheet_to_json<Record<string, any>>(jobSheet, {defval: null});
+        const rows = xlsx.utils.sheet_to_json<Record<string, any>>(jobSheet, { defval: null });
         for (const row of rows) {
             const jobTitle = normalizeString(row['Métier']);
             if (!jobTitle) continue;
@@ -139,7 +139,7 @@ function loadTexts() {
     }
 
     if (familySheet) {
-        const rows = xlsx.utils.sheet_to_json<Record<string, any>>(familySheet, {defval: null});
+        const rows = xlsx.utils.sheet_to_json<Record<string, any>>(familySheet, { defval: null });
         for (const row of rows) {
             const familyName = normalizeString(row['Famille']);
             if (!familyName) continue;
@@ -151,7 +151,7 @@ function loadTexts() {
         }
     }
 
-    return {jobDescriptions, familyDescriptions};
+    return { jobDescriptions, familyDescriptions };
 }
 
 function loadSkills(): SkillRow[] {
@@ -160,7 +160,7 @@ function loadSkills(): SkillRow[] {
 
     for (const sheetName of wb.SheetNames) {
         const sheet = wb.Sheets[sheetName];
-        const data = xlsx.utils.sheet_to_json<Record<string, any>>(sheet, {defval: null});
+        const data = xlsx.utils.sheet_to_json<Record<string, any>>(sheet, { defval: null });
         for (const row of data) {
             const jobTitle = normalizeString(row['Métier'] ?? sheetName);
             const familyName = normalizeString(row['Famille']);
@@ -185,7 +185,7 @@ function loadDiagrams(): DiagramRow[] {
 
     for (const sheetName of wb.SheetNames) {
         const sheet = wb.Sheets[sheetName];
-        const data = xlsx.utils.sheet_to_json<Record<string, any>>(sheet, {defval: null});
+        const data = xlsx.utils.sheet_to_json<Record<string, any>>(sheet, { defval: null });
         for (const row of data) {
             const jobTitle = normalizeString(row['Métier'] ?? sheetName);
             const familyName = normalizeString(row['Famille']);
@@ -210,7 +210,7 @@ function loadQuestions(): QuestionRow[] {
 
     for (const sheetName of wb.SheetNames) {
         const sheet = wb.Sheets[sheetName];
-        const data = xlsx.utils.sheet_to_json<Record<string, any>>(sheet, {defval: null});
+        const data = xlsx.utils.sheet_to_json<Record<string, any>>(sheet, { defval: null });
 
         let currentQuestionnaire: number | null = null;
         let currentFamily: string | null = null;
@@ -255,11 +255,11 @@ function loadQuestions(): QuestionRow[] {
     return rows;
 }
 
-export async function seedBtsCiel(options?: {reset?: boolean}) {
+export async function seedBtsCiel(options?: { reset?: boolean }) {
     const shouldReset = options?.reset ?? SHOULD_RESET;
     console.log('Seeding BTS Ciel from edlab excels...');
 
-    const {jobDescriptions, familyDescriptions} = loadTexts();
+    const { jobDescriptions, familyDescriptions } = loadTexts();
     const skills = loadSkills();
     const diagrams = loadDiagrams();
     const questions = loadQuestions();
@@ -268,20 +268,20 @@ export async function seedBtsCiel(options?: {reset?: boolean}) {
         console.log('Reset BTS Ciel content before seeding...');
 
         const existingJobFamily = await prisma.jobFamily.findUnique({
-            where: {name: JOB_FAMILY_NAME},
-            select: {id: true},
+            where: { name: JOB_FAMILY_NAME },
+            select: { id: true },
         });
 
         if (existingJobFamily) {
             const jobs = await prisma.job.findMany({
-                where: {jobFamilyId: existingJobFamily.id},
-                select: {id: true, slug: true},
+                where: { jobFamilyId: existingJobFamily.id },
+                select: { id: true, slug: true },
             });
             const jobIds = jobs.map((job) => job.id);
 
             const jobCompetencies = await prisma.job.findMany({
-                where: {id: {in: jobIds}},
-                select: {competencies: {select: {id: true}}},
+                where: { id: { in: jobIds } },
+                select: { competencies: { select: { id: true } } },
             });
 
             const competencyIds = Array.from(
@@ -291,39 +291,40 @@ export async function seedBtsCiel(options?: {reset?: boolean}) {
             await prisma.$transaction(async (tx) => {
                 if (jobIds.length) {
                     await tx.userQuiz.deleteMany({
-                        where: {quiz: {jobId: {in: jobIds}}},
+                        where: { quiz: { jobId: { in: jobIds } } },
                     });
                     await tx.quiz.deleteMany({
-                        where: {jobId: {in: jobIds}},
+                        where: { jobId: { in: jobIds } },
                     });
                     await tx.jobKiviat.deleteMany({
-                        where: {jobId: {in: jobIds}},
+                        where: { jobId: { in: jobIds } },
                     });
                     await tx.jobSubfamilyCompetency.deleteMany({
-                        where: {jobId: {in: jobIds}},
+                        where: { jobId: { in: jobIds } },
                     });
                     await tx.job.deleteMany({
-                        where: {id: {in: jobIds}},
+                        where: { id: { in: jobIds } },
                     });
                 }
 
                 if (competencyIds.length) {
                     await tx.competency.deleteMany({
-                        where: {id: {in: competencyIds}},
+                        where: { id: { in: competencyIds } },
                     });
                 }
 
                 await tx.jobFamily.delete({
-                    where: {id: existingJobFamily.id},
+                    where: { id: existingJobFamily.id },
                 });
             });
         }
     }
 
     const jobFamily = await prisma.jobFamily.upsert({
-        where: {name: JOB_FAMILY_NAME},
-        update: {slug: slugify(JOB_FAMILY_NAME), updatedAt: new Date()},
+        where: { name: JOB_FAMILY_NAME },
+        update: { slug: slugify(JOB_FAMILY_NAME), updatedAt: new Date() },
         create: {
+            id: '1b0b4fce-0fc0-4ee8-afb9-707cdfb5287a',
             name: JOB_FAMILY_NAME,
             slug: slugify(JOB_FAMILY_NAME),
             createdAt: new Date(),
@@ -336,14 +337,14 @@ export async function seedBtsCiel(options?: {reset?: boolean}) {
         ...diagrams.map((row) => row.familyName),
     ]);
 
-    const familyMap = new Map<string, {familyId: string}>();
+    const familyMap = new Map<string, { familyId: string }>();
 
     const ensureFamilyIds = async (familyName: string) => {
         const existing = familyMap.get(familyName);
         if (existing) return existing;
 
         const family = await prisma.competenciesFamily.upsert({
-            where: {name: familyName},
+            where: { name: familyName },
             update: {
                 slug: slugify(familyName),
                 description: familyDescriptions.get(familyName) ?? undefined,
@@ -358,7 +359,7 @@ export async function seedBtsCiel(options?: {reset?: boolean}) {
             },
         });
 
-        const ids = {familyId: family.id};
+        const ids = { familyId: family.id };
         familyMap.set(familyName, ids);
         return ids;
     };
@@ -368,11 +369,11 @@ export async function seedBtsCiel(options?: {reset?: boolean}) {
     }
 
     const jobTitles = Array.from(new Set(skills.map((row) => row.jobTitle)));
-    const jobMap = new Map<string, {id: string}>();
+    const jobMap = new Map<string, { id: string }>();
 
     for (const jobTitle of jobTitles) {
         const job = await prisma.job.upsert({
-            where: {slug: slugify(jobTitle)},
+            where: { slug: slugify(jobTitle) },
             update: {
                 title: jobTitle,
                 jobFamilyId: jobFamily.id,
@@ -381,6 +382,7 @@ export async function seedBtsCiel(options?: {reset?: boolean}) {
                 updatedAt: new Date(),
             },
             create: {
+                id: slugify(jobTitle) == 'operateur-cybersecurite' ? 'c24480b0-496d-4de9-b612-9977bb829293' : undefined,
                 title: jobTitle,
                 slug: slugify(jobTitle),
                 description: jobDescriptions.get(jobTitle) ?? null,
@@ -397,10 +399,15 @@ export async function seedBtsCiel(options?: {reset?: boolean}) {
             },
         });
 
-        jobMap.set(jobTitle, {id: job.id});
+        jobMap.set(jobTitle, { id: job.id });
     }
 
-    const competencyMap = new Map<string, {id: string; level: Level}>();
+    const operateurEntry = Array.from(jobMap.entries()).find(
+        ([title]) => slugify(title) === 'operateur-cybersecurite'
+    );
+    const operateurJobId = operateurEntry ? operateurEntry[1].id : null;
+
+    const competencyMap = new Map<string, { id: string; level: Level }>();
 
     for (const row of skills) {
         const job = jobMap.get(row.jobTitle);
@@ -409,7 +416,7 @@ export async function seedBtsCiel(options?: {reset?: boolean}) {
 
         const competencySlug = slugify(`${row.jobTitle}-${row.competencyName}`);
         const competency = await prisma.competency.upsert({
-            where: {slug: competencySlug},
+            where: { slug: competencySlug },
             update: {
                 name: row.competencyName,
                 type: row.competencyType,
@@ -428,19 +435,19 @@ export async function seedBtsCiel(options?: {reset?: boolean}) {
         });
 
         await prisma.competency.update({
-            where: {id: competency.id},
+            where: { id: competency.id },
             data: {
                 families: {
-                    connect: [{id: family.familyId}],
+                    connect: [{ id: family.familyId }],
                 },
             },
         });
 
         await prisma.job.update({
-            where: {id: job.id},
+            where: { id: job.id },
             data: {
-                competencies: {connect: {id: competency.id}},
-                competenciesFamilies: {connect: {id: family.familyId}},
+                competencies: { connect: { id: competency.id } },
+                competenciesFamilies: { connect: { id: family.familyId } },
             },
         });
 
@@ -498,7 +505,7 @@ export async function seedBtsCiel(options?: {reset?: boolean}) {
         if (group.timeLimitInSeconds == null && row.timeLimitInSeconds != null) {
             group.timeLimitInSeconds = row.timeLimitInSeconds;
         }
-        group.propositions.push({text: row.proposition, isCorrect: row.isCorrect});
+        group.propositions.push({ text: row.proposition, isCorrect: row.isCorrect });
         questionGroups.set(key, group);
     }
 
@@ -514,58 +521,89 @@ export async function seedBtsCiel(options?: {reset?: boolean}) {
         const [jobTitle, questionnaireRaw] = key.split('::');
         const questionnaire = Number(questionnaireRaw);
 
-        const existingQuiz = await prisma.quiz.findFirst({
+        const quizTitle = `Questionnaire ${questionnaire}`;
+        const existingFamilyQuiz = await prisma.quiz.findFirst({
             where: {
                 jobFamilyId: jobFamily.id,
                 type: QuizType.POSITIONING,
-                title: `Questionnaire ${questionnaire}`,
+                title: quizTitle,
             },
-            select: {id: true},
+            select: { id: true },
         });
-        if (existingQuiz) {
+        if (existingFamilyQuiz) {
             console.log(`Quiz déjà existant pour BTS Ciel / Questionnaire ${questionnaire}, skip.`);
-            continue;
         }
 
-        await prisma.quiz.create({
-            data: {
-                jobId: null,
-                jobFamilyId: jobFamily.id,
-                title: `Questionnaire ${questionnaire}`,
-                description: null,
-                type: QuizType.POSITIONING,
-                isActive: true,
-                level: Level.MEDIUM,
-                items: {
-                    create: groups.map((group, index) => {
-                        const competency = competencyMap.get(`${jobTitle}::${group.competencyName}`);
-                        if (!competency) {
-                            throw new Error(`Compétence introuvable pour "${jobTitle}" / "${group.competencyName}".`);
-                        }
-                        return {
-                            index,
-                            question: {
-                                create: {
-                                    text: group.questionText,
-                                    competencyId: competency.id,
-                                    defaultTimeLimitS: group.timeLimitInSeconds ?? 30,
-                                    level: competency.level ?? Level.MEDIUM,
-                                    defaultPoints: pointsForLevel(competency.level ?? Level.MEDIUM),
-                                    type: QuizQuestionType.single_choice,
-                                    responses: {
-                                        create: group.propositions.map((prop, propIndex) => ({
-                                            text: prop.text,
-                                            isCorrect: prop.isCorrect,
-                                            index: propIndex,
-                                        })),
-                                    },
-                                },
-                            },
-                        };
-                    }),
+        const itemsPayload = groups.map((group, index) => {
+            const competency = competencyMap.get(`${jobTitle}::${group.competencyName}`);
+            if (!competency) {
+                throw new Error(`Compétence introuvable pour "${jobTitle}" / "${group.competencyName}".`);
+            }
+            return {
+                index,
+                question: {
+                    create: {
+                        text: group.questionText,
+                        competencyId: competency.id,
+                        defaultTimeLimitS: group.timeLimitInSeconds ?? 30,
+                        level: competency.level ?? Level.MEDIUM,
+                        defaultPoints: pointsForLevel(competency.level ?? Level.MEDIUM),
+                        type: QuizQuestionType.single_choice,
+                        responses: {
+                            create: group.propositions.map((prop, propIndex) => ({
+                                text: prop.text,
+                                isCorrect: prop.isCorrect,
+                                index: propIndex,
+                            })),
+                        },
+                    },
                 },
-            },
+            };
         });
+
+        if (!existingFamilyQuiz) {
+            await prisma.quiz.create({
+                data: {
+                    jobId: null,
+                    jobFamilyId: jobFamily.id,
+                    title: quizTitle,
+                    description: null,
+                    type: QuizType.POSITIONING,
+                    isActive: true,
+                    level: Level.MEDIUM,
+                    items: {
+                        create: itemsPayload,
+                    },
+                },
+            });
+        }
+
+        if (operateurJobId) {
+            const existingJobQuiz = await prisma.quiz.findFirst({
+                where: {
+                    jobId: operateurJobId,
+                    type: QuizType.POSITIONING,
+                    title: quizTitle,
+                },
+                select: { id: true },
+            });
+            if (!existingJobQuiz) {
+                await prisma.quiz.create({
+                    data: {
+                        jobId: operateurJobId,
+                        jobFamilyId: null,
+                        title: quizTitle,
+                        description: null,
+                        type: QuizType.POSITIONING,
+                        isActive: true,
+                        level: Level.MEDIUM,
+                        items: {
+                            create: itemsPayload,
+                        },
+                    },
+                });
+            }
+        }
     }
 
     console.log('Seed BTS Ciel termine.');

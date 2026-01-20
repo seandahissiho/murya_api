@@ -424,14 +424,13 @@ async function seedQuestDefinitions() {
         const parentId = def.requiresQuestCode
             ? positioningByCode.get(def.requiresQuestCode)?.id ?? null
             : null;
-        const isRoot = !def.requiresQuestCode;
         const quest = await prisma.questDefinition.upsert({
             where: { code: def.code },
             update: {
                 title: def.title,
                 description: def.description,
                 period: QuestPeriod.ONCE,
-                category: isRoot ? QuestCategory.MAIN : QuestCategory.BRANCH,
+                category: QuestCategory.MAIN,
                 scope: QuestScope.USER_JOB,
                 eventKey: 'QUIZ_COMPLETED',
                 targetCount: 1,
@@ -451,7 +450,7 @@ async function seedQuestDefinitions() {
                 title: def.title,
                 description: def.description,
                 period: QuestPeriod.ONCE,
-                category: isRoot ? QuestCategory.MAIN : QuestCategory.BRANCH,
+                category: QuestCategory.MAIN,
                 scope: QuestScope.USER_JOB,
                 eventKey: 'QUIZ_COMPLETED',
                 targetCount: 1,
@@ -523,6 +522,271 @@ async function seedQuestDefinitions() {
     });
 
     console.log(`✓ Quest definitions seeded.`);
+
+    const referralGroup = await prisma.questGroup.upsert({
+        where: { code: 'REFERRAL_TREE' },
+        update: {
+            title: 'Programme de Parrainage',
+            description: 'Invitez vos amis à rejoindre Murya et gagnez des récompenses.',
+            scope: QuestScope.USER,
+            period: QuestPeriod.ONCE,
+            meta: { oneShot: true },
+            isActive: true,
+            uiOrder: 6,
+            updatedAt: new Date(),
+        },
+        create: {
+            code: 'REFERRAL_TREE',
+            title: 'Programme de Parrainage',
+            description: 'Invitez vos amis à rejoindre Murya et gagnez des récompenses.',
+            scope: QuestScope.USER,
+            period: QuestPeriod.ONCE,
+            meta: { oneShot: true },
+            isActive: true,
+            uiOrder: 6,
+        },
+    });
+
+    const referralDefs = [
+        {
+            code: 'REFERRAL_LEVEL_1',
+            title: 'Premier Parrainage',
+            description: 'Obtenez votre première inscription via parrainage.',
+            targetCount: 1,
+            requiresQuestCode: 'POSITIONING_QUIZ_3',
+            rewardAmount: 50,
+            uiOrder: 1,
+        },
+        {
+            code: 'REFERRAL_LEVEL_2',
+            title: "Cercle d'Amis",
+            description: 'Obtenez 3 inscriptions via parrainage.',
+            targetCount: 3,
+            requiresQuestCode: 'REFERRAL_LEVEL_1',
+            rewardAmount: 150,
+            uiOrder: 2,
+        },
+        {
+            code: 'REFERRAL_LEVEL_3',
+            title: 'Ambassadeur Murya',
+            description: 'Obtenez 10 inscriptions via parrainage.',
+            targetCount: 10,
+            requiresQuestCode: 'REFERRAL_LEVEL_2',
+            rewardAmount: 500,
+            uiOrder: 3,
+        },
+    ];
+
+    for (const def of referralDefs) {
+        const parentId = def.requiresQuestCode
+            ? (await prisma.questDefinition.findUnique({ where: { code: def.requiresQuestCode } }))?.id ?? null
+            : null;
+
+        const quest = await prisma.questDefinition.upsert({
+            where: { code: def.code },
+            update: {
+                title: def.title,
+                description: def.description,
+                period: QuestPeriod.ONCE,
+                category: QuestCategory.BRANCH,
+                scope: QuestScope.USER,
+                eventKey: 'REFERRAL_SIGNUP',
+                targetCount: def.targetCount,
+                meta: {
+                    oneShot: true,
+                    requiresQuestCode: def.requiresQuestCode,
+                },
+                isActive: true,
+                parentId,
+                uiOrder: def.uiOrder,
+                updatedAt: new Date(),
+            },
+            create: {
+                code: def.code,
+                title: def.title,
+                description: def.description,
+                period: QuestPeriod.ONCE,
+                category: QuestCategory.BRANCH,
+                scope: QuestScope.USER,
+                eventKey: 'REFERRAL_SIGNUP',
+                targetCount: def.targetCount,
+                meta: {
+                    oneShot: true,
+                    requiresQuestCode: def.requiresQuestCode,
+                },
+                isActive: true,
+                parentId,
+                uiOrder: def.uiOrder,
+            },
+        });
+
+        await prisma.questReward.deleteMany({ where: { questDefinitionId: quest.id } });
+        await prisma.questReward.createMany({
+            data: [
+                {
+                    questDefinitionId: quest.id,
+                    currency: CurrencyType.DIAMONDS,
+                    amount: def.rewardAmount,
+                },
+            ],
+        });
+
+        await prisma.questGroupItem.upsert({
+            where: {
+                questGroupId_questDefinitionId: {
+                    questGroupId: referralGroup.id,
+                    questDefinitionId: quest.id,
+                },
+            },
+            update: {
+                isRequired: true,
+                uiOrder: def.uiOrder,
+            },
+            create: {
+                questGroupId: referralGroup.id,
+                questDefinitionId: quest.id,
+                isRequired: true,
+                uiOrder: def.uiOrder,
+            },
+        });
+    }
+
+    const profileGroup = await prisma.questGroup.upsert({
+        where: { code: 'PROFILE_PATH' },
+        update: {
+            title: 'Identité Murya',
+            description: 'Complétez votre profil pour personnaliser votre expérience.',
+            scope: QuestScope.USER,
+            period: QuestPeriod.ONCE,
+            meta: { oneShot: true },
+            isActive: true,
+            uiOrder: 7,
+            updatedAt: new Date(),
+        },
+        create: {
+            code: 'PROFILE_PATH',
+            title: 'Identité Murya',
+            description: 'Complétez votre profil pour personnaliser votre expérience.',
+            scope: QuestScope.USER,
+            period: QuestPeriod.ONCE,
+            meta: { oneShot: true },
+            isActive: true,
+            uiOrder: 7,
+        },
+    });
+
+    const profileDefs = [
+        {
+            code: 'PROFILE_NAME',
+            title: 'Nom complet',
+            description: 'Renseignez votre nom et prénom.',
+            targetCount: 1,
+            requiresQuestCode: 'POSITIONING_QUIZ_4',
+            rewardAmount: 20,
+            uiOrder: 1,
+        },
+        {
+            code: 'PROFILE_AVATAR',
+            title: 'Photo de profil',
+            description: 'Ajoutez un avatar pour être reconnu.',
+            targetCount: 1,
+            requiresQuestCode: 'PROFILE_NAME',
+            rewardAmount: 20,
+            uiOrder: 2,
+        },
+        {
+            code: 'PROFILE_BIRTH_GENRE',
+            title: 'Informations personnelles',
+            description: 'Renseignez votre date de naissance et votre genre.',
+            targetCount: 1,
+            requiresQuestCode: 'PROFILE_AVATAR',
+            rewardAmount: 20,
+            uiOrder: 3,
+        },
+        {
+            code: 'PROFILE_ADDRESS',
+            title: 'Localisation',
+            description: 'Renseignez votre adresse complète.',
+            targetCount: 1,
+            requiresQuestCode: 'PROFILE_BIRTH_GENRE',
+            rewardAmount: 50,
+            uiOrder: 4,
+        },
+    ];
+
+    for (const def of profileDefs) {
+        const parentId = def.requiresQuestCode
+            ? (await prisma.questDefinition.findUnique({ where: { code: def.requiresQuestCode } }))?.id ?? null
+            : null;
+
+        const quest = await prisma.questDefinition.upsert({
+            where: { code: def.code },
+            update: {
+                title: def.title,
+                description: def.description,
+                period: QuestPeriod.ONCE,
+                category: QuestCategory.BRANCH,
+                scope: QuestScope.USER,
+                eventKey: 'PROFILE_UPDATED',
+                targetCount: def.targetCount,
+                meta: {
+                    oneShot: true,
+                    requiresQuestCode: def.requiresQuestCode,
+                },
+                isActive: true,
+                parentId,
+                uiOrder: def.uiOrder,
+                updatedAt: new Date(),
+            },
+            create: {
+                code: def.code,
+                title: def.title,
+                description: def.description,
+                period: QuestPeriod.ONCE,
+                category: QuestCategory.BRANCH,
+                scope: QuestScope.USER,
+                eventKey: 'PROFILE_UPDATED',
+                targetCount: def.targetCount,
+                meta: {
+                    oneShot: true,
+                    requiresQuestCode: def.requiresQuestCode,
+                },
+                isActive: true,
+                parentId,
+                uiOrder: def.uiOrder,
+            },
+        });
+
+        await prisma.questReward.deleteMany({ where: { questDefinitionId: quest.id } });
+        await prisma.questReward.createMany({
+            data: [
+                {
+                    questDefinitionId: quest.id,
+                    currency: CurrencyType.DIAMONDS,
+                    amount: def.rewardAmount,
+                },
+            ],
+        });
+
+        await prisma.questGroupItem.upsert({
+            where: {
+                questGroupId_questDefinitionId: {
+                    questGroupId: profileGroup.id,
+                    questDefinitionId: quest.id,
+                },
+            },
+            update: {
+                isRequired: true,
+                uiOrder: def.uiOrder,
+            },
+            create: {
+                questGroupId: profileGroup.id,
+                questDefinitionId: quest.id,
+                isRequired: true,
+                uiOrder: def.uiOrder,
+            },
+        });
+    }
 }
 
 // -----------------------------------------------------------------------------
@@ -1304,6 +1568,18 @@ async function seedLearningResourcesFromFile(filePath: string) {
         }
 
         console.log(`✓ Seeded ${payload.resources.length} learning resources for job family.`);
+
+        if (jobFamily.name === 'BTS Ciel') {
+            const operateurJob = await prisma.job.findFirst({
+                where: { slug: 'operateur-cybersecurite' },
+                select: { id: true, title: true },
+            });
+            if (operateurJob) {
+                await seedForJob(operateurJob, payload.resources);
+            } else {
+                console.warn('Operateur cybersécurité job not found for learning resources seed.');
+            }
+        }
         return;
     }
 

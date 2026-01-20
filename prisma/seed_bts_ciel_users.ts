@@ -182,6 +182,93 @@ const buildAnswerPayload = (
     });
 };
 
+const buildJonathanStrategy = async (
+    userId: string,
+    targetId: string,
+    quizzesToComplete: number,
+    scope: 'job' | 'jobFamily',
+) => {
+    await retrieveDailyQuizForJob(targetId, userId, LOCALE);
+    const userJob = scope === 'jobFamily'
+        ? await prisma.userJob.findUnique({
+            where: {userId_jobFamilyId: {userId, jobFamilyId: targetId}},
+            select: {id: true},
+        })
+        : await prisma.userJob.findUnique({
+            where: {userId_jobId: {userId, jobId: targetId}},
+            select: {id: true},
+        });
+
+    if (!userJob) {
+        throw new Error(`UserJob introuvable pour le seed BTS Ciel (Jonathan / ${scope}).`);
+    }
+
+    const assigned = await prisma.userQuiz.findMany({
+        where: {userJobId: userJob.id, type: QuizType.POSITIONING, isActive: true},
+        orderBy: {index: 'asc'},
+        take: quizzesToComplete,
+        include: {
+            quiz: {
+                include: {
+                    items: {
+                        include: {
+                            question: {include: {responses: true}},
+                        },
+                    },
+                },
+            },
+        },
+    });
+
+    const questionsWithPoints: Array<{questionId: string; points: number}> = [];
+    for (const uq of assigned) {
+        for (const item of uq.quiz.items) {
+            const points = item.pointsOverride ?? item.question.defaultPoints ?? 0;
+            if (points > 0) {
+                questionsWithPoints.push({questionId: item.questionId, points});
+            }
+        }
+    }
+    const totalMaxScore = questionsWithPoints.reduce((sum, q) => sum + q.points, 0);
+    let wrongPointsTarget = Math.round(totalMaxScore * 0.05);
+    if (totalMaxScore >= 20 && wrongPointsTarget === 0) {
+        wrongPointsTarget = 1;
+    }
+    const sorted = [...questionsWithPoints].sort((a, b) => a.points - b.points);
+    const wrongIds = new Set<string>();
+    let remaining = wrongPointsTarget;
+    for (const entry of sorted) {
+        if (remaining <= 0) break;
+        wrongIds.add(entry.questionId);
+        remaining -= entry.points;
+    }
+    const strategyByQuestionId = new Map<string, AnswerStrategy>(
+        questionsWithPoints.map((q) => [q.questionId, 'correct']),
+    );
+    for (const qid of wrongIds) {
+        strategyByQuestionId.set(qid, 'incorrect');
+    }
+    return strategyByQuestionId;
+};
+
+const completePositioningQuizzes = async (
+    targetId: string,
+    userId: string,
+    quizzesToComplete: number,
+    strategyByQuestionId?: Map<string, AnswerStrategy>,
+    defaultStrategy: AnswerStrategy = 'random',
+) => {
+    for (let i = 0; i < quizzesToComplete; i += 1) {
+        const quiz = await retrieveDailyQuizForJob(targetId, userId, LOCALE);
+        if (!quiz) {
+            throw new Error(`Quiz introuvable pour ${userId} (index ${i + 1}).`);
+        }
+        const answers = buildAnswerPayload(quiz, strategyByQuestionId, defaultStrategy);
+        const doneAt = new Date(Date.now() - (quizzesToComplete - i) * 60 * 60 * 1000).toISOString();
+        await saveQuizAnswersAndComplete(targetId, quiz.id, userId, answers, doneAt, TIMEZONE, LOCALE);
+    }
+};
+
 const ensureSeedUser = async (
     email: string,
     password: string,
@@ -213,6 +300,14 @@ export async function seedBtsCielUsers() {
         throw new Error(`Famille de metiers introuvable: ${JOB_FAMILY_NAME}`);
     }
 
+    const operateurJob = await prisma.job.findFirst({
+        where: {slug: 'operateur-cybersecurite'},
+        select: {id: true, title: true},
+    });
+    if (!operateurJob) {
+        throw new Error('Metier introuvable pour operateur-cybersecurite.');
+    }
+
     const canGenerateDaily = Boolean(
         process.env.QUIZ_GENERATION_URL
         || process.env.QUIZ_AGENT_URL
@@ -233,60 +328,21 @@ export async function seedBtsCielUsers() {
         const quizzesToComplete = canGenerateDaily ? targetQuizzes : Math.min(targetQuizzes, 4);
         const isJonathan = userSeed.email === 'jonathan.dahissiho@murya.app';
 
-        let strategyByQuestionId: Map<string, AnswerStrategy> | undefined;
+        let familyStrategyByQuestionId: Map<string, AnswerStrategy> | undefined;
+        let jobStrategyByQuestionId: Map<string, AnswerStrategy> | undefined;
         if (isJonathan) {
-            await retrieveDailyQuizForJob(jobFamily.id, user.id, LOCALE);
-            const userJob = await prisma.userJob.findUnique({
-                where: {userId_jobFamilyId: {userId: user.id, jobFamilyId: jobFamily.id}},
-                select: {id: true},
-            });
-            if (!userJob) {
-                throw new Error('UserJob introuvable pour le seed BTS Ciel (Jonathan).');
-            }
-            const assigned = await prisma.userQuiz.findMany({
-                where: {userJobId: userJob.id, type: QuizType.POSITIONING, isActive: true},
-                orderBy: {index: 'asc'},
-                take: quizzesToComplete,
-                include: {
-                    quiz: {
-                        include: {
-                            items: {
-                                include: {
-                                    question: {include: {responses: true}},
-                                },
-                            },
-                        },
-                    },
-                },
-            });
-            const questionsWithPoints: Array<{questionId: string; points: number}> = [];
-            for (const uq of assigned) {
-                for (const item of uq.quiz.items) {
-                    const points = item.pointsOverride ?? item.question.defaultPoints ?? 0;
-                    if (points > 0) {
-                        questionsWithPoints.push({questionId: item.questionId, points});
-                    }
-                }
-            }
-            const totalMaxScore = questionsWithPoints.reduce((sum, q) => sum + q.points, 0);
-            let wrongPointsTarget = Math.round(totalMaxScore * 0.05);
-            if (totalMaxScore >= 20 && wrongPointsTarget === 0) {
-                wrongPointsTarget = 1;
-            }
-            const sorted = [...questionsWithPoints].sort((a, b) => a.points - b.points);
-            const wrongIds = new Set<string>();
-            let remaining = wrongPointsTarget;
-            for (const entry of sorted) {
-                if (remaining <= 0) break;
-                wrongIds.add(entry.questionId);
-                remaining -= entry.points;
-            }
-            strategyByQuestionId = new Map<string, AnswerStrategy>(
-                questionsWithPoints.map((q) => [q.questionId, 'correct']),
+            familyStrategyByQuestionId = await buildJonathanStrategy(
+                user.id,
+                jobFamily.id,
+                quizzesToComplete,
+                'jobFamily',
             );
-            for (const qid of wrongIds) {
-                strategyByQuestionId.set(qid, 'incorrect');
-            }
+            jobStrategyByQuestionId = await buildJonathanStrategy(
+                user.id,
+                operateurJob.id,
+                quizzesToComplete,
+                'job',
+            );
         }
 
         if (quizzesToComplete < targetQuizzes) {
@@ -295,21 +351,23 @@ export async function seedBtsCielUsers() {
             );
         }
 
-        for (let i = 0; i < quizzesToComplete; i += 1) {
-            const quiz = await retrieveDailyQuizForJob(jobFamily.id, user.id, LOCALE);
-            if (!quiz) {
-                throw new Error(`Quiz introuvable pour ${userSeed.email} (index ${i + 1}).`);
-            }
-            const answers = buildAnswerPayload(
-                quiz,
-                strategyByQuestionId,
-                isJonathan ? 'correct' : 'random',
-            );
-            const doneAt = new Date(Date.now() - (quizzesToComplete - i) * 60 * 60 * 1000).toISOString();
-            await saveQuizAnswersAndComplete(jobFamily.id, quiz.id, user.id, answers, doneAt, TIMEZONE, LOCALE);
-        }
+        await completePositioningQuizzes(
+            jobFamily.id,
+            user.id,
+            quizzesToComplete,
+            familyStrategyByQuestionId,
+            isJonathan ? 'correct' : 'random',
+        );
 
-        console.log(`Seeded ${quizzesToComplete} quizzes pour ${userSeed.email}`);
+        await completePositioningQuizzes(
+            operateurJob.id,
+            user.id,
+            quizzesToComplete,
+            jobStrategyByQuestionId,
+            isJonathan ? 'correct' : 'random',
+        );
+
+        console.log(`Seeded ${quizzesToComplete} quizzes pour ${userSeed.email} (JobFamily + Job)`);
     }
 
     console.log('Seed BTS Ciel users termine');

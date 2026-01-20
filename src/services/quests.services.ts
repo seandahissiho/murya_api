@@ -1070,21 +1070,8 @@ export const listUserQuests = async (
         : null;
     const shouldLimitPositioning =
         availablePositioningCount !== null && availablePositioningCount > 0;
-
     for (const definition of activeDefinitions) {
         const meta = toMetaObject(definition.meta);
-        const quizIndex = typeof meta?.quizIndex === 'number' ? meta.quizIndex : null;
-        const quizType = typeof meta?.quizType === 'string' ? meta.quizType : null;
-
-        if (
-            definition.scope === QuestScope.USER_JOB
-            && quizType === 'POSITIONING'
-            && quizIndex !== null
-            && shouldLimitPositioning
-            && quizIndex > availablePositioningCount!
-        ) {
-            continue;
-        }
 
         const referenceDate = isOneShotQuest(meta)
             ? definition.scope === QuestScope.USER_JOB
@@ -1405,7 +1392,7 @@ export const listUserQuestLineage = async (
     }
 
     const mainQuests = questItems.filter(
-        (item) => item.definition.category === QuestCategory.MAIN && !item.definition.parentId,
+        (item) => item.definition.category === QuestCategory.MAIN,
     );
 
     if (mainQuests.length > 0 && userJob) {
@@ -1475,7 +1462,13 @@ export const listUserQuestLineage = async (
         };
     };
 
-    const mains = mainQuests
+    const definitionIds = new Set(questItems.map((item) => item.definition.id));
+    const mainRoots = mainQuests.filter((item) => {
+        const parentId = item.definition.parentId;
+        return !parentId || !definitionIds.has(parentId);
+    });
+
+    const mains = mainRoots
         .map((item) => buildTree(item.definition.id, new Set()))
         .filter((item): item is NonNullable<typeof item> => item !== null);
 
