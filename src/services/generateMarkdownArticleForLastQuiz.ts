@@ -223,18 +223,18 @@ Consignes de sortie :
     const finalUserPrompt = `${userPrompt}
 ${baseInstructions}`;
 
-    const completion = await openai.chat.completions.create({
+    const response = await openai.responses.create({
         model: "gpt-5.2",
-        messages: [
+        input: [
             {role: "system", content: systemPrompt},
             {role: "user", content: finalUserPrompt},
         ],
         temperature: 0.4,
-        response_format: {type: "json_object"},
-        max_completion_tokens: 1000,
+        text: {format: {type: "json_object"}},
+        // max_output_tokens: 1000,
     });
 
-    const raw = completion.choices[0]?.message?.content ?? "";
+    const raw = response.output_text?.trim() ?? "";
     if (!raw) {
         return null;
     }
