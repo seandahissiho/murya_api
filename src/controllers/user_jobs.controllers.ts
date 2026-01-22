@@ -167,6 +167,36 @@ export const getJobLeaderboard = async (req: Request, res: Response, next: NextF
     }
 }
 
+export const getCompetencyFamilyDetailsForUserJob = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = (req as any).user?.userId;
+        const userJobId = getSingleParam(req.params.userJobId);
+        const cfId = getSingleParam(req.params.cfId);
+
+        if (!userId) {
+            return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
+        }
+        if (!userJobId || !cfId) {
+            return sendResponse(res, 400, {error: 'userJobId et cfId sont requis.'});
+        }
+
+        const details = await jobService.getCompetencyFamilyDetailsForUserJob(
+            userId,
+            userJobId,
+            cfId,
+            await detectLanguage(req),
+        );
+
+        return sendResponse(res, 200, {data: details});
+    } catch (err) {
+        console.error('getCompetencyFamilyDetailsForUserJob error:', err);
+        return sendResponse(res, 500, {
+            error: "Une erreur s'est produite lors de la récupération des détails de la famille.",
+            message: err instanceof Error ? err.message : 'Unknown error'
+        });
+    }
+}
+
 
 // retrieveDailyQuizForJob
 export const retrieveDailyQuizForJob = async (req: Request, res: Response, next: NextFunction) => {

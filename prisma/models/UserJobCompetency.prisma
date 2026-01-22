@@ -22,6 +22,8 @@ model UserJobCompetency {
   mastery30d      Float                      @default(0)
   // Optionnel : niveau dérivé des scores (si tu veux mapper vers EASY/MEDIUM/HARD/EXPERT)
   level           Level?
+  // Rating relatif au JobProgressionLevel (ex: JUNIOR -> TRES_BON, MIDLEVEL -> MOYEN)
+  rating          CompetencyRating          @default(MOYEN)
   createdAt       DateTime                   @default(now()) @db.Timestamp(0)
   updatedAt       DateTime                   @default(now()) @updatedAt @db.Timestamp(0)
   // Relations

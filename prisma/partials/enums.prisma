@@ -59,6 +59,14 @@ enum Level {
   MIX
 }
 
+enum CompetencyRating {
+  TRES_BON
+  BON
+  MOYEN
+  MAUVAIS
+  TRES_MAUVAIS
+}
+
 enum QuizQuestionType {
   single_choice
   multiple_choice

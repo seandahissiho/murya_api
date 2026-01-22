@@ -75,6 +75,14 @@ enum Level {
   MIX
 }
 
+enum CompetencyRating {
+  TRES_BON
+  BON
+  MOYEN
+  MAUVAIS
+  TRES_MAUVAIS
+}
+
 enum QuizQuestionType {
   single_choice
   multiple_choice
@@ -959,6 +967,8 @@ model UserJobCompetency {
   mastery30d      Float                      @default(0)
   // Optionnel : niveau dérivé des scores (si tu veux mapper vers EASY/MEDIUM/HARD/EXPERT)
   level           Level?
+  // Rating relatif au JobProgressionLevel (ex: JUNIOR -> TRES_BON, MIDLEVEL -> MOYEN)
+  rating          CompetencyRating           @default(MOYEN)
   createdAt       DateTime                   @default(now()) @db.Timestamp(0)
   updatedAt       DateTime                   @default(now()) @updatedAt @db.Timestamp(0)
   // Relations
@@ -987,6 +997,8 @@ model UserJobCompetencyHistory {
   halfLifeAfterDays   Float?
   // Optionnel : snapshot du niveau à ce moment là
   level               Level?
+  // Snapshot du rating à ce moment là
+  rating              CompetencyRating?
   createdAt           DateTime          @default(now()) @db.Timestamp(0)
   // Relations
   userJobCompetency   UserJobCompetency @relation(fields: [userJobCompetencyId], references: [id], onUpdate: Cascade, onDelete: Cascade)

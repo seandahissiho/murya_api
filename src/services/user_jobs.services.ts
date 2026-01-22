@@ -11,6 +11,7 @@ import {
     Level,
     LeagueTier,
     LearningResourceSource,
+    CompetencyRating,
 } from '@prisma/client';
 import {prisma} from "../config/db";
 import {resolveFields} from "../i18n/translate";
@@ -1369,6 +1370,43 @@ const mapLeagueTierToProgressionLevel = (tier: LeagueTier | null | undefined): J
     }
 };
 
+const getTargetForProgressionLevel = (
+    targets: {junior: number; mid: number; senior: number} | undefined,
+    level: JobProgressionLevel,
+) => {
+    if (!targets) return null;
+    switch (level) {
+        case JobProgressionLevel.JUNIOR:
+            return targets.junior ?? null;
+        case JobProgressionLevel.MIDLEVEL:
+            return targets.mid ?? null;
+        case JobProgressionLevel.SENIOR:
+            return targets.senior ?? null;
+        case JobProgressionLevel.EXPERT:
+            return targets.senior ?? null;
+        default:
+            return null;
+    }
+};
+
+const computeCompetencyRating = (masteryNow: number, targetScore0to5: number | null) => {
+    const mastery = clamp(masteryNow ?? 0, 0, 1);
+    if (targetScore0to5 && targetScore0to5 > 0) {
+        const expected = clamp(targetScore0to5 / 5, 0.1, 0.95);
+        const ratio = mastery / expected;
+        if (ratio >= 1.2) return CompetencyRating.TRES_BON;
+        if (ratio >= 1.0) return CompetencyRating.BON;
+        if (ratio >= 0.85) return CompetencyRating.MOYEN;
+        if (ratio >= 0.7) return CompetencyRating.MAUVAIS;
+        return CompetencyRating.TRES_MAUVAIS;
+    }
+    if (mastery >= 0.85) return CompetencyRating.TRES_BON;
+    if (mastery >= 0.7) return CompetencyRating.BON;
+    if (mastery >= 0.55) return CompetencyRating.MOYEN;
+    if (mastery >= 0.4) return CompetencyRating.MAUVAIS;
+    return CompetencyRating.TRES_MAUVAIS;
+};
+
 export async function generateAndPersistDailyQuiz(userId: string, userJobId: string, jobId?: string) {
     const agentUrl = process.env.QUIZ_GENERATION_URL || process.env.QUIZ_AGENT_URL;
     if (!agentUrl) {
@@ -1763,6 +1801,17 @@ export const saveQuizAnswersAndComplete = async (
         }
 
         const items = [...quiz.items].sort((a: any, b: any) => a.index - b.index);
+        const competencyFamilyIdsById = new Map<string, string[]>();
+        for (const item of items) {
+            const competency = item?.question?.competency;
+            if (!competency?.id) continue;
+            const familyIds = Array.isArray(competency.families)
+                ? competency.families.map((family: any) => family.id)
+                : [];
+            if (familyIds.length) {
+                competencyFamilyIdsById.set(competency.id, familyIds);
+            }
+        }
         const expectedQuestionIds = items.map((item: any) => item.questionId);
         const expectedSet = new Set(expectedQuestionIds);
 
@@ -2243,6 +2292,9 @@ export const saveQuizAnswersAndComplete = async (
             }
         }
 
+        const pendingHistoryCreates: any[] = [];
+        const ratingInputs = new Map<string, {ujcId: string; competencyId: string; masteryNow: number}>();
+
         for (const [competencyId, state] of competencyState.entries()) {
             const agg = competencyAgg.get(competencyId);
             if (!agg) {
@@ -2303,6 +2355,12 @@ export const saveQuizAnswersAndComplete = async (
                 },
             });
 
+            ratingInputs.set(competencyId, {
+                ujcId: state.ujc.id,
+                competencyId,
+                masteryNow,
+            });
+
             const featuresSnapshot: Record<string, unknown> = {
                 k: agg.totalCount,
                 r: agg.correctCount,
@@ -2319,7 +2377,8 @@ export const saveQuizAnswersAndComplete = async (
                 featuresSnapshot.effectiveJobIds = effectiveJobIds;
             }
 
-            await tx.userJobCompetencyHistory.create({
+            pendingHistoryCreates.push({
+                competencyId,
                 data: {
                     userJobCompetencyId: state.ujc.id,
                     userQuizId: updatedUserQuiz.id,
@@ -2448,6 +2507,53 @@ export const saveQuizAnswersAndComplete = async (
         const previousTier = resolvedUserJob.leagueTier;
         const previousPoints = resolvedUserJob.leaguePoints ?? 0;
         const tierChanged = previousTier !== nextTier;
+
+        const progressionLevel = mapLeagueTierToProgressionLevel(nextTier);
+        const ratingCompetencyIds = tierChanged ? [] : Array.from(ratingInputs.keys());
+        const ratingRows = await tx.userJobCompetency.findMany({
+            where: {
+                userJobId: resolvedUserJob.id,
+                ...(tierChanged ? {} : {competencyId: {in: ratingCompetencyIds}}),
+            },
+            select: {
+                id: true,
+                competencyId: true,
+                masteryNow: true,
+                competency: {select: {families: {select: {id: true}}}},
+            },
+        });
+
+        const ratingByCompetencyId = new Map<string, CompetencyRating>();
+        for (const row of ratingRows) {
+            const familyIdsFromQuiz = competencyFamilyIdsById.get(row.competencyId) ?? [];
+            const familyIdsFromDb = row.competency?.families?.map((family: any) => family.id) ?? [];
+            const familyIds = familyIdsFromQuiz.length ? familyIdsFromQuiz : familyIdsFromDb;
+
+            let bestTarget: number | null = null;
+            for (const familyId of familyIds) {
+                const target = getTargetForProgressionLevel(targetValuesByFamily.get(familyId), progressionLevel);
+                if (target === null) continue;
+                bestTarget = bestTarget === null ? target : Math.max(bestTarget, target);
+            }
+
+            const rating = computeCompetencyRating(Number(row.masteryNow ?? 0), bestTarget);
+            ratingByCompetencyId.set(row.competencyId, rating);
+
+            await tx.userJobCompetency.update({
+                where: {id: row.id},
+                data: {rating},
+            });
+        }
+
+        for (const entry of pendingHistoryCreates) {
+            const rating = ratingByCompetencyId.get(entry.competencyId) ?? CompetencyRating.MOYEN;
+            await tx.userJobCompetencyHistory.create({
+                data: {
+                    ...entry.data,
+                    rating,
+                },
+            });
+        }
 
         const userJobUpdateData: any = {
             leagueTier: nextTier,
@@ -3375,4 +3481,148 @@ export const getUserJobCompetencyProfile = async (
     };
 
     return profile;
+};
+
+export const getCompetencyFamilyDetailsForUserJob = async (
+    userId: string,
+    userJobId: string,
+    cfId: string,
+    lang: string = 'en',
+) => {
+    const userJob = await prisma.userJob.findUnique({
+        where: {id: userJobId, userId},
+        select: {
+            id: true,
+            scope: true,
+            jobId: true,
+            jobFamilyId: true,
+            job: {select: {id: true, title: true, description: true, slug: true}},
+            jobFamily: {select: {id: true, name: true, slug: true}},
+            selectedJobs: {where: {isSelected: true}, select: {jobId: true}},
+        },
+    });
+    if (!userJob) {
+        throw new Error('UserJob not found');
+    }
+
+    const family = await prisma.competenciesFamily.findUnique({
+        where: {id: cfId},
+    });
+    if (!family) {
+        throw new Error('Competency Family not found');
+    }
+
+    const jobIds =
+        userJob.scope === UserJobScope.JOB
+            ? userJob.jobId
+                ? [userJob.jobId]
+                : []
+            : userJob.selectedJobs.map((selection) => selection.jobId);
+    if (!jobIds.length) {
+        throw new Error('Aucun métier sélectionné pour ce UserJob.');
+    }
+
+    const competencies = await prisma.competency.findMany({
+        where: {
+            jobs: {some: {id: {in: jobIds}}},
+            families: {some: {id: cfId}},
+        },
+        select: {
+            id: true,
+            name: true,
+            slug: true,
+            description: true,
+            type: true,
+            level: true,
+        },
+    });
+
+    const competencyIds = competencies.map((comp) => comp.id);
+    const userStats = competencyIds.length
+        ? await prisma.userJobCompetency.findMany({
+            where: {
+                userJobId: userJob.id,
+                competencyId: {in: competencyIds},
+            },
+            select: {
+                competencyId: true,
+                rating: true,
+                percentage: true,
+                masteryNow: true,
+                mastery30d: true,
+                attemptsCount: true,
+                bestScore: true,
+                lastQuizAt: true,
+            },
+        })
+        : [];
+    const statsByCompetencyId = new Map(
+        userStats.map((row) => [row.competencyId, row]),
+    );
+
+    const localizedJob =
+        userJob.scope === UserJobScope.JOB && userJob.job
+            ? await resolveFields({
+                entity: 'Job',
+                entityId: userJob.job.id,
+                fields: ['title', 'description'],
+                lang,
+                base: userJob.job,
+            })
+            : null;
+
+    const localizedJobFamily =
+        userJob.scope === UserJobScope.JOB_FAMILY && userJob.jobFamily
+            ? await resolveFields({
+                entity: 'JobFamily',
+                entityId: userJob.jobFamily.id,
+                fields: ['name'],
+                lang,
+                base: userJob.jobFamily,
+            })
+            : null;
+
+    const localizedFamily = await resolveFields({
+        entity: 'CompetenciesFamily',
+        entityId: family.id,
+        fields: ['name', 'description'],
+        lang,
+        base: family,
+    });
+
+    const localizedCompetencies = await Promise.all(
+        competencies.map(async (comp) => {
+            const loc = await resolveFields({
+                entity: 'Competency',
+                entityId: comp.id,
+                fields: ['name', 'description'],
+                lang,
+                base: {name: comp.name, description: comp.description ?? null},
+            });
+            const stats = statsByCompetencyId.get(comp.id);
+            return {
+                competencyId: comp.id,
+                name: loc.name,
+                slug: comp.slug,
+                type: comp.type,
+                level: comp.level,
+                rating: stats?.rating ?? null,
+                percentage: stats?.percentage ?? 0,
+                masteryNow: stats?.masteryNow ?? 0,
+                mastery30d: stats?.mastery30d ?? 0,
+                attemptsCount: stats?.attemptsCount ?? 0,
+                bestScore: stats?.bestScore ?? 0,
+                lastQuizAt: stats?.lastQuizAt ?? null,
+            };
+        }),
+    );
+
+    return {
+        userJobId: userJob.id,
+        scope: userJob.scope,
+        job: localizedJob,
+        jobFamily: localizedJobFamily,
+        family: localizedFamily,
+        competencies: localizedCompetencies,
+    };
 };
