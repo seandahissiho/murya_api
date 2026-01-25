@@ -1,0 +1,29 @@
+substitutions:
+  _REGION: "europe-west9"
+  _IMAGE: "europe-west9-docker.pkg.dev/$PROJECT_ID/murya/murya-api:$SHORT_SHA"
+  _WORKER_SA: "murya-worker-sa@murya-backend-prod.iam.gserviceaccount.com"
+
+steps:
+  # Build
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["build", "-t", "${_IMAGE}", "."]
+
+  # Push
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["push", "${_IMAGE}"]
+
+  # Deploy worker pool (new revision)
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+    entrypoint: "gcloud"
+    args:
+      [
+        "beta","run","worker-pools","deploy","murya-worker",
+        "--region","${_REGION}",
+        "--image","${_IMAGE}",
+        "--service-account","${_WORKER_SA}",
+        "--set-env-vars","NODE_ENV=production,RUN_HTTP=0,RUN_WORKERS=1",
+        "--update-secrets","DATABASE_URL=DATABASE_URL:latest,DIRECT_URL=DIRECT_URL:latest,OPENAI_API_KEY=OPENAI_API_KEY:latest,QUIZ_GENERATION_URL=QUIZ_GENERATION_URL:latest"
+      ]
+
+images:
+  - "${_IMAGE}"

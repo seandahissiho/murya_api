@@ -14,6 +14,12 @@ dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3000;
+const parseBoolean = (value: string | undefined, defaultValue: boolean) => {
+    if (value === undefined) return defaultValue;
+    return ["1", "true", "yes", "y", "on"].includes(value.toLowerCase());
+};
+const runHttp = parseBoolean(process.env.RUN_HTTP, true);
+const runWorkers = parseBoolean(process.env.RUN_WORKERS, true);
 
 app.use(express.json());
 
@@ -41,19 +47,30 @@ app.use("/api", router);
 app.get("/", (_, res) => res.json({ ok: true }));
 
 
-app.listen(port, () => {
-    console.log(`Server listening on http://localhost:${port}`);
-    initRedis().then((client) => {
+const startWorkers = async () => {
+    try {
+        const client = await initRedis();
         if (client) {
             startQuizGenerationWorker();
             startArticleGenerationWorker();
         }
-    }).catch((err) => {
+    } catch (err) {
         console.error('Failed to initialize Redis', err);
-    });
-    // Optional: run once at boot (useful after restarts)
-    // (Comment out if you strictly want it only at 08:00)
+    }
+};
 
-});
+if (runHttp) {
+    app.listen(port, () => {
+        console.log(`Server listening on http://localhost:${port}`);
+    });
+} else {
+    console.log('HTTP server disabled (RUN_HTTP=false).');
+}
+
+if (runWorkers) {
+    startWorkers();
+} else {
+    console.log('Workers disabled (RUN_WORKERS=false).');
+}
 
 export default app;

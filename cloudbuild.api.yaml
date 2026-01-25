@@ -1,0 +1,42 @@
+substitutions:
+  _REGION: "europe-west9"
+  _IMAGE: "europe-west9-docker.pkg.dev/murya-backend-prod/murya/murya-api:$SHORT_SHA"
+  _SERVICE: "murya-api"
+  _API_SA: "murya-api-sa@murya-backend-prod.iam.gserviceaccount.com"
+  _CLOUDSQL: "murya-backend-prod:europe-west9:murya-db"
+
+steps:
+  # Build image
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["build", "-t", "${_IMAGE}", "."]
+
+  # Push to Artifact Registry (Paris)
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["push", "${_IMAGE}"]
+
+  # Deploy to Cloud Run service (Paris)
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk:slim"
+    entrypoint: "gcloud"
+    args:
+      [
+        "run","deploy","${_SERVICE}",
+        "--image","${_IMAGE}",
+        "--region","${_REGION}",
+        "--platform","managed",
+        "--service-account","${_API_SA}",
+        "--allow-unauthenticated",
+        "--add-cloudsql-instances","${_CLOUDSQL}",
+        "--set-secrets",
+        "DATABASE_URL=DATABASE_URL:latest,DIRECT_URL=DIRECT_URL:latest,JWT_SECRET=JWT_SECRET:latest,JWT_REFRESH_SECRET=JWT_REFRESH_SECRET:latest,QUIZ_GENERATION_URL=QUIZ_GENERATION_URL:latest",
+        "--set-env-vars",
+        "NODE_ENV=production,RUN_HTTP=1,RUN_WORKERS=0",
+        "--timeout","3600",
+        "--memory","512Mi",
+        "--cpu","1",
+        "--concurrency","80",
+        "--max-instances","1",
+        "--quiet"
+      ]
+
+images:
+  - "${_IMAGE}"
