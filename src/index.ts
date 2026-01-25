@@ -13,7 +13,7 @@ import {startArticleGenerationWorker} from "./services/article_generation.worker
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 8080;
 const parseBoolean = (value: string | undefined, defaultValue: boolean) => {
     if (value === undefined) return defaultValue;
     return ["1", "true", "yes", "y", "on"].includes(value.toLowerCase());
@@ -60,8 +60,8 @@ const startWorkers = async () => {
 };
 
 if (runHttp) {
-    app.listen(port, () => {
-        console.log(`Server listening on http://localhost:${port}`);
+    app.listen(port, "0.0.0.0", () => {
+        console.log(`Server listening on http://0.0.0.0:${port}`);
     });
 } else {
     console.log('HTTP server disabled (RUN_HTTP=false).');
