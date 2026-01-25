@@ -13,7 +13,7 @@ import {startArticleGenerationWorker} from "./services/article_generation.worker
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 8080;
+const port = Number.parseInt(process.env.PORT ?? "8080", 10);
 const parseBoolean = (value: string | undefined, defaultValue: boolean) => {
     if (value === undefined) return defaultValue;
     return ["1", "true", "yes", "y", "on"].includes(value.toLowerCase());
