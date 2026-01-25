@@ -3,7 +3,7 @@ options:
   logging: GCS_ONLY
 substitutions:
   _REGION: "europe-west9"
-  _IMAGE: "europe-west9-docker.pkg.dev/$PROJECT_ID/murya/murya-api:$SHORT_SHA"
+  _IMAGE: "europe-west9-docker.pkg.dev/${PROJECT_ID}/murya/murya-api:${SHORT_SHA}"
   _WORKER_SA: "murya-worker-sa@murya-backend-prod.iam.gserviceaccount.com"
 
 steps:
