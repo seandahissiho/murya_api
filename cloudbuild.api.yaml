@@ -1,3 +1,6 @@
+options:
+  defaultLogsBucketBehavior: REGIONAL_USER_OWNED_BUCKET
+  logging: GCS_ONLY
 substitutions:
   _REGION: "europe-west9"
   _IMAGE: "europe-west9-docker.pkg.dev/murya-backend-prod/murya/murya-api:$SHORT_SHA"
