@@ -13,6 +13,10 @@ FROM node:20-bookworm
 WORKDIR /app
 ENV NODE_ENV=production
 
+# ✅ pour que Prisma détecte OpenSSL 3 correctement
+RUN apt-get update -y && apt-get install -y --no-install-recommends openssl \
+  && rm -rf /var/lib/apt/lists/*
+
 # Copie runtime (prod)
 COPY --from=build /app/package*.json ./
 COPY --from=build /app/node_modules ./node_modules
