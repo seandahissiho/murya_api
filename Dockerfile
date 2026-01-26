@@ -9,7 +9,7 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM node:20-bookworm-slim
+FROM node:20-bookworm
 WORKDIR /app
 ENV NODE_ENV=production
 
