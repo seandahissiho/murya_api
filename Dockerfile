@@ -17,6 +17,10 @@ ENV NODE_ENV=production
 RUN apt-get update -y && apt-get install -y --no-install-recommends openssl \
   && rm -rf /var/lib/apt/lists/*
 
+RUN apt-get update -y && apt-get install -y openssl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
+
 # Copie runtime (prod)
 COPY --from=build /app/package*.json ./
 COPY --from=build /app/node_modules ./node_modules
