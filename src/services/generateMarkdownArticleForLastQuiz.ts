@@ -3,9 +3,13 @@ import {CompetencyType, Level, UserQuizStatus} from "@prisma/client";
 import OpenAI from "openai";
 import {realtimeBus} from "../realtime/realtimeBus";
 
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY!,
-});
+const getOpenAIClient = () => {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+        throw new Error("OPENAI_API_KEY is required for article generation");
+    }
+    return new OpenAI({apiKey});
+};
 
 export interface QuizContext {
     jobTitle: string;
@@ -223,6 +227,7 @@ Consignes de sortie :
     const finalUserPrompt = `${userPrompt}
 ${baseInstructions}`;
 
+    const openai = getOpenAIClient();
     const response = await openai.responses.create({
         model: "gpt-5.2",
         input: [

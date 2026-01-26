@@ -17,7 +17,6 @@ import {prisma} from "../config/db";
 import {resolveFields} from "../i18n/translate";
 import {buildGenerateQuizInput} from "./quiz_gen/build-generate-quiz-input";
 import {enqueueArticleGenerationJob, enqueueQuizGenerationJob, getRedisClient} from "../config/redis";
-import {generateMarkdownArticleForLastQuiz} from "./generateMarkdownArticleForLastQuiz";
 import {computeWaveformFromMediaUrl} from "../utils/waveform";
 import {assignPositioningQuestsForUserJob, trackEvent} from "./quests.services";
 import {realtimeBus} from "../realtime/realtimeBus";
@@ -2630,9 +2629,10 @@ export const saveQuizAnswersAndComplete = async (
     if (!wasAlreadyCompleted) {
         try {
             const enqueued = await enqueueArticleGenerationJob({userJobId: userJob.id, userId});
-            if (!enqueued) {
+            if (!enqueued && process.env.RUN_WORKERS !== "0") {
                 setImmediate(() => {
-                    generateMarkdownArticleForLastQuiz(userJob.id, userId)
+                    import("./generateMarkdownArticleForLastQuiz")
+                        .then(({generateMarkdownArticleForLastQuiz}) => generateMarkdownArticleForLastQuiz(userJob.id, userId))
                         .catch((err) => console.error('Failed to auto-generate markdown article after quiz completion', err));
                 });
             }
