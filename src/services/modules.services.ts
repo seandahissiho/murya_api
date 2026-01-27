@@ -9,7 +9,8 @@ import {prisma} from "../config/db";
 import {ServiceError} from "../utils/serviceError";
 import {resolveFields} from "../i18n/translate";
 
-const DEFAULT_LANDING_MODULES_COUNT = 3;
+const DEFAULT_LANDING_MODULE_SLUGS = ["daily-quiz", "learning-resources", "leaderboard"];
+const DEFAULT_LANDING_MODULES_COUNT = DEFAULT_LANDING_MODULE_SLUGS.length;
 const DEFAULT_LIST_LIMIT = 100;
 const MAX_LIST_LIMIT = 100;
 
@@ -45,8 +46,7 @@ export const ensureUserExists = async (userId: string) => {
 const fetchDefaultModules = async () => {
     const defaults = await prisma.module.findMany({
         where: {defaultOnLanding: true, status: ModuleStatus.ACTIVE},
-        select: {id: true},
-        orderBy: {createdAt: "asc"},
+        select: {id: true, slug: true},
     });
 
     if (defaults.length !== DEFAULT_LANDING_MODULES_COUNT) {
@@ -57,7 +57,20 @@ const fetchDefaultModules = async () => {
         );
     }
 
-    return defaults;
+    const defaultsBySlug = new Map(defaults.map((item) => [item.slug, item]));
+    const ordered = DEFAULT_LANDING_MODULE_SLUGS.map((slug) => {
+        const match = defaultsBySlug.get(slug);
+        if (!match) {
+            throw new ServiceError(
+                "Les modules par défaut sont mal configurés.",
+                500,
+                "DEFAULT_MODULES_MISCONFIGURED",
+            );
+        }
+        return match;
+    });
+
+    return ordered;
 };
 
 const ensureDefaultLandingModules = async (userId: string) => {
@@ -75,8 +88,8 @@ const ensureDefaultLandingModules = async (userId: string) => {
         }),
     ]);
 
-    const missingDefaults = defaultIds.filter(
-        (id) => !existingDefaults.some((item) => item.moduleId === id),
+    const missingDefaults = defaults.filter(
+        (item) => !existingDefaults.some((existing) => existing.moduleId === item.id),
     );
     const reEnableDefaults = existingDefaults.filter((item) => item.removedAt !== null);
 
@@ -88,12 +101,12 @@ const ensureDefaultLandingModules = async (userId: string) => {
     const now = new Date();
 
     await prisma.$transaction(async (tx) => {
-        for (const moduleId of missingDefaults) {
+        for (const moduleItem of missingDefaults) {
             nextOrder += 1;
             await tx.userLandingModule.create({
                 data: {
                     userId,
-                    moduleId,
+                    moduleId: moduleItem.id,
                     order: nextOrder,
                     addedBy: LandingModuleAddedBy.SYSTEM,
                     addedAt: now,
@@ -102,7 +115,7 @@ const ensureDefaultLandingModules = async (userId: string) => {
             await tx.userLandingModuleEvent.create({
                 data: {
                     userId,
-                    moduleId,
+                    moduleId: moduleItem.id,
                     action: LandingModuleAction.ADD,
                     actor: LandingModuleActor.SYSTEM,
                     createdAt: now,
