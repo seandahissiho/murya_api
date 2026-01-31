@@ -4,15 +4,15 @@ import * as rewardsService from "../services/rewards.services";
 import {getSingleParam, sendResponse} from "../utils/helpers";
 import {ServiceError} from "../utils/serviceError";
 import {detectLanguage} from "../middlewares/i18n";
+import {MURYA_ERROR} from "../constants/errorCodes";
 
 const handleError = (res: Response, err: unknown, fallback: string) => {
     if (err instanceof ServiceError) {
-        return sendResponse(res, err.status, {error: err.message, code: err.code});
+        return sendResponse(res, err.status, {code: err.code ?? MURYA_ERROR.INTERNAL_ERROR});
     }
     console.error(fallback, err);
     return sendResponse(res, 500, {
-        error: "Une erreur s'est produite.",
-        message: err instanceof Error ? err.message : "Unknown error",
+        code: MURYA_ERROR.INTERNAL_ERROR,
     });
 };
 
@@ -20,7 +20,7 @@ export const listRewards = async (req: Request, res: Response, next: NextFunctio
     try {
         const userId = (req as any).user?.userId;
         if (!userId) {
-            return sendResponse(res, 401, {error: "Utilisateur non authentifié."});
+            return sendResponse(res, 401, {code: MURYA_ERROR.AUTH_REQUIRED});
         }
 
         const city = typeof req.query.city === "string" ? req.query.city : undefined;
@@ -52,10 +52,10 @@ export const getRewardDetails = async (req: Request, res: Response, next: NextFu
         const userId = (req as any).user?.userId;
         const rewardId = getSingleParam(req.params.id);
         if (!rewardId) {
-            return sendResponse(res, 400, {error: "L'identifiant de la récompense est requis."});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
         if (!userId) {
-            return sendResponse(res, 401, {error: "Utilisateur non authentifié."});
+            return sendResponse(res, 401, {code: MURYA_ERROR.AUTH_REQUIRED});
         }
 
         const lang = await detectLanguage(req);
@@ -71,10 +71,10 @@ export const purchaseReward = async (req: Request, res: Response, next: NextFunc
         const userId = (req as any).user?.userId;
         const rewardId = getSingleParam(req.params.id);
         if (!rewardId) {
-            return sendResponse(res, 400, {error: "L'identifiant de la récompense est requis."});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
         if (!userId) {
-            return sendResponse(res, 401, {error: "Utilisateur non authentifié."});
+            return sendResponse(res, 401, {code: MURYA_ERROR.AUTH_REQUIRED});
         }
 
         const idempotencyKey = req.get("Idempotency-Key") || req.get("idempotency-key");
@@ -82,7 +82,7 @@ export const purchaseReward = async (req: Request, res: Response, next: NextFunc
             ? Number(req.body.quantity)
             : 1;
         if (!Number.isInteger(quantity) || quantity <= 0) {
-            return sendResponse(res, 400, {error: "Le champ \"quantity\" doit être un entier positif."});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
 
         const lang = await detectLanguage(req);
@@ -107,7 +107,7 @@ export const listUserPurchases = async (req: Request, res: Response, next: NextF
     try {
         const userId = (req as any).user?.userId;
         if (!userId) {
-            return sendResponse(res, 401, {error: "Utilisateur non authentifié."});
+            return sendResponse(res, 401, {code: MURYA_ERROR.AUTH_REQUIRED});
         }
 
         const page = Number.parseInt((req.query.page as string) || "1", 10);
@@ -125,10 +125,10 @@ export const getUserPurchaseDetails = async (req: Request, res: Response, next: 
         const userId = (req as any).user?.userId;
         const purchaseId = getSingleParam(req.params.id);
         if (!purchaseId) {
-            return sendResponse(res, 400, {error: "L'identifiant de l'achat est requis."});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
         if (!userId) {
-            return sendResponse(res, 401, {error: "Utilisateur non authentifié."});
+            return sendResponse(res, 401, {code: MURYA_ERROR.AUTH_REQUIRED});
         }
 
         const lang = await detectLanguage(req);
@@ -143,7 +143,7 @@ export const getWallet = async (req: Request, res: Response, next: NextFunction)
     try {
         const userId = (req as any).user?.userId;
         if (!userId) {
-            return sendResponse(res, 401, {error: "Utilisateur non authentifié."});
+            return sendResponse(res, 401, {code: MURYA_ERROR.AUTH_REQUIRED});
         }
 
         const limit = Number.parseInt((req.query.limit as string) || "20", 10);

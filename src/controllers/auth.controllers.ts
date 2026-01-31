@@ -2,6 +2,7 @@ import {NextFunction, Request, Response} from 'express';
 import type {LoginDto, RegisterDto} from '../dtos/auth.dtos';
 import * as authService from '../services/auth.services';
 import {sendResponse} from "../utils/helpers";
+import {MURYA_ERROR} from "../constants/errorCodes";
 
 // POST /auth/register
 export const register = async (req: Request<any, any, RegisterDto>, res: Response, next: NextFunction) => {
@@ -13,7 +14,7 @@ export const register = async (req: Request<any, any, RegisterDto>, res: Respons
 
         if (!hasDeviceOnly && !hasCredentials) {
             return sendResponse(res, 400, {
-                error: "Fournissez soit un deviceId, soit email/phone + mot de passe pour l'inscription.",
+                code: MURYA_ERROR.INVALID_REQUEST,
             });
         }
 
@@ -45,8 +46,7 @@ export const register = async (req: Request<any, any, RegisterDto>, res: Respons
             res,
             500,
             {
-                error: "Une erreur s'est produite lors de l'enregistrement de l'utilisateur.",
-                message: err instanceof Error ? err.message : 'Unknown error'
+                code: MURYA_ERROR.INTERNAL_ERROR,
             }
         );
     }
@@ -62,7 +62,7 @@ export const login = async (req: Request<any, any, LoginDto>, res: Response, nex
 
         if (!hasDeviceOnly && !hasCredentials) {
             return sendResponse(res, 400, {
-                error: "Fournissez soit un deviceId, soit email/phone + mot de passe pour la connexion.",
+                code: MURYA_ERROR.INVALID_REQUEST,
             });
         }
 
@@ -87,7 +87,7 @@ export const login = async (req: Request<any, any, LoginDto>, res: Response, nex
             res,
             401,
             {
-                error: "Identifiants invalides. Veuillez vérifier votre email et mot de passe.",
+                code: MURYA_ERROR.AUTH_INVALID_CREDENTIALS,
             }
         );
     }
@@ -113,7 +113,7 @@ export const retrieve = async (req: Request, res: Response, next: NextFunction) 
             res,
             500,
             {
-                error: "Une erreur s'est produite lors de la récupération des informations de l'utilisateur.",
+                code: MURYA_ERROR.INTERNAL_ERROR,
             }
         );
     }
@@ -126,7 +126,7 @@ export const refresh = async (req: Request, res: Response, next: NextFunction) =
 
         if (!refresh_token) {
             return sendResponse(res, 400, {
-                error: "Veuillez fournir un token de rafraîchissement",
+                code: MURYA_ERROR.AUTH_REFRESH_TOKEN_REQUIRED,
             });
         }
 
@@ -145,7 +145,7 @@ export const refresh = async (req: Request, res: Response, next: NextFunction) =
             res,
             401,
             {
-                error: "Échec du rafraîchissement des jetons. Veuillez vous reconnecter.",
+                code: MURYA_ERROR.AUTH_REFRESH_FAILED,
             }
         );
     }

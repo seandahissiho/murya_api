@@ -2,13 +2,14 @@ import {NextFunction, Request, Response} from "express";
 import * as competencyService from "../services/competencies.services";
 import {sendResponse} from "../utils/helpers";
 import {detectLanguage} from "../middlewares/i18n";
+import {MURYA_ERROR} from "../constants/errorCodes";
 
 
 export const searchCompetencies = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const query = (req.query.query as string)?.trim() || "";
         if (query === undefined) {
-            return sendResponse(res, 400, {error: 'Le paramètre "query" est requis.'});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
 
         const page = parseInt((req.query.page as string) || '1', 10);
@@ -21,8 +22,7 @@ export const searchCompetencies = async (req: Request, res: Response, next: Next
     } catch (err) {
         console.error('searchCompetencies error:', err);
         return sendResponse(res, 500, {
-            error: "Une erreur s'est produite lors de la recherche.",
-            message: err instanceof Error ? err.message : 'Unknown error'
+            code: MURYA_ERROR.INTERNAL_ERROR,
         });
     }
 };
@@ -36,8 +36,7 @@ export const getCompetenciesFamiliesAndSubFamilies = async (req: Request, res: R
     } catch (err) {
         console.error('getCompetenciesFamiliesAndSubFamilies error:', err);
         return sendResponse(res, 500, {
-            error: "Une erreur s'est produite lors de la récupération des familles et sous-familles.",
-            message: err instanceof Error ? err.message : 'Unknown error'
+            code: MURYA_ERROR.INTERNAL_ERROR,
         });
     }
 }
@@ -51,8 +50,7 @@ export const getCompetenciesFamilies = async (req: Request, res: Response, next:
     } catch (err) {
         console.error('getCompetenciesFamilies error:', err);
         return sendResponse(res, 500, {
-            error: "Une erreur s'est produite lors de la récupération des familles.",
-            message: err instanceof Error ? err.message : 'Unknown error'
+            code: MURYA_ERROR.INTERNAL_ERROR,
         });
     }
 }

@@ -1,13 +1,14 @@
 import {Request, Response} from 'express';
 import {realtimeBus} from './realtimeBus';
 import {sendEnvelope} from './sse.helpers';
+import {MURYA_ERROR} from '../constants/errorCodes';
 
 const HEARTBEAT_MS = 25_000;
 
 export const streamRealtime = (req: Request, res: Response) => {
     const userId = (req as any).user?.userId;
     if (!userId) {
-        res.status(401).json({error: 'Utilisateur non authentifié.'});
+        res.status(401).json({code: MURYA_ERROR.AUTH_REQUIRED});
         return;
     }
 

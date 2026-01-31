@@ -11,6 +11,7 @@ import {ServiceError} from "../utils/serviceError";
 import {buildGoogleMapsUrl} from "../utils/address";
 import {generateVoucherCode} from "../utils/rewards";
 import {getTranslationsMap} from "../i18n/translate";
+import {MURYA_ERROR} from "../constants/errorCodes";
 
 const buildVisibilityFilter = (now: Date): Prisma.RewardWhereInput => ({
     AND: [
@@ -112,7 +113,7 @@ const ensureUser = async (userId: string) => {
         select: {id: true, diamonds: true, isAdmin: true},
     });
     if (!user) {
-        throw new ServiceError("Utilisateur introuvable.", 404, "USER_NOT_FOUND");
+        throw new ServiceError("Utilisateur introuvable.", 404, MURYA_ERROR.USER_NOT_FOUND);
     }
     return user;
 };
@@ -227,7 +228,7 @@ export const getRewardDetails = async (userId: string, rewardId: string, lang: s
     });
 
     if (!reward) {
-        throw new ServiceError("Récompense introuvable ou inactive.", 404, "REWARD_NOT_FOUND");
+        throw new ServiceError("Récompense introuvable ou inactive.", 404, MURYA_ERROR.REWARD_NOT_FOUND);
     }
 
     const rewardTranslations = await loadRewardTranslations([reward.id], lang);
@@ -258,7 +259,7 @@ export const purchaseReward = async (
     lang: string = "en",
 ) => {
     if (!idempotencyKey) {
-        throw new ServiceError("Idempotency-Key manquant.", 400, "IDEMPOTENCY_REQUIRED");
+        throw new ServiceError("Idempotency-Key manquant.", 400, MURYA_ERROR.IDEMPOTENCY_REQUIRED);
     }
 
     const now = new Date();
@@ -299,11 +300,11 @@ export const purchaseReward = async (
             });
 
             if (!reward) {
-                throw new ServiceError("Récompense introuvable.", 404, "REWARD_NOT_FOUND");
+                throw new ServiceError("Récompense introuvable.", 404, MURYA_ERROR.REWARD_NOT_FOUND);
             }
 
             if (!isRewardVisible(reward as Reward, now)) {
-                throw new ServiceError("Récompense inactive.", 400, "REWARD_NOT_ACTIVE");
+                throw new ServiceError("Récompense inactive.", 400, MURYA_ERROR.REWARD_NOT_ACTIVE);
             }
 
             const user = await tx.user.findUnique({
@@ -311,16 +312,16 @@ export const purchaseReward = async (
                 select: {id: true, diamonds: true},
             });
             if (!user) {
-                throw new ServiceError("Utilisateur introuvable.", 404, "USER_NOT_FOUND");
+                throw new ServiceError("Utilisateur introuvable.", 404, MURYA_ERROR.USER_NOT_FOUND);
             }
 
             const totalCost = reward.costDiamonds * quantity;
             if (user.diamonds < totalCost) {
-                throw new ServiceError("Diamants insuffisants.", 409, "NOT_ENOUGH_DIAMONDS");
+                throw new ServiceError("Diamants insuffisants.", 409, MURYA_ERROR.NOT_ENOUGH_DIAMONDS);
             }
 
             if (reward.remainingStock < quantity) {
-                throw new ServiceError("Stock insuffisant.", 409, "OUT_OF_STOCK");
+                throw new ServiceError("Stock insuffisant.", 409, MURYA_ERROR.OUT_OF_STOCK);
             }
 
             const stockUpdate = await tx.reward.updateMany({
@@ -329,7 +330,7 @@ export const purchaseReward = async (
             });
 
             if (stockUpdate.count === 0) {
-                throw new ServiceError("Stock insuffisant.", 409, "OUT_OF_STOCK");
+                throw new ServiceError("Stock insuffisant.", 409, MURYA_ERROR.OUT_OF_STOCK);
             }
 
             const isLocal = reward.fulfillmentMode === RewardFulfillmentMode.LOCAL;
@@ -528,7 +529,7 @@ export const getUserPurchaseDetails = async (
     });
 
     if (!purchase) {
-        throw new ServiceError("Achat introuvable.", 404, "PURCHASE_NOT_FOUND");
+        throw new ServiceError("Achat introuvable.", 404, MURYA_ERROR.PURCHASE_NOT_FOUND);
     }
 
     const rewardTranslations = purchase.reward
@@ -582,7 +583,7 @@ export const getWallet = async (userId: string, limit = 20) => {
 
 export const createReward = async (data: any) => {
     if (!data?.code || !data?.title) {
-        throw new ServiceError("Les champs code et title sont requis.", 400, "INVALID_PAYLOAD");
+        throw new ServiceError("Les champs code et title sont requis.", 400, MURYA_ERROR.INVALID_PAYLOAD);
     }
 
     return prisma.reward.create({
@@ -652,10 +653,10 @@ export const refundPurchase = async (purchaseId: string) => {
             where: {id: purchaseId},
         });
         if (!purchase) {
-            throw new ServiceError("Achat introuvable.", 404, "PURCHASE_NOT_FOUND");
+            throw new ServiceError("Achat introuvable.", 404, MURYA_ERROR.PURCHASE_NOT_FOUND);
         }
         if (purchase.status === RewardPurchaseStatus.REFUNDED) {
-            throw new ServiceError("Achat déjà remboursé.", 409, "ALREADY_REFUNDED");
+            throw new ServiceError("Achat déjà remboursé.", 409, MURYA_ERROR.ALREADY_REFUNDED);
         }
 
         const updated = await tx.rewardPurchase.update({

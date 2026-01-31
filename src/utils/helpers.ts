@@ -1,5 +1,6 @@
 import {Response} from "express";
 import bcrypt from "bcryptjs";
+import {MURYA_ERROR} from "../constants/errorCodes";
 
 interface ApiResponse<T> {
     data?: any;
@@ -23,7 +24,11 @@ export function sendResponse<T>(
     // check error's type
     if (error && error instanceof Error) {
         statusCode = 400;
-        response.error = error.message;
+        response = {code: MURYA_ERROR.INVALID_REQUEST};
+    }
+    if (statusCode >= 400) {
+        const code = (response as any)?.code ?? MURYA_ERROR.INTERNAL_ERROR;
+        response = {code};
     }
     return res.status(statusCode).json(response);
 }

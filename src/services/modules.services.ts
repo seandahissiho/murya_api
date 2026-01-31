@@ -8,6 +8,7 @@ import {
 import {prisma} from "../config/db";
 import {ServiceError} from "../utils/serviceError";
 import {resolveFields} from "../i18n/translate";
+import {MURYA_ERROR} from "../constants/errorCodes";
 
 const DEFAULT_LANDING_MODULE_SLUGS = ["daily-quiz", "learning-resources", "leaderboard"];
 const DEFAULT_LANDING_MODULES_COUNT = DEFAULT_LANDING_MODULE_SLUGS.length;
@@ -29,7 +30,7 @@ const decodeCursor = (cursor?: string) => {
         }
         return parsed.offset;
     } catch (err) {
-        throw new ServiceError("Paramètre \"cursor\" invalide.", 400, "INVALID_CURSOR");
+        throw new ServiceError("Paramètre \"cursor\" invalide.", 400, MURYA_ERROR.INVALID_CURSOR);
     }
 };
 
@@ -39,7 +40,7 @@ export const ensureUserExists = async (userId: string) => {
         select: {id: true},
     });
     if (!user) {
-        throw new ServiceError("Utilisateur introuvable.", 404, "USER_NOT_FOUND");
+        throw new ServiceError("Utilisateur introuvable.", 404, MURYA_ERROR.USER_NOT_FOUND);
     }
 };
 
@@ -53,7 +54,7 @@ const fetchDefaultModules = async () => {
         throw new ServiceError(
             "Les modules par défaut sont mal configurés.",
             500,
-            "DEFAULT_MODULES_MISCONFIGURED",
+            MURYA_ERROR.INTERNAL_ERROR,
         );
     }
 
@@ -64,7 +65,7 @@ const fetchDefaultModules = async () => {
             throw new ServiceError(
                 "Les modules par défaut sont mal configurés.",
                 500,
-                "DEFAULT_MODULES_MISCONFIGURED",
+                MURYA_ERROR.INTERNAL_ERROR,
             );
         }
         return match;
@@ -248,11 +249,11 @@ export const addUserLandingModule = async (
     });
 
     if (!moduleRecord) {
-        throw new ServiceError("Module introuvable.", 404, "MODULE_NOT_FOUND");
+        throw new ServiceError("Module introuvable.", 404, MURYA_ERROR.MODULE_NOT_FOUND);
     }
 
     if (moduleRecord.status !== ModuleStatus.ACTIVE) {
-        throw new ServiceError("Module inactif.", 400, "MODULE_INACTIVE");
+        throw new ServiceError("Module inactif.", 400, MURYA_ERROR.MODULE_INACTIVE);
     }
 
     await ensureDefaultLandingModules(userId);
@@ -263,7 +264,7 @@ export const addUserLandingModule = async (
     });
 
     if (existing && existing.removedAt === null) {
-        throw new ServiceError("Module déjà présent sur la landing.", 409, "MODULE_EXISTS");
+        throw new ServiceError("Module déjà présent sur la landing.", 409, MURYA_ERROR.MODULE_EXISTS);
     }
 
     const now = new Date();
@@ -328,14 +329,14 @@ export const removeUserLandingModule = async (userId: string, moduleId: string) 
     });
 
     if (!moduleRecord) {
-        throw new ServiceError("Module introuvable.", 404, "MODULE_NOT_FOUND");
+        throw new ServiceError("Module introuvable.", 404, MURYA_ERROR.MODULE_NOT_FOUND);
     }
 
     if (moduleRecord.defaultOnLanding) {
         throw new ServiceError(
             "Ce module par défaut ne peut pas être retiré.",
             403,
-            "MODULE_DEFAULT_FORBIDDEN",
+            MURYA_ERROR.FORBIDDEN,
         );
     }
 
@@ -347,7 +348,7 @@ export const removeUserLandingModule = async (userId: string, moduleId: string) 
     });
 
     if (!landing || landing.removedAt !== null) {
-        throw new ServiceError("Module absent de la landing.", 404, "MODULE_NOT_ON_LANDING");
+        throw new ServiceError("Module absent de la landing.", 404, MURYA_ERROR.MODULE_NOT_ON_LANDING);
     }
 
     const now = new Date();
@@ -389,19 +390,19 @@ export const reorderUserLandingModules = async (
     const requestedIds = new Set(orders.map((item) => item.moduleId));
 
     if (currentIds.size !== requestedIds.size) {
-        throw new ServiceError("Liste de modules incohérente.", 400, "ORDER_INCONSISTENT");
+        throw new ServiceError("Liste de modules incohérente.", 400, MURYA_ERROR.ORDER_INCONSISTENT);
     }
 
     for (const moduleId of requestedIds) {
         if (!currentIds.has(moduleId)) {
-            throw new ServiceError("Liste de modules incohérente.", 400, "ORDER_INCONSISTENT");
+            throw new ServiceError("Liste de modules incohérente.", 400, MURYA_ERROR.ORDER_INCONSISTENT);
         }
     }
 
     const orderValues = orders.map((item) => item.order);
     const uniqueOrderValues = new Set(orderValues);
     if (uniqueOrderValues.size !== orderValues.length) {
-        throw new ServiceError("Ordres dupliqués.", 400, "ORDER_DUPLICATE");
+        throw new ServiceError("Ordres dupliqués.", 400, MURYA_ERROR.ORDER_DUPLICATE);
     }
 
     await prisma.$transaction(

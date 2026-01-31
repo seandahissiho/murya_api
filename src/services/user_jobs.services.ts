@@ -15,6 +15,7 @@ import {
 } from '@prisma/client';
 import {prisma} from "../config/db";
 import {getTranslationsMap, resolveFields} from "../i18n/translate";
+import {MURYA_ERROR} from "../constants/errorCodes";
 import {buildGenerateQuizInput} from "./quiz_gen/build-generate-quiz-input";
 import {enqueueArticleGenerationJob, enqueueQuizGenerationJob, getRedisClient} from "../config/redis";
 import {computeWaveformFromMediaUrl} from "../utils/waveform";
@@ -48,9 +49,26 @@ const mapQuizItemsToQuestions = (quiz: any) => {
     });
 };
 
-const buildServiceError = (message: string, statusCode: number) => {
-    const error = new Error(message) as Error & {statusCode?: number};
+const buildServiceError = (message: string, statusCode: number, code?: string) => {
+    const error = new Error(message) as Error & {statusCode?: number; code?: string};
     error.statusCode = statusCode;
+    if (code) {
+        error.code = code;
+        return error;
+    }
+    if (statusCode === 401) {
+        error.code = MURYA_ERROR.AUTH_REQUIRED;
+    } else if (statusCode === 403) {
+        error.code = MURYA_ERROR.FORBIDDEN;
+    } else if (statusCode === 404) {
+        error.code = MURYA_ERROR.NOT_FOUND;
+    } else if (statusCode === 409) {
+        error.code = MURYA_ERROR.CONFLICT;
+    } else if (statusCode >= 500) {
+        error.code = MURYA_ERROR.INTERNAL_ERROR;
+    } else {
+        error.code = MURYA_ERROR.INVALID_REQUEST;
+    }
     return error;
 };
 

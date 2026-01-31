@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import {prisma} from "../config/db";
 import {permissions_action, permissions_entity} from "@prisma/client";
 import {sendResponse} from "./helpers";
+import {MURYA_ERROR} from "../constants/errorCodes";
 
 
 export const authenticateToken = async (
@@ -16,7 +17,7 @@ export const authenticateToken = async (
 
         if (!token) {
             return sendResponse(res, 401, {
-                error: "Veuillez vous connecter pour accéder à cette ressource",
+                code: MURYA_ERROR.AUTH_REQUIRED,
             });
         }
 
@@ -29,7 +30,7 @@ export const authenticateToken = async (
 
             if (!userId || !userRoleId) {
                 return sendResponse(res, 401, {
-                    error: "Veuillez vous connecter pour accéder à cette ressource",
+                    code: MURYA_ERROR.AUTH_REQUIRED,
                 });
             }
 
@@ -48,26 +49,26 @@ export const authenticateToken = async (
 
             if (!user) {
                 return sendResponse(res, 401, {
-                    error: "Utilisateur non trouvé ou accès refusé",
+                    code: MURYA_ERROR.AUTH_REQUIRED,
                 });
             }
 
             if (!user.isActive) {
                 return sendResponse(res, 403, {
-                    error: "Votre compte est désactivé. Veuillez contacter l'administrateur.",
+                    code: MURYA_ERROR.FORBIDDEN,
                 });
             }
 
             if (!user.role) {
                 return sendResponse(res, 403, {
-                    error: "Votre rôle n'est pas défini. Veuillez contacter l'administrateur.",
+                    code: MURYA_ERROR.FORBIDDEN,
                 });
             }
 
             //  || user.role.permissions.length === 0
             if (!user.role.permissions) {
                 return sendResponse(res, 403, {
-                    error: "Vous n'avez pas les permissions nécessaires pour accéder à cette ressource",
+                    code: MURYA_ERROR.FORBIDDEN,
                 });
             }
 
@@ -75,7 +76,7 @@ export const authenticateToken = async (
         } catch
             (error) {
             return sendResponse(res, 401, {
-                error: "Veuillez vous connecter pour accéder à cette ressource",
+                code: MURYA_ERROR.AUTH_REQUIRED,
             });
         }
     }
@@ -92,7 +93,7 @@ export const checkPermissions = (
 
         if (!userId)
             return sendResponse(res, 401, {
-                error: "Veuillez vous connecter pour accéder à cette ressource",
+                code: MURYA_ERROR.AUTH_REQUIRED,
             });
 
         try {
@@ -111,7 +112,7 @@ export const checkPermissions = (
 
             if (!user)
                 return sendResponse(res, 404, {
-                    error: "L'utilisateur n'a pas été retrouvé",
+                    code: MURYA_ERROR.NOT_FOUND,
                 });
             if (user.isAdmin) return next();
 
@@ -147,8 +148,7 @@ export const checkPermissions = (
                 // log the route that was accessed
                 console.log("Unauthorized access to route: ", req.originalUrl);
                 return sendResponse(res, 403, {
-                    error:
-                        "Vous n'avez pas les permissions nécessaires pour accéder à cette ressource",
+                    code: MURYA_ERROR.FORBIDDEN,
                 });
             }
 
@@ -156,7 +156,7 @@ export const checkPermissions = (
         } catch (error) {
             console.log(error);
             return sendResponse(res, 500, {
-                error: "Une erreur est survenue",
+                code: MURYA_ERROR.INTERNAL_ERROR,
             });
         }
     };
@@ -166,7 +166,7 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
     const userId = (req as any)?.user?.userId;
     if (!userId) {
         return sendResponse(res, 401, {
-            error: "Veuillez vous connecter pour accéder à cette ressource",
+            code: MURYA_ERROR.AUTH_REQUIRED,
         });
     }
 
@@ -177,14 +177,14 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
         });
         if (!user?.isAdmin) {
             return sendResponse(res, 403, {
-                error: "Vous n'avez pas les permissions nécessaires pour accéder à cette ressource",
+                code: MURYA_ERROR.FORBIDDEN,
             });
         }
         return next();
     } catch (error) {
         console.log(error);
         return sendResponse(res, 500, {
-            error: "Une erreur est survenue",
+            code: MURYA_ERROR.INTERNAL_ERROR,
         });
     }
 };
@@ -192,7 +192,7 @@ export const requireAdmin = async (req: Request, res: Response, next: NextFuncti
 const checkValidationResult = (req: Request, res: Response, next: NextFunction) => {
     const result = validationResult(req);
     if (!result.isEmpty()) {
-        return res.status(400).json({errors: result.array()});
+        return res.status(400).json({code: MURYA_ERROR.INVALID_REQUEST});
     }
     next();
 };

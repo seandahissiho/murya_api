@@ -2,12 +2,13 @@ import {NextFunction, Request, Response} from 'express';
 import {getSingleParam, sendResponse} from '../utils/helpers';
 import * as questService from '../services/quests.services';
 import {detectLanguage} from "../middlewares/i18n";
+import {MURYA_ERROR} from "../constants/errorCodes";
 
 export const listQuests = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const userId = (req as any).user?.userId;
         if (!userId) {
-            return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
+            return sendResponse(res, 401, {code: MURYA_ERROR.AUTH_REQUIRED});
         }
 
         const timezone = typeof req.query.timezone === 'string'
@@ -29,8 +30,7 @@ export const listQuests = async (req: Request, res: Response, next: NextFunction
     } catch (err) {
         console.error('listQuests error:', err);
         return sendResponse(res, 500, {
-            error: "Une erreur s'est produite lors de la récupération des quêtes.",
-            message: err instanceof Error ? err.message : 'Unknown error',
+            code: MURYA_ERROR.INTERNAL_ERROR,
         });
     }
 };
@@ -39,7 +39,7 @@ export const listQuestGroups = async (req: Request, res: Response, next: NextFun
     try {
         const userId = (req as any).user?.userId;
         if (!userId) {
-            return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
+            return sendResponse(res, 401, {code: MURYA_ERROR.AUTH_REQUIRED});
         }
 
         const timezone = typeof req.query.timezone === 'string'
@@ -61,8 +61,7 @@ export const listQuestGroups = async (req: Request, res: Response, next: NextFun
     } catch (err) {
         console.error('listQuestGroups error:', err);
         return sendResponse(res, 500, {
-            error: "Une erreur s'est produite lors de la récupération des groupes de quêtes.",
-            message: err instanceof Error ? err.message : 'Unknown error',
+            code: MURYA_ERROR.INTERNAL_ERROR,
         });
     }
 };
@@ -71,7 +70,7 @@ export const listQuestLineage = async (req: Request, res: Response, next: NextFu
     try {
         const userId = (req as any).user?.userId;
         if (!userId) {
-            return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
+            return sendResponse(res, 401, {code: MURYA_ERROR.AUTH_REQUIRED});
         }
 
         const timezone = typeof req.query.timezone === 'string'
@@ -93,8 +92,7 @@ export const listQuestLineage = async (req: Request, res: Response, next: NextFu
     } catch (err) {
         console.error('listQuestLineage error:', err);
         return sendResponse(res, 500, {
-            error: "Une erreur s'est produite lors de la récupération de la lignée principale.",
-            message: err instanceof Error ? err.message : 'Unknown error',
+            code: MURYA_ERROR.INTERNAL_ERROR,
         });
     }
 };
@@ -108,10 +106,10 @@ export const claimQuestReward = async (req: Request, res: Response, next: NextFu
             : undefined;
 
         if (!questId) {
-            return sendResponse(res, 400, {error: 'L’identifiant de la quête est requis.'});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
         if (!userId) {
-            return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
+            return sendResponse(res, 401, {code: MURYA_ERROR.AUTH_REQUIRED});
         }
 
         const result = await questService.claimUserJobQuest(userId, questId, timezone);
@@ -119,8 +117,7 @@ export const claimQuestReward = async (req: Request, res: Response, next: NextFu
     } catch (err) {
         console.error('claimQuestReward error:', err);
         return sendResponse(res, 400, {
-            error: "Impossible de réclamer la récompense.",
-            message: err instanceof Error ? err.message : 'Unknown error',
+            code: MURYA_ERROR.INVALID_REQUEST,
         });
     }
 };
@@ -134,10 +131,10 @@ export const claimUserQuestReward = async (req: Request, res: Response, next: Ne
             : undefined;
 
         if (!questId) {
-            return sendResponse(res, 400, {error: 'L’identifiant de la quête est requis.'});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
         if (!userId) {
-            return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
+            return sendResponse(res, 401, {code: MURYA_ERROR.AUTH_REQUIRED});
         }
 
         const result = await questService.claimUserQuest(userId, questId, timezone);
@@ -145,8 +142,7 @@ export const claimUserQuestReward = async (req: Request, res: Response, next: Ne
     } catch (err) {
         console.error('claimUserQuestReward error:', err);
         return sendResponse(res, 400, {
-            error: "Impossible de réclamer la récompense.",
-            message: err instanceof Error ? err.message : 'Unknown error',
+            code: MURYA_ERROR.INVALID_REQUEST,
         });
     }
 };

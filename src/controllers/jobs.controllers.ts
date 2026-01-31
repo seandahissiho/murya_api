@@ -2,13 +2,14 @@ import {NextFunction, Request, Response} from "express";
 import * as jobService from "../services/jobs.services";
 import {getSingleParam, sendResponse} from "../utils/helpers";
 import {detectLanguage} from "../middlewares/i18n";
+import {MURYA_ERROR} from "../constants/errorCodes";
 
 
 export const searchJobs = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const query = (req.query.query as string)?.trim();
         if (query === undefined) {
-            return sendResponse(res, 400, {error: 'Le paramètre "query" est requis.'});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
 
         const page = parseInt((req.query.page as string) || '1', 10);
@@ -21,8 +22,7 @@ export const searchJobs = async (req: Request, res: Response, next: NextFunction
     } catch (err) {
         console.error('searchJobs error:', err);
         return sendResponse(res, 500, {
-            error: "Une erreur s'est produite lors de la recherche.",
-            message: err instanceof Error ? err.message : 'Unknown error'
+            code: MURYA_ERROR.INTERNAL_ERROR,
         });
     }
 };
@@ -34,8 +34,7 @@ export const getJobsFamiliesAndSubFamilies = async (req: Request, res: Response,
         return sendResponse(res, 200, {data});
     } catch (err) {
         return sendResponse(res, 500, {
-            error: "Une erreur s'est produite lors de la récupération des familles et sous-familles.",
-            message: err instanceof Error ? err.message : 'Unknown error'
+            code: MURYA_ERROR.INTERNAL_ERROR,
         });
     }
 }
@@ -45,7 +44,7 @@ export const getJobDetails = async (req: Request, res: Response, next: NextFunct
     try {
         const jobId = getSingleParam(req.params.id);
         if (!jobId) {
-            return sendResponse(res, 400, {error: 'L’identifiant du job est requis.'});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
 
         const lang = await detectLanguage(req);
@@ -54,7 +53,7 @@ export const getJobDetails = async (req: Request, res: Response, next: NextFunct
         if (!job) {
             const jobFamily = await jobService.getJobFamilyDetails(jobId, lang);
             if (!jobFamily) {
-                return sendResponse(res, 404, {error: 'Job non trouvé.'});
+                return sendResponse(res, 404, {code: MURYA_ERROR.NOT_FOUND});
             }
             return sendResponse(res, 200, {data: jobFamily});
         }
@@ -63,8 +62,7 @@ export const getJobDetails = async (req: Request, res: Response, next: NextFunct
     } catch (err) {
         console.error('getJobDetails error:', err);
         return sendResponse(res, 500, {
-            error: "Une erreur s'est produite lors de la récupération des détails.",
-            message: err instanceof Error ? err.message : 'Unknown error'
+            code: MURYA_ERROR.INTERNAL_ERROR,
         });
     }
 };
@@ -73,7 +71,7 @@ export const getJobDetailsByName = async (req: Request, res: Response, next: Nex
     try {
         const name = getSingleParam(req.params.slug);
         if (!name) {
-            return sendResponse(res, 400, {error: 'Le nom normalisé du job est requis.'});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
 
         const lang = await detectLanguage(req);
@@ -81,7 +79,7 @@ export const getJobDetailsByName = async (req: Request, res: Response, next: Nex
         const job = await jobService.getJobDetailsByName(name, lang);
 
         if (!job) {
-            return sendResponse(res, 404, {error: 'Job non trouvé.'});
+            return sendResponse(res, 404, {code: MURYA_ERROR.NOT_FOUND});
         }
 
         return sendResponse(res, 200, {data: job});
@@ -89,8 +87,7 @@ export const getJobDetailsByName = async (req: Request, res: Response, next: Nex
     } catch (err) {
         console.error('getJobDetailsByName error:', err);
         return sendResponse(res, 500, {
-            error: "Une erreur s'est produite lors de la récupération des détails par nom.",
-            message: err instanceof Error ? err.message : 'Unknown error'
+            code: MURYA_ERROR.INTERNAL_ERROR,
         });
     }
 }
@@ -100,23 +97,21 @@ export const getCompetencyFamilyDetailsForJob = async (req: Request, res: Respon
         const jobId = getSingleParam(req.params.jobId);
         const cfId = getSingleParam(req.params.cfId);
         if (!jobId || !cfId) {
-            return sendResponse(res, 400, {error: 'jobId et cfId sont requis.'});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
 
         const lang = await detectLanguage(req);
 
         const details = await jobService.getCompetencyFamilyDetailsForJob(jobId, cfId, lang);
         if (!details) {
-            return sendResponse(res, 404, {error: 'Détails introuvables pour cette famille de compétences.'});
+            return sendResponse(res, 404, {code: MURYA_ERROR.NOT_FOUND});
         }
 
         return sendResponse(res, 200, {data: details});
     } catch (err) {
         console.error('getCompetencyFamilyDetailsForJob error:', err);
         return sendResponse(res, 500, {
-            error:
-                "Une erreur s'est produite lors de la récupération des détails de la famille de compétences.",
-            message: err instanceof Error ? err.message : 'Unknown error'
+            code: MURYA_ERROR.INTERNAL_ERROR,
         });
     }
 };
@@ -125,7 +120,7 @@ export const createJobWithCompetencies = async (req: Request, res: Response, nex
     try {
         const payload = req.body;
         if (!payload?.jobTitle) {
-            return sendResponse(res, 400, {error: 'Le champ "jobTitle" est requis.'});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
 
         const job = await jobService.createJobWithCompetencies(payload);
@@ -133,8 +128,7 @@ export const createJobWithCompetencies = async (req: Request, res: Response, nex
     } catch (err) {
         console.error('createJobWithCompetencies error:', err);
         return sendResponse(res, 500, {
-            error: "Une erreur s'est produite lors de la création du job et des compétences.",
-            message: err instanceof Error ? err.message : 'Unknown error'
+            code: MURYA_ERROR.INTERNAL_ERROR,
         });
     }
 };
@@ -143,7 +137,7 @@ export const savePositioningQuizzesForJob = async (req: Request, res: Response, 
     try {
         const payload = req.body;
         if (!payload?.jobTitle) {
-            return sendResponse(res, 400, {error: 'Le champ "jobTitle" est requis.'});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
 
         if (!payload?.slug && req.params.slug) {
@@ -155,8 +149,7 @@ export const savePositioningQuizzesForJob = async (req: Request, res: Response, 
     } catch (err) {
         console.error('savePositioningQuizzesForJob error:', err);
         return sendResponse(res, 500, {
-            error: "Une erreur s'est produite lors de l'enregistrement des quizzes de positionnement.",
-            message: err instanceof Error ? err.message : 'Unknown error'
+            code: MURYA_ERROR.INTERNAL_ERROR,
         });
     }
 };

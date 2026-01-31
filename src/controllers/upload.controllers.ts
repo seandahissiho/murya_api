@@ -1,6 +1,7 @@
 import {NextFunction, Request, Response} from "express";
 import * as uploadService from "../services/upload.services";
 import {getSingleParam, sendResponse} from "../utils/helpers";
+import {MURYA_ERROR} from "../constants/errorCodes";
 
 export const getAllFiles = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -18,8 +19,7 @@ export const getAllFiles = async (req: Request, res: Response, next: NextFunctio
             res,
             500,
             {
-                error: "Une erreur s'est produite lors de la récupération des factures",
-                message: err instanceof Error ? err.message : 'Unknown error'
+                code: MURYA_ERROR.INTERNAL_ERROR,
             }
         );
     }
@@ -29,11 +29,11 @@ export const getFileById = async (req: Request, res: Response, next: NextFunctio
     const id = getSingleParam(req.params.id);
     try {
         if (!id) {
-            return res.status(400).json({message: 'Identifiant de fichier requis'});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
         const upload = await uploadService.getUploadById(id);
         if (!upload) {
-            return res.status(404).json({message: 'Fichier non trouvée'});
+            return sendResponse(res, 404, {code: MURYA_ERROR.NOT_FOUND});
         }
         sendResponse(
             res,
@@ -48,8 +48,7 @@ export const getFileById = async (req: Request, res: Response, next: NextFunctio
             res,
             500,
             {
-                error: "Une erreur s'est produite lors de la récupération du fichier",
-                message: err instanceof Error ? err.message : 'Unknown error'
+                code: MURYA_ERROR.INTERNAL_ERROR,
             }
         );
     }
@@ -59,11 +58,11 @@ export const uploadFile = async (req: Request, res: Response, next: NextFunction
     try {
         const userId = (req as any).user.userId;
         if (!req.file) {
-            return res.status(400).json({error: "file is required"});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
         // Assuming file is available in req.file (using multer or similar middleware)
         if (!req.file) {
-            return res.status(400).json({message: 'No file uploaded'});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
 
         const data = {
@@ -84,8 +83,7 @@ export const uploadFile = async (req: Request, res: Response, next: NextFunction
             res,
             500,
             {
-                error: "Une erreur s'est produite lors de l'upload du fichier",
-                message: err instanceof Error ? err.message : 'Unknown error'
+                code: MURYA_ERROR.INTERNAL_ERROR,
             }
         );
     }
@@ -96,14 +94,14 @@ export const updateFile = async (req: Request, res: Response, next: NextFunction
         const userId = (req as any).user.userId;
         const id = getSingleParam(req.params.id);
         if (!id) {
-            return res.status(400).json({message: 'Identifiant de fichier requis'});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
         if (!req.file) {
-            return res.status(400).json({error: "file is required"});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
         // Assuming file is available in req.file (using multer or similar middleware)
         if (!req.file) {
-            return res.status(400).json({message: 'No file uploaded'});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
         const data = {
             userId,
@@ -111,7 +109,7 @@ export const updateFile = async (req: Request, res: Response, next: NextFunction
         }
         const updatedUpload = await uploadService.updateUpload(id, data);
         if (!updatedUpload) {
-            return res.status(404).json({message: 'Fichier non trouvée'});
+            return sendResponse(res, 404, {code: MURYA_ERROR.NOT_FOUND});
         }
         sendResponse(
             res,
@@ -126,8 +124,7 @@ export const updateFile = async (req: Request, res: Response, next: NextFunction
             res,
             500,
             {
-                error: "Une erreur s'est produite lors de la mise à jour du fichier",
-                message: err instanceof Error ? err.message : 'Unknown error'
+                code: MURYA_ERROR.INTERNAL_ERROR,
             }
         );
     }
@@ -137,11 +134,11 @@ export const deleteFile = async (req: Request, res: Response, next: NextFunction
     const id = getSingleParam(req.params.id);
     try {
         if (!id) {
-            return res.status(400).json({message: 'Identifiant de fichier requis'});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
         const deletedUpload = await uploadService.deleteUpload(id);
         if (!deletedUpload) {
-            return res.status(404).json({message: 'Fichier non trouvée'});
+            return sendResponse(res, 404, {code: MURYA_ERROR.NOT_FOUND});
         }
         sendResponse(
             res,
@@ -156,8 +153,7 @@ export const deleteFile = async (req: Request, res: Response, next: NextFunction
             res,
             500,
             {
-                error: "Une erreur s'est produite lors de la suppression du fichier",
-                message: err instanceof Error ? err.message : 'Unknown error'
+                code: MURYA_ERROR.INTERNAL_ERROR,
             }
         );
     }

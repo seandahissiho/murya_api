@@ -2,6 +2,7 @@ import {NextFunction, Request, Response} from 'express';
 import {getSingleParam, sendResponse} from '../utils/helpers';
 import * as resourceService from '../services/resources.services';
 import {detectLanguage} from "../middlewares/i18n";
+import {MURYA_ERROR} from "../constants/errorCodes";
 
 export const collectResource = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -12,10 +13,10 @@ export const collectResource = async (req: Request, res: Response, next: NextFun
             : undefined;
 
         if (!resourceId) {
-            return sendResponse(res, 400, {error: 'L’identifiant de la ressource est requis.'});
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
         if (!userId) {
-            return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
+            return sendResponse(res, 401, {code: MURYA_ERROR.AUTH_REQUIRED});
         }
 
         const lang = await detectLanguage(req);
@@ -24,8 +25,7 @@ export const collectResource = async (req: Request, res: Response, next: NextFun
     } catch (err) {
         console.error('collectResource error:', err);
         return sendResponse(res, 400, {
-            error: "Impossible de collecter la ressource.",
-            message: err instanceof Error ? err.message : 'Unknown error',
+            code: MURYA_ERROR.INVALID_REQUEST,
         });
     }
 };
