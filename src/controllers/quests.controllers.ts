@@ -1,6 +1,7 @@
 import {NextFunction, Request, Response} from 'express';
 import {getSingleParam, sendResponse} from '../utils/helpers';
 import * as questService from '../services/quests.services';
+import {detectLanguage} from "../middlewares/i18n";
 
 export const listQuests = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -22,7 +23,8 @@ export const listQuests = async (req: Request, res: Response, next: NextFunction
             ? scopeParam as 'USER' | 'USER_JOB'
             : 'ALL';
 
-        const quests = await questService.listUserQuests(userId, timezone, userJobId, scope);
+        const lang = await detectLanguage(req);
+        const quests = await questService.listUserQuests(userId, timezone, userJobId, scope, lang);
         return sendResponse(res, 200, {data: quests});
     } catch (err) {
         console.error('listQuests error:', err);
@@ -53,7 +55,8 @@ export const listQuestGroups = async (req: Request, res: Response, next: NextFun
             ? scopeParam as 'USER' | 'USER_JOB'
             : 'ALL';
 
-        const groups = await questService.listUserQuestGroups(userId, timezone, userJobId, scope);
+        const lang = await detectLanguage(req);
+        const groups = await questService.listUserQuestGroups(userId, timezone, userJobId, scope, lang);
         return sendResponse(res, 200, {data: groups});
     } catch (err) {
         console.error('listQuestGroups error:', err);
@@ -84,7 +87,8 @@ export const listQuestLineage = async (req: Request, res: Response, next: NextFu
             ? scopeParam as 'USER' | 'USER_JOB'
             : 'ALL';
 
-        const lineage = await questService.listUserQuestLineage(userId, timezone, userJobId, scope);
+        const lang = await detectLanguage(req);
+        const lineage = await questService.listUserQuestLineage(userId, timezone, userJobId, scope, lang);
         return sendResponse(res, 200, {data: lineage});
     } catch (err) {
         console.error('listQuestLineage error:', err);

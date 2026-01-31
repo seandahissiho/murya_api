@@ -65,3 +65,32 @@ export async function resolveFields({
 
     return result;
 }
+
+export async function getTranslationsMap(input: {
+    entity: string;
+    entityIds: string[];
+    fields: string[];
+    lang: string;
+}) {
+    const { entity, entityIds, fields, lang } = input;
+    const map = new Map<string, string>();
+    if (!entityIds.length || !fields.length || !lang) {
+        return map;
+    }
+
+    const rows = await prisma.translation.findMany({
+        where: {
+            entity,
+            entityId: { in: entityIds },
+            field: { in: fields },
+            langCode: lang,
+        },
+        select: { entityId: true, field: true, value: true },
+    });
+
+    for (const row of rows) {
+        map.set(`${row.entityId}::${row.field}`, row.value);
+    }
+
+    return map;
+}

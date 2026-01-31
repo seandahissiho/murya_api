@@ -1,10 +1,25 @@
 import {prisma} from '../config/db';
 import {trackEvent} from './quests.services';
+import {getTranslationsMap} from '../i18n/translate';
+
+const resolveTranslationValue = (
+    translations: Map<string, string>,
+    entityId: string,
+    field: string,
+    fallback: string | null | undefined,
+) => {
+    const value = translations.get(`${entityId}::${field}`);
+    if (value !== undefined) {
+        return value;
+    }
+    return fallback ?? null;
+};
 
 export const collectResource = async (
     resourceId: string,
     userId: string,
     timezone?: string,
+    lang: string = 'en',
 ) => {
     const resource = await prisma.learningResource.findUnique({
         where: {id: resourceId},
@@ -38,5 +53,21 @@ export const collectResource = async (
 
     await trackEvent(userJob.id, 'RESOURCE_COLLECTED', {resourceId}, timezone, userId);
 
-    return updated;
+    if (!lang) {
+        return updated;
+    }
+
+    const translations = await getTranslationsMap({
+        entity: 'LearningResource',
+        entityIds: [updated.id],
+        fields: ['title', 'description', 'content'],
+        lang,
+    });
+
+    return {
+        ...updated,
+        title: resolveTranslationValue(translations, updated.id, 'title', updated.title),
+        description: resolveTranslationValue(translations, updated.id, 'description', updated.description),
+        content: resolveTranslationValue(translations, updated.id, 'content', updated.content),
+    };
 };

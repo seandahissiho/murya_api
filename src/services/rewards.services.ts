@@ -10,6 +10,7 @@ import {prisma} from "../config/db";
 import {ServiceError} from "../utils/serviceError";
 import {buildGoogleMapsUrl} from "../utils/address";
 import {generateVoucherCode} from "../utils/rewards";
+import {getTranslationsMap} from "../i18n/translate";
 
 const buildVisibilityFilter = (now: Date): Prisma.RewardWhereInput => ({
     AND: [
@@ -65,6 +66,46 @@ const formatPurchaseResponse = (purchase: any) => ({
     reward: purchase.reward ? {id: purchase.reward.id, title: purchase.reward.title} : null,
 });
 
+const resolveTranslationValue = (
+    translations: Map<string, string>,
+    entityId: string,
+    field: string,
+    fallback: string | null | undefined,
+) => {
+    const value = translations.get(`${entityId}::${field}`);
+    if (value !== undefined) {
+        return value;
+    }
+    return fallback ?? null;
+};
+
+const loadRewardTranslations = async (rewardIds: string[], lang: string) => {
+    if (!lang || rewardIds.length === 0) {
+        return new Map<string, string>();
+    }
+    return getTranslationsMap({
+        entity: "Reward",
+        entityIds: rewardIds,
+        fields: ["title", "description", "redeemInstructions"],
+        lang,
+    });
+};
+
+const applyRewardTranslations = <T extends { id: string; title?: string | null; description?: string | null; redeemInstructions?: string | null }>(
+    reward: T,
+    translations: Map<string, string>,
+) => ({
+    ...reward,
+    title: resolveTranslationValue(translations, reward.id, "title", reward.title),
+    description: resolveTranslationValue(translations, reward.id, "description", reward.description),
+    redeemInstructions: resolveTranslationValue(
+        translations,
+        reward.id,
+        "redeemInstructions",
+        reward.redeemInstructions,
+    ),
+});
+
 const ensureUser = async (userId: string) => {
     const user = await prisma.user.findUnique({
         where: {id: userId},
@@ -84,12 +125,14 @@ export const listRewards = async (
         onlyAvailable,
         page = 1,
         limit = 20,
+        lang = "en",
     }: {
         city?: string;
         kind?: RewardKind;
         onlyAvailable?: boolean;
         page?: number;
         limit?: number;
+        lang?: string;
     },
 ) => {
     const user = await ensureUser(userId);
@@ -126,6 +169,11 @@ export const listRewards = async (
         prisma.reward.count({where}),
     ]);
 
+    const rewardTranslations = await loadRewardTranslations(
+        rewards.map((reward) => reward.id),
+        lang,
+    );
+
     const items = rewards.map((reward) => {
         const visible = isRewardVisible(reward, now);
         let reason = "OK";
@@ -137,11 +185,13 @@ export const listRewards = async (
             reason = "NOT_ENOUGH_DIAMONDS";
         }
 
+        const localized = applyRewardTranslations(reward, rewardTranslations);
+
         return {
             id: reward.id,
             code: reward.code,
-            title: reward.title,
-            description: reward.description,
+            title: localized.title,
+            description: localized.description,
             kind: reward.kind,
             city: reward.city,
             imageUrl: reward.imageUrl,
@@ -165,7 +215,7 @@ export const listRewards = async (
     };
 };
 
-export const getRewardDetails = async (userId: string, rewardId: string) => {
+export const getRewardDetails = async (userId: string, rewardId: string, lang: string = "en") => {
     await ensureUser(userId);
     const now = new Date();
     const reward = await prisma.reward.findFirst({
@@ -180,11 +230,14 @@ export const getRewardDetails = async (userId: string, rewardId: string) => {
         throw new ServiceError("Récompense introuvable ou inactive.", 404, "REWARD_NOT_FOUND");
     }
 
+    const rewardTranslations = await loadRewardTranslations([reward.id], lang);
+    const localized = applyRewardTranslations(reward, rewardTranslations);
+
     return {
         id: reward.id,
         code: reward.code,
-        title: reward.title,
-        description: reward.description,
+        title: localized.title,
+        description: localized.description,
         kind: reward.kind,
         city: reward.city,
         imageUrl: reward.imageUrl,
@@ -192,7 +245,7 @@ export const getRewardDetails = async (userId: string, rewardId: string) => {
         remainingStock: reward.remainingStock,
         fulfillmentMode: reward.fulfillmentMode,
         redeemMethod: reward.redeemMethod,
-        redeemInstructions: reward.redeemInstructions,
+        redeemInstructions: localized.redeemInstructions,
         address: formatAddress(reward.address),
     };
 };
@@ -202,6 +255,7 @@ export const purchaseReward = async (
     rewardId: string,
     quantity: number,
     idempotencyKey: string,
+    lang: string = "en",
 ) => {
     if (!idempotencyKey) {
         throw new ServiceError("Idempotency-Key manquant.", 400, "IDEMPOTENCY_REQUIRED");
@@ -336,8 +390,22 @@ export const purchaseReward = async (
             queueExternalFulfillment(result.purchase);
         }
 
+        const purchaseResponse = formatPurchaseResponse(result.purchase);
+        if (purchaseResponse.reward?.id) {
+            const rewardTranslations = await loadRewardTranslations(
+                [purchaseResponse.reward.id],
+                lang,
+            );
+            purchaseResponse.reward.title = resolveTranslationValue(
+                rewardTranslations,
+                purchaseResponse.reward.id,
+                "title",
+                purchaseResponse.reward.title,
+            ) as string;
+        }
+
         return {
-            purchase: formatPurchaseResponse(result.purchase),
+            purchase: purchaseResponse,
             wallet: result.wallet,
             idempotent: result.idempotent,
         };
@@ -352,8 +420,21 @@ export const purchaseReward = async (
                     where: {id: userId},
                     select: {diamonds: true},
                 });
+                const purchaseResponse = formatPurchaseResponse(existing);
+                if (purchaseResponse.reward?.id) {
+                    const rewardTranslations = await loadRewardTranslations(
+                        [purchaseResponse.reward.id],
+                        lang,
+                    );
+                    purchaseResponse.reward.title = resolveTranslationValue(
+                        rewardTranslations,
+                        purchaseResponse.reward.id,
+                        "title",
+                        purchaseResponse.reward.title,
+                    ) as string;
+                }
                 return {
-                    purchase: formatPurchaseResponse(existing),
+                    purchase: purchaseResponse,
                     wallet: {diamonds: user?.diamonds ?? 0},
                     idempotent: true,
                 };
@@ -380,7 +461,7 @@ const queueExternalFulfillment = (purchase: any) => {
 
 export const listUserPurchases = async (
     userId: string,
-    {page = 1, limit = 20}: {page?: number; limit?: number} = {},
+    {page = 1, limit = 20, lang = "en"}: {page?: number; limit?: number; lang?: string} = {},
 ) => {
     await ensureUser(userId);
     const skip = (page - 1) * limit;
@@ -405,15 +486,37 @@ export const listUserPurchases = async (
         prisma.rewardPurchase.count({where: {userId}}),
     ]);
 
+    const rewardTranslations = await loadRewardTranslations(
+        items.map((item) => item.reward?.id).filter((id): id is string => Boolean(id)),
+        lang,
+    );
+
     return {
-        items,
+        items: items.map((item) => ({
+            ...item,
+            reward: item.reward
+                ? {
+                    ...item.reward,
+                    title: resolveTranslationValue(
+                        rewardTranslations,
+                        item.reward.id,
+                        "title",
+                        item.reward.title,
+                    ) as string,
+                }
+                : null,
+        })),
         page,
         limit,
         total,
     };
 };
 
-export const getUserPurchaseDetails = async (userId: string, purchaseId: string) => {
+export const getUserPurchaseDetails = async (
+    userId: string,
+    purchaseId: string,
+    lang: string = "en",
+) => {
     await ensureUser(userId);
     const purchase = await prisma.rewardPurchase.findFirst({
         where: {id: purchaseId, userId},
@@ -428,6 +531,10 @@ export const getUserPurchaseDetails = async (userId: string, purchaseId: string)
         throw new ServiceError("Achat introuvable.", 404, "PURCHASE_NOT_FOUND");
     }
 
+    const rewardTranslations = purchase.reward
+        ? await loadRewardTranslations([purchase.reward.id], lang)
+        : new Map<string, string>();
+
     return {
         id: purchase.id,
         status: purchase.status,
@@ -440,8 +547,18 @@ export const getUserPurchaseDetails = async (userId: string, purchaseId: string)
         reward: purchase.reward
             ? {
                 id: purchase.reward.id,
-                title: purchase.reward.title,
-                redeemInstructions: purchase.reward.redeemInstructions,
+                title: resolveTranslationValue(
+                    rewardTranslations,
+                    purchase.reward.id,
+                    "title",
+                    purchase.reward.title,
+                ),
+                redeemInstructions: resolveTranslationValue(
+                    rewardTranslations,
+                    purchase.reward.id,
+                    "redeemInstructions",
+                    purchase.reward.redeemInstructions,
+                ),
                 redeemMethod: purchase.reward.redeemMethod,
                 address: formatAddress(purchase.reward.address),
             }

@@ -3,6 +3,7 @@ import {RewardKind} from "@prisma/client";
 import * as rewardsService from "../services/rewards.services";
 import {getSingleParam, sendResponse} from "../utils/helpers";
 import {ServiceError} from "../utils/serviceError";
+import {detectLanguage} from "../middlewares/i18n";
 
 const handleError = (res: Response, err: unknown, fallback: string) => {
     if (err instanceof ServiceError) {
@@ -30,6 +31,7 @@ export const listRewards = async (req: Request, res: Response, next: NextFunctio
         const onlyAvailable = req.query.onlyAvailable === "true" || req.query.onlyAvailable === "1";
         const page = Number.parseInt((req.query.page as string) || "1", 10);
         const limit = Number.parseInt((req.query.limit as string) || "20", 10);
+        const lang = await detectLanguage(req);
 
         const result = await rewardsService.listRewards(userId, {
             city,
@@ -37,6 +39,7 @@ export const listRewards = async (req: Request, res: Response, next: NextFunctio
             onlyAvailable,
             page,
             limit,
+            lang,
         });
         return sendResponse(res, 200, result);
     } catch (err) {
@@ -55,7 +58,8 @@ export const getRewardDetails = async (req: Request, res: Response, next: NextFu
             return sendResponse(res, 401, {error: "Utilisateur non authentifié."});
         }
 
-        const result = await rewardsService.getRewardDetails(userId, rewardId);
+        const lang = await detectLanguage(req);
+        const result = await rewardsService.getRewardDetails(userId, rewardId, lang);
         return sendResponse(res, 200, result);
     } catch (err) {
         return handleError(res, err, "getRewardDetails error:");
@@ -81,7 +85,14 @@ export const purchaseReward = async (req: Request, res: Response, next: NextFunc
             return sendResponse(res, 400, {error: "Le champ \"quantity\" doit être un entier positif."});
         }
 
-        const result = await rewardsService.purchaseReward(userId, rewardId, quantity, idempotencyKey ?? "");
+        const lang = await detectLanguage(req);
+        const result = await rewardsService.purchaseReward(
+            userId,
+            rewardId,
+            quantity,
+            idempotencyKey ?? "",
+            lang,
+        );
         const status = result.idempotent ? 200 : 201;
         return sendResponse(res, status, {
             purchase: result.purchase,
@@ -101,7 +112,8 @@ export const listUserPurchases = async (req: Request, res: Response, next: NextF
 
         const page = Number.parseInt((req.query.page as string) || "1", 10);
         const limit = Number.parseInt((req.query.limit as string) || "20", 10);
-        const result = await rewardsService.listUserPurchases(userId, {page, limit});
+        const lang = await detectLanguage(req);
+        const result = await rewardsService.listUserPurchases(userId, {page, limit, lang});
         return sendResponse(res, 200, result);
     } catch (err) {
         return handleError(res, err, "listUserPurchases error:");
@@ -119,7 +131,8 @@ export const getUserPurchaseDetails = async (req: Request, res: Response, next: 
             return sendResponse(res, 401, {error: "Utilisateur non authentifié."});
         }
 
-        const result = await rewardsService.getUserPurchaseDetails(userId, purchaseId);
+        const lang = await detectLanguage(req);
+        const result = await rewardsService.getUserPurchaseDetails(userId, purchaseId, lang);
         return sendResponse(res, 200, result);
     } catch (err) {
         return handleError(res, err, "getUserPurchaseDetails error:");

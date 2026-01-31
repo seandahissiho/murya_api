@@ -1,6 +1,7 @@
 import {NextFunction, Request, Response} from 'express';
 import {getSingleParam, sendResponse} from '../utils/helpers';
 import * as resourceService from '../services/resources.services';
+import {detectLanguage} from "../middlewares/i18n";
 
 export const collectResource = async (req: Request, res: Response, next: NextFunction) => {
     try {
@@ -17,7 +18,8 @@ export const collectResource = async (req: Request, res: Response, next: NextFun
             return sendResponse(res, 401, {error: 'Utilisateur non authentifié.'});
         }
 
-        const resource = await resourceService.collectResource(resourceId, userId, timezone);
+        const lang = await detectLanguage(req);
+        const resource = await resourceService.collectResource(resourceId, userId, timezone, lang);
         return sendResponse(res, 200, {data: resource});
     } catch (err) {
         console.error('collectResource error:', err);

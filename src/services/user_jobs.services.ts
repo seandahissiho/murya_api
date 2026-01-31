@@ -14,7 +14,7 @@ import {
     CompetencyRating,
 } from '@prisma/client';
 import {prisma} from "../config/db";
-import {resolveFields} from "../i18n/translate";
+import {getTranslationsMap, resolveFields} from "../i18n/translate";
 import {buildGenerateQuizInput} from "./quiz_gen/build-generate-quiz-input";
 import {enqueueArticleGenerationJob, enqueueQuizGenerationJob, getRedisClient} from "../config/redis";
 import {computeWaveformFromMediaUrl} from "../utils/waveform";
@@ -2746,7 +2746,23 @@ export async function listLearningResourcesForUserJob(userJobId: string, userId:
         return updated;
     }));
 
-    return resourcesWithWaveform;
+    if (!lang) {
+        return resourcesWithWaveform;
+    }
+
+    const translations = await getTranslationsMap({
+        entity: 'LearningResource',
+        entityIds: resourcesWithWaveform.map((resource) => resource.id),
+        fields: ['title', 'description', 'content'],
+        lang,
+    });
+
+    return resourcesWithWaveform.map((resource) => ({
+        ...resource,
+        title: translations.get(`${resource.id}::title`) ?? resource.title,
+        description: translations.get(`${resource.id}::description`) ?? resource.description,
+        content: translations.get(`${resource.id}::content`) ?? resource.content,
+    }));
 }
 
 export async function getRankingForJob({jobId, from, to, lang,}: GetRankingForJobParams): Promise<UserJobRankingRow[]> {

@@ -13,6 +13,7 @@ import {
 } from '@prisma/client';
 import {DateTime} from 'luxon';
 import {prisma} from '../config/db';
+import {getTranslationsMap} from '../i18n/translate';
 
 const DEFAULT_TIMEZONE = 'UTC';
 const WEEKLY_MAIN_CODE = 'WEEKLY_MAIN_5_DAILY_QUIZZES';
@@ -1020,6 +1021,7 @@ export const listUserQuests = async (
     timezone?: string,
     userJobId?: string,
     scope: QuestScope | 'ALL' = 'ALL',
+    lang: string = 'en',
 ) => {
     const user = await prisma.user.findUnique({
         where: {id: userId},
@@ -1133,6 +1135,27 @@ export const listUserQuests = async (
         return true;
     });
 
+    if (lang) {
+        const definitionIds = questItems.map((item) => item.definition.id);
+        const definitionTranslations = await getTranslationsMap({
+            entity: 'QuestDefinition',
+            entityIds: definitionIds,
+            fields: ['title', 'description'],
+            lang,
+        });
+        for (const item of questItems) {
+            item.definition = {
+                ...item.definition,
+                title:
+                    definitionTranslations.get(`${item.definition.id}::title`) ??
+                    item.definition.title,
+                description:
+                    definitionTranslations.get(`${item.definition.id}::description`) ??
+                    item.definition.description,
+            };
+        }
+    }
+
     const decorate = async (item: {definition: QuestDefinitionWithRewards; instance: any}) => {
         const lockState = await isQuestLocked(
             userJob?.id ?? '',
@@ -1176,6 +1199,15 @@ export const listUserQuests = async (
         },
         orderBy: {uiOrder: 'asc'},
     });
+
+    const groupTranslations = lang
+        ? await getTranslationsMap({
+            entity: 'QuestGroup',
+            entityIds: questGroups.map((group) => group.id),
+            fields: ['title', 'description'],
+            lang,
+        })
+        : new Map<string, string>();
 
     const groups = await Promise.all(questGroups.map(async (group) => {
         const items = group.items
@@ -1235,8 +1267,8 @@ export const listUserQuests = async (
             group: {
                 id: group.id,
                 code: group.code,
-                title: group.title,
-                description: group.description,
+                title: groupTranslations.get(`${group.id}::title`) ?? group.title,
+                description: groupTranslations.get(`${group.id}::description`) ?? group.description,
                 uiOrder: group.uiOrder,
                 scope: group.scope,
             },
@@ -1277,8 +1309,9 @@ export const listUserQuestGroups = async (
     timezone?: string,
     userJobId?: string,
     scope?: QuestScope | 'ALL',
+    lang?: string,
 ) => {
-    const quests = await listUserQuests(userId, timezone, userJobId, scope);
+    const quests = await listUserQuests(userId, timezone, userJobId, scope, lang);
     return {
         userJobId: quests.userJobId,
         groups: quests.groups,
@@ -1290,6 +1323,7 @@ export const listUserQuestLineage = async (
     timezone?: string,
     userJobId?: string,
     scope: QuestScope | 'ALL' = 'ALL',
+    lang: string = 'en',
 ) => {
     const user = await prisma.user.findUnique({
         where: {id: userId},
@@ -1389,6 +1423,27 @@ export const listUserQuestLineage = async (
             );
 
         questItems.push({definition: effectiveDefinition, instance});
+    }
+
+    if (lang) {
+        const definitionIds = questItems.map((item) => item.definition.id);
+        const definitionTranslations = await getTranslationsMap({
+            entity: 'QuestDefinition',
+            entityIds: definitionIds,
+            fields: ['title', 'description'],
+            lang,
+        });
+        for (const item of questItems) {
+            item.definition = {
+                ...item.definition,
+                title:
+                    definitionTranslations.get(`${item.definition.id}::title`) ??
+                    item.definition.title,
+                description:
+                    definitionTranslations.get(`${item.definition.id}::description`) ??
+                    item.definition.description,
+            };
+        }
     }
 
     const mainQuests = questItems.filter(
