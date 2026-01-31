@@ -2764,8 +2764,22 @@ export async function listLearningResourcesForUserJob(userJobId: string, userId:
         return updated;
     }));
 
+    const resourceIds = resourcesWithWaveform.map((resource) => resource.id);
+    const userStates = resourceIds.length
+        ? await prisma.userLearningResource.findMany({
+            where: {
+                userId,
+                resourceId: {in: resourceIds},
+            },
+        })
+        : [];
+    const userStateMap = new Map(userStates.map((state) => [state.resourceId, state]));
+
     if (!lang) {
-        return resourcesWithWaveform;
+        return resourcesWithWaveform.map((resource) => ({
+            ...resource,
+            userState: userStateMap.get(resource.id) ?? null,
+        }));
     }
 
     const translations = await getTranslationsMap({
@@ -2780,6 +2794,7 @@ export async function listLearningResourcesForUserJob(userJobId: string, userId:
         title: translations.get(`${resource.id}::title`) ?? resource.title,
         description: translations.get(`${resource.id}::description`) ?? resource.description,
         content: translations.get(`${resource.id}::content`) ?? resource.content,
+        userState: userStateMap.get(resource.id) ?? null,
     }));
 }
 

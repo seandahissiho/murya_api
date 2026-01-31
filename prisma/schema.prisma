@@ -523,11 +523,33 @@ model LearningResource {
   userJob           UserJob?               @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   createdBy         User?                  @relation(name: "LearningResourceCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: SetNull)
   updatedBy         User?                  @relation(name: "LearningResourceUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: SetNull)
+  userLearningResources UserLearningResource[]
 
   @@index([jobId], map: "idx_learning_resource_job")
   @@index([jobFamilyId], map: "idx_learning_resource_job_family")
   @@index([userJobId], map: "idx_learning_resource_user_job")
   @@index([scope, type], map: "idx_learning_resource_scope_type")
+}
+
+model UserLearningResource {
+  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String           @db.Uuid
+  resourceId   String           @db.Uuid
+  openedAt     DateTime?        @db.Timestamp(0)
+  readAt       DateTime?        @db.Timestamp(0)
+  lastViewedAt DateTime?        @db.Timestamp(0)
+  viewsCount   Int              @default(0)
+  progress     Float?
+  metadata     Json?
+  createdAt    DateTime         @default(now()) @db.Timestamp(0)
+  updatedAt    DateTime         @default(now()) @updatedAt @db.Timestamp(0)
+  user         User             @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  resource     LearningResource @relation(fields: [resourceId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@unique([userId, resourceId], map: "unique_user_learning_resource")
+  @@index([userId], map: "idx_user_learning_resource_user")
+  @@index([resourceId], map: "idx_user_learning_resource_resource")
+  @@index([lastViewedAt], map: "idx_user_learning_resource_last_viewed_at")
 }
 
 model Module {
@@ -888,6 +910,7 @@ model User {
   // ressources d'apprentissage créées et mises à jour par cet utilisateur
   learningResourcesCreatedBy LearningResource[]       @relation(name: "LearningResourceCreatedBy")
   learningResourcesUpdatedBy LearningResource[]       @relation(name: "LearningResourceUpdatedBy")
+  userLearningResources      UserLearningResource[]
   companies                  CompanyUser[]
   userModules                UserModule[]
   userLandingModules         UserLandingModule[]

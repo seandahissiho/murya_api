@@ -49,6 +49,7 @@ model User {
   // ressources d'apprentissage créées et mises à jour par cet utilisateur
   learningResourcesCreatedBy LearningResource[]       @relation(name: "LearningResourceCreatedBy")
   learningResourcesUpdatedBy LearningResource[]       @relation(name: "LearningResourceUpdatedBy")
+  userLearningResources      UserLearningResource[]
   companies                  CompanyUser[]
   userModules                UserModule[]
   userLandingModules         UserLandingModule[]

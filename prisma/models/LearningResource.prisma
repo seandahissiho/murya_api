@@ -30,6 +30,7 @@ model LearningResource {
   userJob           UserJob?               @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
   createdBy         User?                  @relation(name: "LearningResourceCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: SetNull)
   updatedBy         User?                  @relation(name: "LearningResourceUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: SetNull)
+  userLearningResources UserLearningResource[]
 
   @@index([jobId], map: "idx_learning_resource_job")
   @@index([jobFamilyId], map: "idx_learning_resource_job_family")
