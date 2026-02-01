@@ -32,11 +32,11 @@ router.get('/me',
     authControllers.retrieve
 );
 
-// router.put('/me',
-//     // validateUpdateMe,
-//     authenticateToken,
-//     authControllers.update
-// );
+router.put('/me',
+    // validateUpdateMe,
+    authenticateToken,
+    authControllers.update
+);
 //
 // router.delete('/me',
 //     authenticateToken,

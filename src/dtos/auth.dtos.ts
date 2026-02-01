@@ -14,3 +14,14 @@ export interface LoginDto {
     password?: string;
     timezone?: string;
 }
+
+export interface UpdateMeDto {
+    firstname?: string | null;
+    lastname?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    avatarUrl?: string | null;
+    birthDate?: string | Date | null;
+    genre?: string | null;
+    preferredLangCode?: string | null;
+}

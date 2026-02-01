@@ -1,5 +1,6 @@
 import {NextFunction, Request, Response} from 'express';
-import type {LoginDto, RegisterDto} from '../dtos/auth.dtos';
+import {StreakType} from '@prisma/client';
+import type {LoginDto, RegisterDto, UpdateMeDto} from '../dtos/auth.dtos';
 import * as authService from '../services/auth.services';
 import {sendResponse} from "../utils/helpers";
 import {MURYA_ERROR} from "../constants/errorCodes";
@@ -99,16 +100,68 @@ export const retrieve = async (req: Request, res: Response, next: NextFunction) 
         const userId = (req as any).user.userId;
 
         const user = await authService.retrieve(userId);
+        const loginStreak = (user as any)?.userStreaks?.find(
+            (streak: any) => streak.type === StreakType.LOGIN_DAILY,
+        );
+        const streakDays = loginStreak?.currentDays ?? 0;
 
         return sendResponse(
             res,
             200,
             {
                 message: "Informations de l'utilisateur récupérées avec succès",
-                data: user
+                data: {
+                    ...user,
+                    streakDays,
+                }
             },
         );
     } catch (err) {
+        return sendResponse(
+            res,
+            500,
+            {
+                code: MURYA_ERROR.INTERNAL_ERROR,
+            }
+        );
+    }
+};
+
+// PUT /auth/me
+export const update = async (req: Request<any, any, UpdateMeDto>, res: Response, next: NextFunction) => {
+    try {
+        const userId = (req as any).user.userId;
+        const dto = req.body;
+
+        const user = await authService.updateMe(userId, dto);
+
+        return sendResponse(
+            res,
+            200,
+            {
+                message: "Informations de l'utilisateur mises à jour avec succès",
+                data: user
+            },
+        );
+    } catch (err: any) {
+        if (err?.code === "P2002") {
+            return sendResponse(
+                res,
+                409,
+                {
+                    code: MURYA_ERROR.CONFLICT,
+                },
+            );
+        }
+        if (err?.code === "P2025") {
+            return sendResponse(
+                res,
+                404,
+                {
+                    code: MURYA_ERROR.USER_NOT_FOUND,
+                },
+            );
+        }
         return sendResponse(
             res,
             500,

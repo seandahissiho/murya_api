@@ -1,4 +1,4 @@
-import {User} from '@prisma/client';
+import {Genre, User} from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import {prisma} from "../config/db";
@@ -145,6 +145,7 @@ export const retrieve = async (userId: string): Promise<User | null> => {
         where: {id: userId},
         include: {
             role: true,
+            userStreaks: true,
         },
     });
 
@@ -208,3 +209,42 @@ export const refresh = async (refreshToken: string): Promise<{ access_token: str
     return {access_token: newAccessToken, user, refresh_token: newRefreshToken};
 
 }
+
+export const updateMe = async (
+    userId: string,
+    data: {
+        firstname?: string | null;
+        lastname?: string | null;
+        email?: string | null;
+        phone?: string | null;
+        avatarUrl?: string | null;
+        birthDate?: string | Date | null;
+        genre?: Genre | string | null;
+        preferredLangCode?: string | null;
+    },
+): Promise<User> => {
+    const updateData: any = {
+        updatedById: userId,
+    };
+
+    if (data.firstname !== undefined) updateData.firstname = data.firstname;
+    if (data.lastname !== undefined) updateData.lastname = data.lastname;
+    if (data.email !== undefined) updateData.email = data.email;
+    if (data.phone !== undefined) updateData.phone = data.phone;
+    if (data.avatarUrl !== undefined) updateData.avatarUrl = data.avatarUrl;
+    if (data.birthDate !== undefined) {
+        updateData.birthDate = data.birthDate ? new Date(data.birthDate) : null;
+    }
+    if (data.genre !== undefined) updateData.genre = data.genre;
+    if (data.preferredLangCode !== undefined) updateData.preferredLangCode = data.preferredLangCode;
+
+    const user = await prisma.user.update({
+        where: {id: userId},
+        data: updateData,
+        include: {
+            role: true,
+        },
+    });
+
+    return user;
+};
