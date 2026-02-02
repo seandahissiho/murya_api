@@ -3,6 +3,7 @@ import {ParsedQs} from 'qs';
 import {getSingleParam, sendResponse, QueryParamValue} from '../utils/helpers';
 import {MURYA_ERROR} from '../constants/errorCodes';
 import {getDefaultSections, globalSearch, SearchSectionKey} from '../services/search.services';
+import {detectLanguage} from "../middlewares/i18n";
 
 const MAX_QUERY_LENGTH = 120;
 const MIN_QUERY_LENGTH = 0;
@@ -63,6 +64,8 @@ export const globalSearchHandler = async (req: Request, res: Response, next: Nex
             return sendResponse(res, 401, {code: MURYA_ERROR.AUTH_REQUIRED});
         }
 
+        const lang = await detectLanguage(req);
+
         const result = await globalSearch({
             userId,
             query: trimmed,
@@ -70,6 +73,7 @@ export const globalSearchHandler = async (req: Request, res: Response, next: Nex
             includeTotal,
             sections,
             timeoutMs: DEFAULT_TIMEOUT_MS,
+            lang,
         });
 
         return sendResponse(res, 200, result);

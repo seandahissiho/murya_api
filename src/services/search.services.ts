@@ -1,5 +1,6 @@
 import {Prisma} from '@prisma/client';
 import {prisma} from '../config/db';
+import {getTranslationsMap} from "../i18n/translate";
 import {buildLearningResourceAccessWhere} from './learning_resources.access';
 
 export type SearchSectionKey = 'jobs' | 'jobFamilies' | 'learningResources' | 'users';
@@ -41,6 +42,7 @@ export type GlobalSearchOptions = {
     includeTotal: boolean;
     sections: Set<SearchSectionKey>;
     timeoutMs: number;
+    lang?: string;
 };
 
 const DEFAULT_SECTIONS: SearchSectionKey[] = ['jobs', 'jobFamilies', 'learningResources', 'users'];
@@ -80,7 +82,12 @@ const buildUserAccessWhere = async (userId: string): Promise<Prisma.UserWhereInp
     };
 };
 
-const searchJobs = async (query: string, limit: number, includeTotal: boolean): Promise<SearchResult> => {
+const searchJobs = async (
+    query: string,
+    limit: number,
+    includeTotal: boolean,
+    lang?: string,
+): Promise<SearchResult> => {
     const where: Prisma.JobWhereInput = {
         isActive: true,
         OR: [
@@ -94,23 +101,49 @@ const searchJobs = async (query: string, limit: number, includeTotal: boolean): 
     const [rows, total] = await Promise.all([
         prisma.job.findMany({
             where,
-        orderBy: {createdAt: 'desc'},
+            orderBy: {createdAt: 'desc'},
             take: limit,
-        select: {
-            id: true,
-            title: true,
-            createdAt: true,
-            jobFamily: {select: {name: true}},
-        },
+            select: {
+                id: true,
+                title: true,
+                createdAt: true,
+                jobFamily: {select: {id: true, name: true}},
+            },
         }),
         includeTotal ? prisma.job.count({where}) : Promise.resolve(null),
+    ]);
+
+    const jobIds = rows.map((job) => job.id);
+    const jobFamilyIds = rows
+        .map((job) => job.jobFamily?.id)
+        .filter((id): id is string => Boolean(id));
+
+    const [jobTranslations, jobFamilyTranslations] = await Promise.all([
+        lang && jobIds.length
+            ? getTranslationsMap({
+                entity: 'Job',
+                entityIds: jobIds,
+                fields: ['title'],
+                lang,
+            })
+            : new Map<string, string>(),
+        lang && jobFamilyIds.length
+            ? getTranslationsMap({
+                entity: 'JobFamily',
+                entityIds: jobFamilyIds,
+                fields: ['name'],
+                lang,
+            })
+            : new Map<string, string>(),
     ]);
 
     const items: SearchItem[] = rows.map((job): SearchItem => ({
         type: 'job',
         id: job.id,
-        title: job.title,
-        subtitle: job.jobFamily?.name ?? null,
+        title: jobTranslations.get(`${job.id}::title`) ?? job.title,
+        subtitle: job.jobFamily
+            ? jobFamilyTranslations.get(`${job.jobFamily.id}::name`) ?? job.jobFamily.name
+            : null,
         image_url: null,
         createdAt: job.createdAt,
     }));
@@ -118,7 +151,12 @@ const searchJobs = async (query: string, limit: number, includeTotal: boolean): 
     return {items, total};
 };
 
-const searchJobFamilies = async (query: string, limit: number, includeTotal: boolean): Promise<SearchResult> => {
+const searchJobFamilies = async (
+    query: string,
+    limit: number,
+    includeTotal: boolean,
+    lang?: string,
+): Promise<SearchResult> => {
     const where: Prisma.JobFamilyWhereInput = {
         OR: [
             {name: {contains: query, mode: 'insensitive'}},
@@ -132,21 +170,31 @@ const searchJobFamilies = async (query: string, limit: number, includeTotal: boo
             where,
             orderBy: {name: 'asc'},
             take: limit,
-        select: {
-            id: true,
-            name: true,
-            description: true,
-            createdAt: true,
-        },
+            select: {
+                id: true,
+                name: true,
+                description: true,
+                createdAt: true,
+            },
         }),
         includeTotal ? prisma.jobFamily.count({where}) : Promise.resolve(null),
     ]);
 
+    const familyIds = rows.map((family) => family.id);
+    const familyTranslations = lang && familyIds.length
+        ? await getTranslationsMap({
+            entity: 'JobFamily',
+            entityIds: familyIds,
+            fields: ['name', 'description'],
+            lang,
+        })
+        : new Map<string, string>();
+
     const items: SearchItem[] = rows.map((family): SearchItem => ({
         type: 'jobFamily',
         id: family.id,
-        title: family.name,
-        subtitle: family.description ?? null,
+        title: familyTranslations.get(`${family.id}::name`) ?? family.name,
+        subtitle: familyTranslations.get(`${family.id}::description`) ?? family.description ?? null,
         image_url: null,
         createdAt: family.createdAt,
     }));
@@ -159,6 +207,7 @@ const searchLearningResources = async (
     limit: number,
     includeTotal: boolean,
     userId: string,
+    lang?: string,
 ): Promise<SearchResult> => {
     const accessWhere = await buildLearningResourceAccessWhere(userId);
     const where: Prisma.LearningResourceWhereInput = {
@@ -179,22 +228,32 @@ const searchLearningResources = async (
             where,
             orderBy: {updatedAt: 'desc'},
             take: limit,
-        select: {
-            id: true,
-            title: true,
-            type: true,
-            source: true,
-            thumbnailUrl: true,
-            createdAt: true,
-        },
+            select: {
+                id: true,
+                title: true,
+                type: true,
+                source: true,
+                thumbnailUrl: true,
+                createdAt: true,
+            },
         }),
         includeTotal ? prisma.learningResource.count({where}) : Promise.resolve(null),
     ]);
 
+    const resourceIds = rows.map((resource) => resource.id);
+    const resourceTranslations = lang && resourceIds.length
+        ? await getTranslationsMap({
+            entity: 'LearningResource',
+            entityIds: resourceIds,
+            fields: ['title'],
+            lang,
+        })
+        : new Map<string, string>();
+
     const items: SearchItem[] = rows.map((resource): SearchItem => ({
         type: 'learningResource',
         id: resource.id,
-        title: resource.title,
+        title: resourceTranslations.get(`${resource.id}::title`) ?? resource.title,
         subtitle: resource.type.toLowerCase(),
         image_url: resource.thumbnailUrl ?? null,
         createdAt: resource.createdAt,
@@ -286,7 +345,7 @@ export const globalSearch = async (options: GlobalSearchOptions): Promise<Global
         tasks.push({
             section: 'jobs',
             promise: withTimeout(
-                () => searchJobs(options.query, options.limit, options.includeTotal),
+                () => searchJobs(options.query, options.limit, options.includeTotal, options.lang),
                 options.timeoutMs,
             ),
         });
@@ -296,7 +355,7 @@ export const globalSearch = async (options: GlobalSearchOptions): Promise<Global
         tasks.push({
             section: 'jobFamilies',
             promise: withTimeout(
-                () => searchJobFamilies(options.query, options.limit, options.includeTotal),
+                () => searchJobFamilies(options.query, options.limit, options.includeTotal, options.lang),
                 options.timeoutMs,
             ),
         });
@@ -311,6 +370,7 @@ export const globalSearch = async (options: GlobalSearchOptions): Promise<Global
                     options.limit,
                     options.includeTotal,
                     options.userId,
+                    options.lang,
                 ),
                 options.timeoutMs,
             ),

@@ -2,9 +2,11 @@ import {NextFunction, Request, Response} from "express";
 import * as uploadService from "../services/upload.services";
 import {getSingleParam, sendResponse} from "../utils/helpers";
 import {MURYA_ERROR} from "../constants/errorCodes";
+import {detectLanguage} from "../middlewares/i18n";
 
 export const getAllFiles = async (req: Request, res: Response, next: NextFunction) => {
     try {
+        await detectLanguage(req);
         const uploads = await uploadService.getAllUploads();
         sendResponse(
             res,
@@ -28,6 +30,7 @@ export const getAllFiles = async (req: Request, res: Response, next: NextFunctio
 export const getFileById = async (req: Request, res: Response, next: NextFunction) => {
     const id = getSingleParam(req.params.id);
     try {
+        await detectLanguage(req);
         if (!id) {
             return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
@@ -56,6 +59,7 @@ export const getFileById = async (req: Request, res: Response, next: NextFunctio
 
 export const uploadFile = async (req: Request, res: Response, next: NextFunction) => {
     try {
+        await detectLanguage(req);
         const userId = (req as any).user.userId;
         if (!req.file) {
             return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
@@ -91,6 +95,7 @@ export const uploadFile = async (req: Request, res: Response, next: NextFunction
 
 export const updateFile = async (req: Request, res: Response, next: NextFunction) => {
     try {
+        await detectLanguage(req);
         const userId = (req as any).user.userId;
         const id = getSingleParam(req.params.id);
         if (!id) {
@@ -133,6 +138,7 @@ export const updateFile = async (req: Request, res: Response, next: NextFunction
 export const deleteFile = async (req: Request, res: Response, next: NextFunction) => {
     const id = getSingleParam(req.params.id);
     try {
+        await detectLanguage(req);
         if (!id) {
             return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }

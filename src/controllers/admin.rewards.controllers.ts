@@ -4,6 +4,7 @@ import * as addressService from "../services/address.services";
 import {getSingleParam, sendResponse} from "../utils/helpers";
 import {ServiceError} from "../utils/serviceError";
 import {MURYA_ERROR} from "../constants/errorCodes";
+import {detectLanguage} from "../middlewares/i18n";
 
 const handleError = (res: Response, err: unknown, fallback: string) => {
     if (err instanceof ServiceError) {
@@ -17,7 +18,8 @@ const handleError = (res: Response, err: unknown, fallback: string) => {
 
 export const createReward = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const result = await rewardsService.createReward(req.body);
+        const lang = await detectLanguage(req);
+        const result = await rewardsService.createReward(req.body, lang);
         return sendResponse(res, 201, {data: result});
     } catch (err) {
         return handleError(res, err, "createReward error:");
@@ -30,7 +32,8 @@ export const updateReward = async (req: Request, res: Response, next: NextFuncti
         if (!rewardId) {
             return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
-        const result = await rewardsService.updateReward(rewardId, req.body);
+        const lang = await detectLanguage(req);
+        const result = await rewardsService.updateReward(rewardId, req.body, lang);
         return sendResponse(res, 200, {data: result});
     } catch (err) {
         return handleError(res, err, "updateReward error:");
@@ -47,7 +50,8 @@ export const adjustRewardStock = async (req: Request, res: Response, next: NextF
         if (!Number.isInteger(delta)) {
             return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
-        const result = await rewardsService.adjustRewardStock(rewardId, delta);
+        const lang = await detectLanguage(req);
+        const result = await rewardsService.adjustRewardStock(rewardId, delta, lang);
         return sendResponse(res, 200, {data: result});
     } catch (err) {
         return handleError(res, err, "adjustRewardStock error:");
@@ -56,6 +60,7 @@ export const adjustRewardStock = async (req: Request, res: Response, next: NextF
 
 export const createAddress = async (req: Request, res: Response, next: NextFunction) => {
     try {
+        await detectLanguage(req);
         const result = await addressService.createAddress(req.body);
         return sendResponse(res, 201, {data: result});
     } catch (err) {
@@ -69,10 +74,11 @@ export const markPurchaseReady = async (req: Request, res: Response, next: NextF
         if (!purchaseId) {
             return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
+        const lang = await detectLanguage(req);
         const result = await rewardsService.markPurchaseReady(purchaseId, {
             voucherCode: req.body?.voucherCode ?? null,
             voucherLink: req.body?.voucherLink ?? null,
-        });
+        }, lang);
         return sendResponse(res, 200, {data: result});
     } catch (err) {
         return handleError(res, err, "markPurchaseReady error:");
@@ -85,6 +91,7 @@ export const refundPurchase = async (req: Request, res: Response, next: NextFunc
         if (!purchaseId) {
             return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
         }
+        await detectLanguage(req);
         const result = await rewardsService.refundPurchase(purchaseId);
         return sendResponse(res, 200, result);
     } catch (err) {

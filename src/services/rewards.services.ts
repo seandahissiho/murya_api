@@ -107,6 +107,17 @@ const applyRewardTranslations = <T extends { id: string; title?: string | null; 
     ),
 });
 
+const localizeReward = async <T extends { id: string; title?: string | null; description?: string | null; redeemInstructions?: string | null }>(
+    reward: T,
+    lang?: string,
+) => {
+    if (!lang) {
+        return reward;
+    }
+    const translations = await loadRewardTranslations([reward.id], lang);
+    return applyRewardTranslations(reward, translations);
+};
+
 const ensureUser = async (userId: string) => {
     const user = await prisma.user.findUnique({
         where: {id: userId},
@@ -581,12 +592,12 @@ export const getWallet = async (userId: string, limit = 20) => {
     };
 };
 
-export const createReward = async (data: any) => {
+export const createReward = async (data: any, lang?: string) => {
     if (!data?.code || !data?.title) {
         throw new ServiceError("Les champs code et title sont requis.", 400, MURYA_ERROR.INVALID_PAYLOAD);
     }
 
-    return prisma.reward.create({
+    const reward = await prisma.reward.create({
         data: {
             code: data.code,
             title: data.title,
@@ -609,25 +620,29 @@ export const createReward = async (data: any) => {
             meta: data.meta ?? undefined,
         },
     });
+    return localizeReward(reward, lang);
 };
 
-export const updateReward = async (rewardId: string, data: any) => {
-    return prisma.reward.update({
+export const updateReward = async (rewardId: string, data: any, lang?: string) => {
+    const reward = await prisma.reward.update({
         where: {id: rewardId},
         data,
     });
+    return localizeReward(reward, lang);
 };
 
-export const adjustRewardStock = async (rewardId: string, delta: number) => {
-    return prisma.reward.update({
+export const adjustRewardStock = async (rewardId: string, delta: number, lang?: string) => {
+    const reward = await prisma.reward.update({
         where: {id: rewardId},
         data: {remainingStock: {increment: delta}},
     });
+    return localizeReward(reward, lang);
 };
 
 export const markPurchaseReady = async (
     purchaseId: string,
     data: {voucherCode?: string | null; voucherLink?: string | null},
+    lang?: string,
 ) => {
     const purchase = await prisma.rewardPurchase.update({
         where: {id: purchaseId},
@@ -642,8 +657,15 @@ export const markPurchaseReady = async (
         },
     });
 
+    const reward = purchase.reward
+        ? await localizeReward(purchase.reward, lang)
+        : null;
+
     return {
-        purchase,
+        purchase: {
+            ...purchase,
+            reward,
+        },
     };
 };
 

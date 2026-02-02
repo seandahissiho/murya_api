@@ -4,10 +4,12 @@ import type {LoginDto, RegisterDto, UpdateMeDto} from '../dtos/auth.dtos';
 import * as authService from '../services/auth.services';
 import {sendResponse} from "../utils/helpers";
 import {MURYA_ERROR} from "../constants/errorCodes";
+import {detectLanguage} from "../middlewares/i18n";
 
 // POST /auth/register
 export const register = async (req: Request<any, any, RegisterDto>, res: Response, next: NextFunction) => {
     try {
+        await detectLanguage(req);
         const dto = req.body;
 
         const hasDeviceOnly = !!dto.deviceId && !dto.password;
@@ -56,6 +58,7 @@ export const register = async (req: Request<any, any, RegisterDto>, res: Respons
 // POST /auth/login
 export const login = async (req: Request<any, any, LoginDto>, res: Response, next: NextFunction) => {
     try {
+        await detectLanguage(req);
         const {email, password, phone, deviceId, timezone} = req.body;
 
         const hasDeviceOnly = !!deviceId && !password;
@@ -97,6 +100,7 @@ export const login = async (req: Request<any, any, LoginDto>, res: Response, nex
 // GET /auth/me
 export const retrieve = async (req: Request, res: Response, next: NextFunction) => {
     try {
+        await detectLanguage(req);
         const userId = (req as any).user.userId;
 
         const user = await authService.retrieve(userId);
@@ -130,6 +134,7 @@ export const retrieve = async (req: Request, res: Response, next: NextFunction) 
 // PUT /auth/me
 export const update = async (req: Request<any, any, UpdateMeDto>, res: Response, next: NextFunction) => {
     try {
+        await detectLanguage(req);
         const userId = (req as any).user.userId;
         const dto = req.body;
 
@@ -175,6 +180,7 @@ export const update = async (req: Request<any, any, UpdateMeDto>, res: Response,
     // POST /auth/refresh
 export const refresh = async (req: Request, res: Response, next: NextFunction) => {
     try {
+        await detectLanguage(req);
         const {refresh_token} = req.body;
 
         if (!refresh_token) {
