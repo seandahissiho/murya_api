@@ -1,6 +1,9 @@
 import {Response} from "express";
 import bcrypt from "bcryptjs";
+import {ParsedQs} from "qs";
 import {MURYA_ERROR} from "../constants/errorCodes";
+
+export type QueryParamValue = string | ParsedQs | (string | ParsedQs)[] | undefined;
 
 interface ApiResponse<T> {
     data?: any;
@@ -37,9 +40,13 @@ export async function encryptPassword(password: string): Promise<string> {
     return await bcrypt.hash(password, 10);
 }
 
-export function getSingleParam(value: string | string[] | undefined): string | undefined {
+export function getSingleParam(value: QueryParamValue): string | undefined {
     if (Array.isArray(value)) {
-        return value[0];
+        const first = value[0];
+        return typeof first === "string" ? first : undefined;
     }
-    return value;
+    if (typeof value === "string") {
+        return value;
+    }
+    return undefined;
 }

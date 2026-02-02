@@ -15,6 +15,7 @@ import realtimeRoutes from "./realtime.routes";
 import rewardsRoutes from "./rewards.routes";
 import meRoutes from "./me.routes";
 import adminRewardsRoutes from "./admin.rewards.routes";
+import searchRoutes from "./search.routes";
 
 
 const router = require("express").Router();
@@ -34,6 +35,7 @@ router.use("/realtime", realtimeRoutes);
 router.use("/rewards", rewardsRoutes);
 router.use("/me", meRoutes);
 router.use("/admin", adminRewardsRoutes);
+router.use("/search", searchRoutes);
 router.use("/", modulesRoutes);
 
 export default router;
