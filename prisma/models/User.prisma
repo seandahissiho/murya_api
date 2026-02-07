@@ -59,6 +59,7 @@ model User {
   rewardPurchases            RewardPurchase[]
   userQuests                 UserQuest[]
   userQuestGroups            UserQuestGroup[]
+  auditLogs                  AuditLog[]
 
   @@unique([email], map: "unique_email_not_null")
   @@unique([phone], map: "unique_phone_not_null")

@@ -838,6 +838,28 @@ model UploadedFile {
   @@index([updatedById], map: "uploaded_files_updated_by_id_index")
 }
 
+model AuditLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorUserId String?  @db.Uuid
+  actorRoleId String?  @db.Uuid
+  isAdmin     Boolean? @db.Boolean
+  method      String   @db.VarChar(8)
+  path        String   @db.VarChar(512)
+  route       String?  @db.VarChar(255)
+  statusCode  Int
+  durationMs  Int?
+  ip          String?  @db.VarChar(64)
+  userAgent   String?  @db.VarChar(512)
+  params      Json?
+  query       Json?
+  createdAt   DateTime @default(now()) @db.Timestamp(0)
+  actorUser   User?    @relation(fields: [actorUserId], references: [id], onUpdate: Cascade, onDelete: SetNull)
+
+  @@index([actorUserId, createdAt], map: "idx_audit_log_actor_created_at")
+  @@index([createdAt], map: "idx_audit_log_created_at")
+  @@index([route], map: "idx_audit_log_route")
+}
+
 model User {
   id                         String                   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   firstname                  String?
@@ -899,6 +921,7 @@ model User {
   rewardPurchases            RewardPurchase[]
   userQuests                 UserQuest[]
   userQuestGroups            UserQuestGroup[]
+  auditLogs                  AuditLog[]
 
   @@unique([email], map: "unique_email_not_null")
   @@unique([phone], map: "unique_phone_not_null")

@@ -92,6 +92,9 @@ export const likeResource = async (req: Request, res: Response, next: NextFuncti
         const timezone = typeof req.body.timezone === 'string'
             ? req.body.timezone
             : undefined;
+        const like = typeof req.body.like === 'boolean'
+            ? req.body.like
+            : undefined;
 
         if (!resourceId) {
             return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
@@ -99,9 +102,12 @@ export const likeResource = async (req: Request, res: Response, next: NextFuncti
         if (!userId) {
             return sendResponse(res, 401, {code: MURYA_ERROR.AUTH_REQUIRED});
         }
+        if (like === undefined) {
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
+        }
 
         const lang = await detectLanguage(req);
-        const data = await resourceService.likeResource(resourceId, userId, timezone, lang);
+        const data = await resourceService.likeResource(resourceId, userId, timezone, lang, like);
         return sendResponse(res, 200, {data});
     } catch (err) {
         console.error('likeResource error:', err);

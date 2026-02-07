@@ -9,6 +9,7 @@ import path from "path";
 import {initRedis} from "./config/redis";
 import {startQuizGenerationWorker} from "./services/quiz_generation.worker";
 import {startArticleGenerationWorker} from "./services/article_generation.worker";
+import {auditLogMiddleware} from "./middlewares/auditLog";
 
 dotenv.config();
 
@@ -40,6 +41,8 @@ app.use("/uploads", express.static(path.join(__dirname, "..", "uploads")));
 app.use(morgan("dev"));
 
 app.use(cors());
+
+app.use(auditLogMiddleware);
 
 app.use("/api", router);
 

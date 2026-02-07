@@ -249,6 +249,7 @@ export const likeResource = async (
     userId: string,
     timezone?: string,
     lang: string = 'en',
+    like: boolean,
 ) => {
     const resource = await prisma.learningResource.findUnique({
         where: {id: resourceId},
@@ -264,19 +265,24 @@ export const likeResource = async (
     );
 
     const now = new Date();
+    const likedAt = like ? now : null;
     const upserted = await prisma.userLearningResource.upsert({
         where: {userId_resourceId: {userId, resourceId}},
         create: {
             userId,
             resourceId,
-            isLikedAt: now,
+            isLikedAt: likedAt,
         },
         update: {
-            isLikedAt: now,
+            isLikedAt: likedAt,
         },
     });
 
-    await trackEvent(userJobId, 'RESOURCE_LIKED', {resourceId}, timezone, userId);
+    if (like) {
+        await trackEvent(userJobId, 'RESOURCE_LIKED', {resourceId}, timezone, userId);
+    } else {
+        await trackEvent(userJobId, 'RESOURCE_UNLIKED', {resourceId}, timezone, userId);
+    }
 
     const localized = await attachTranslations(resource, lang);
 
