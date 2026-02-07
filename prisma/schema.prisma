@@ -492,65 +492,43 @@ model Language {
 }
 
 model LearningResource {
-  id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  id                    String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   // Scope & typage
-  scope             LearningResourceScope  @default(USER_JOB)
-  type              LearningResourceType   @default(ARTICLE)
-  source            LearningResourceSource @default(AI_GENERATED)
+  scope                 LearningResourceScope  @default(USER_JOB)
+  type                  LearningResourceType   @default(ARTICLE)
+  source                LearningResourceSource @default(AI_GENERATED)
   // Liens métier
-  jobId             String?                @db.Uuid // pour les ressources par défaut (et/ou redondance pour les ressources user)
-  jobFamilyId       String?                @db.Uuid // pour les ressources par défaut d'une famille de métiers
-  userJobId         String?                @db.Uuid // pour les ressources personnalisées
+  jobId                 String?                @db.Uuid // pour les ressources par défaut (et/ou redondance pour les ressources user)
+  jobFamilyId           String?                @db.Uuid // pour les ressources par défaut d'une famille de métiers
+  userJobId             String?                @db.Uuid // pour les ressources personnalisées
   // Contenu
-  title             String                 @db.VarChar(255)
-  slug              String?                @unique @db.VarChar(255)
-  description       String?                @db.Text
-  content           String?                @db.Text // article, script de podcast, transcript de vidéo, etc.
-  mediaUrl          String?                @db.VarChar(1024) // URL audio/vidéo si besoin
-  thumbnailUrl      String?                @db.VarChar(1024)
-  languageCode      String?                @db.VarChar(16)
-  estimatedDuration Int? // en secondes
-  metadata          Json? // pour stocker n’importe quel extra (IDs IA, tags, etc.)
+  title                 String                 @db.VarChar(255)
+  slug                  String?                @unique @db.VarChar(255)
+  description           String?                @db.Text
+  content               String?                @db.Text // article, script de podcast, transcript de vidéo, etc.
+  mediaUrl              String?                @db.VarChar(1024) // URL audio/vidéo si besoin
+  thumbnailUrl          String?                @db.VarChar(1024)
+  languageCode          String?                @db.VarChar(16)
+  estimatedDuration     Int? // en secondes
+  metadata              Json? // pour stocker n’importe quel extra (IDs IA, tags, etc.)
   // Audit
-  createdAt         DateTime               @default(now()) @db.Timestamp(0)
-  updatedAt         DateTime               @default(now()) @updatedAt @db.Timestamp(0)
-  collectedAt       DateTime?              @db.Timestamp(0)
-  createdById       String?                @db.Uuid
-  updatedById       String?                @db.Uuid
+  createdAt             DateTime               @default(now()) @db.Timestamp(0)
+  updatedAt             DateTime               @default(now()) @updatedAt @db.Timestamp(0)
+  collectedAt           DateTime?              @db.Timestamp(0)
+  createdById           String?                @db.Uuid
+  updatedById           String?                @db.Uuid
   // Relations
-  job               Job?                   @relation(fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  jobFamily         JobFamily?             @relation(fields: [jobFamilyId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  userJob           UserJob?               @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  createdBy         User?                  @relation(name: "LearningResourceCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: SetNull)
-  updatedBy         User?                  @relation(name: "LearningResourceUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: SetNull)
+  job                   Job?                   @relation(fields: [jobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  jobFamily             JobFamily?             @relation(fields: [jobFamilyId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  userJob               UserJob?               @relation(fields: [userJobId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  createdBy             User?                  @relation(name: "LearningResourceCreatedBy", fields: [createdById], references: [id], onUpdate: Cascade, onDelete: SetNull)
+  updatedBy             User?                  @relation(name: "LearningResourceUpdatedBy", fields: [updatedById], references: [id], onUpdate: Cascade, onDelete: SetNull)
   userLearningResources UserLearningResource[]
 
   @@index([jobId], map: "idx_learning_resource_job")
   @@index([jobFamilyId], map: "idx_learning_resource_job_family")
   @@index([userJobId], map: "idx_learning_resource_user_job")
   @@index([scope, type], map: "idx_learning_resource_scope_type")
-}
-
-model UserLearningResource {
-  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  userId       String           @db.Uuid
-  resourceId   String           @db.Uuid
-  openedAt     DateTime?        @db.Timestamp(0)
-  readAt       DateTime?        @db.Timestamp(0)
-  lastViewedAt DateTime?        @db.Timestamp(0)
-  isLikedAt    DateTime?        @db.Timestamp(0)
-  viewsCount   Int              @default(0)
-  progress     Float?
-  metadata     Json?
-  createdAt    DateTime         @default(now()) @db.Timestamp(0)
-  updatedAt    DateTime         @default(now()) @updatedAt @db.Timestamp(0)
-  user         User             @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-  resource     LearningResource @relation(fields: [resourceId], references: [id], onUpdate: Cascade, onDelete: Cascade)
-
-  @@unique([userId, resourceId], map: "unique_user_learning_resource")
-  @@index([userId], map: "idx_user_learning_resource_user")
-  @@index([resourceId], map: "idx_user_learning_resource_resource")
-  @@index([lastViewedAt], map: "idx_user_learning_resource_last_viewed_at")
 }
 
 model Module {
@@ -1147,6 +1125,28 @@ model UserLandingModuleEvent {
   @@index([userId], map: "idx_user_landing_event_user")
   @@index([moduleId], map: "idx_user_landing_event_module")
   @@index([createdAt], map: "idx_user_landing_event_created_at")
+}
+
+model UserLearningResource {
+  id           String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String           @db.Uuid
+  resourceId   String           @db.Uuid
+  openedAt     DateTime?        @db.Timestamp(0)
+  readAt       DateTime?        @db.Timestamp(0)
+  lastViewedAt DateTime?        @db.Timestamp(0)
+  isLikedAt    DateTime?        @db.Timestamp(0)
+  viewsCount   Int              @default(0)
+  progress     Float?
+  metadata     Json?
+  createdAt    DateTime         @default(now()) @db.Timestamp(0)
+  updatedAt    DateTime         @default(now()) @updatedAt @db.Timestamp(0)
+  user         User             @relation(fields: [userId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+  resource     LearningResource @relation(fields: [resourceId], references: [id], onUpdate: Cascade, onDelete: Cascade)
+
+  @@unique([userId, resourceId], map: "unique_user_learning_resource")
+  @@index([userId], map: "idx_user_learning_resource_user")
+  @@index([resourceId], map: "idx_user_learning_resource_resource")
+  @@index([lastViewedAt], map: "idx_user_learning_resource_last_viewed_at")
 }
 
 model UserModule {
