@@ -283,6 +283,28 @@ model Address {
   @@unique([street, zip, city, countryId], map: "unique_address")
 }
 
+model AuditLog {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorUserId String?  @db.Uuid
+  actorRoleId String?  @db.Uuid
+  isAdmin     Boolean? @db.Boolean
+  method      String   @db.VarChar(8)
+  path        String   @db.VarChar(512)
+  route       String?  @db.VarChar(255)
+  statusCode  Int
+  durationMs  Int?
+  ip          String?  @db.VarChar(64)
+  userAgent   String?  @db.VarChar(512)
+  params      Json?
+  query       Json?
+  createdAt   DateTime @default(now()) @db.Timestamp(0)
+  actorUser   User?    @relation(fields: [actorUserId], references: [id], onUpdate: Cascade, onDelete: SetNull)
+
+  @@index([actorUserId, createdAt], map: "idx_audit_log_actor_created_at")
+  @@index([createdAt], map: "idx_audit_log_created_at")
+  @@index([route], map: "idx_audit_log_route")
+}
+
 model Company {
   id          String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name        String        @unique(map: "company_name") @db.VarChar(255)
@@ -836,28 +858,6 @@ model UploadedFile {
 
   @@index([createdById], map: "uploaded_files_created_by_id_index")
   @@index([updatedById], map: "uploaded_files_updated_by_id_index")
-}
-
-model AuditLog {
-  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  actorUserId String?  @db.Uuid
-  actorRoleId String?  @db.Uuid
-  isAdmin     Boolean? @db.Boolean
-  method      String   @db.VarChar(8)
-  path        String   @db.VarChar(512)
-  route       String?  @db.VarChar(255)
-  statusCode  Int
-  durationMs  Int?
-  ip          String?  @db.VarChar(64)
-  userAgent   String?  @db.VarChar(512)
-  params      Json?
-  query       Json?
-  createdAt   DateTime @default(now()) @db.Timestamp(0)
-  actorUser   User?    @relation(fields: [actorUserId], references: [id], onUpdate: Cascade, onDelete: SetNull)
-
-  @@index([actorUserId, createdAt], map: "idx_audit_log_actor_created_at")
-  @@index([createdAt], map: "idx_audit_log_created_at")
-  @@index([route], map: "idx_audit_log_route")
 }
 
 model User {
