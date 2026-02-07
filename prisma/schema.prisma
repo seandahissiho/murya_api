@@ -538,6 +538,7 @@ model UserLearningResource {
   openedAt     DateTime?        @db.Timestamp(0)
   readAt       DateTime?        @db.Timestamp(0)
   lastViewedAt DateTime?        @db.Timestamp(0)
+  isLikedAt    DateTime?        @db.Timestamp(0)
   viewsCount   Int              @default(0)
   progress     Float?
   metadata     Json?
