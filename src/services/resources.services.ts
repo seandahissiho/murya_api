@@ -243,3 +243,45 @@ export const markResourceRead = async (
         userState,
     };
 };
+
+export const likeResource = async (
+    resourceId: string,
+    userId: string,
+    timezone?: string,
+    lang: string = 'en',
+) => {
+    const resource = await prisma.learningResource.findUnique({
+        where: {id: resourceId},
+    });
+
+    if (!resource) {
+        throw new Error('Ressource introuvable.');
+    }
+
+    const userJobId = await resolveUserJobAccess(
+        {userJobId: resource.userJobId, jobId: resource.jobId, jobFamilyId: resource.jobFamilyId},
+        userId,
+    );
+
+    const now = new Date();
+    const upserted = await prisma.userLearningResource.upsert({
+        where: {userId_resourceId: {userId, resourceId}},
+        create: {
+            userId,
+            resourceId,
+            isLikedAt: now,
+        },
+        update: {
+            isLikedAt: now,
+        },
+    });
+
+    await trackEvent(userJobId, 'RESOURCE_LIKED', {resourceId}, timezone, userId);
+
+    const localized = await attachTranslations(resource, lang);
+
+    return {
+        resource: localized,
+        userState: upserted,
+    };
+};

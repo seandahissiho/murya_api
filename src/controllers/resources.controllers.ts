@@ -84,3 +84,29 @@ export const readResource = async (req: Request, res: Response, next: NextFuncti
         });
     }
 };
+
+export const likeResource = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const userId = (req as any).user?.userId;
+        const resourceId = getSingleParam(req.params.id);
+        const timezone = typeof req.body.timezone === 'string'
+            ? req.body.timezone
+            : undefined;
+
+        if (!resourceId) {
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
+        }
+        if (!userId) {
+            return sendResponse(res, 401, {code: MURYA_ERROR.AUTH_REQUIRED});
+        }
+
+        const lang = await detectLanguage(req);
+        const data = await resourceService.likeResource(resourceId, userId, timezone, lang);
+        return sendResponse(res, 200, {data});
+    } catch (err) {
+        console.error('likeResource error:', err);
+        return sendResponse(res, 400, {
+            code: MURYA_ERROR.INVALID_REQUEST,
+        });
+    }
+};
