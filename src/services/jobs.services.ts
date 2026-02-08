@@ -405,10 +405,10 @@ export const getJobFamilyDetails = async (jobFamilyId: string, lang: string = 'e
     });
 
     const levels = [
+        JobProgressionLevel.BEGINNER,
         JobProgressionLevel.JUNIOR,
         JobProgressionLevel.MIDLEVEL,
         JobProgressionLevel.SENIOR,
-        JobProgressionLevel.EXPERT,
     ];
 
     const kiviats = topFamilyIds.flatMap((familyId) => {

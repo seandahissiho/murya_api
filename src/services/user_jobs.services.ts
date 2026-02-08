@@ -297,10 +297,10 @@ async function buildFamilyKiviatsForJobs(
     });
 
     const levels = [
+        JobProgressionLevel.BEGINNER,
         JobProgressionLevel.JUNIOR,
         JobProgressionLevel.MIDLEVEL,
         JobProgressionLevel.SENIOR,
-        JobProgressionLevel.EXPERT,
     ];
 
     const entries: Array<{
@@ -1370,36 +1370,36 @@ const mapLeagueTierToProgressionLevel = (tier: LeagueTier | null | undefined): J
     switch (tier) {
         case LeagueTier.IRON:
         case LeagueTier.BRONZE:
-            return JobProgressionLevel.JUNIOR;
+            return JobProgressionLevel.BEGINNER;
         case LeagueTier.SILVER:
         case LeagueTier.GOLD:
-            return JobProgressionLevel.MIDLEVEL;
+            return JobProgressionLevel.JUNIOR;
         case LeagueTier.PLATINUM:
         case LeagueTier.EMERALD:
         case LeagueTier.DIAMOND:
-            return JobProgressionLevel.SENIOR;
+            return JobProgressionLevel.MIDLEVEL;
         case LeagueTier.MASTER:
         case LeagueTier.GRANDMASTER:
         case LeagueTier.CHALLENGER:
-            return JobProgressionLevel.EXPERT;
+            return JobProgressionLevel.SENIOR;
         default:
             return JobProgressionLevel.MIDLEVEL;
     }
 };
 
 const getTargetForProgressionLevel = (
-    targets: {junior: number; mid: number; senior: number} | undefined,
+    targets: {beginner: number; junior: number; mid: number; senior: number} | undefined,
     level: JobProgressionLevel,
 ) => {
     if (!targets) return null;
     switch (level) {
+        case JobProgressionLevel.BEGINNER:
+            return targets.beginner ?? null;
         case JobProgressionLevel.JUNIOR:
             return targets.junior ?? null;
         case JobProgressionLevel.MIDLEVEL:
             return targets.mid ?? null;
         case JobProgressionLevel.SENIOR:
-            return targets.senior ?? null;
-        case JobProgressionLevel.EXPERT:
             return targets.senior ?? null;
         default:
             return null;
@@ -2244,7 +2244,7 @@ export const saveQuizAnswersAndComplete = async (
 
         let targetValuesByFamily = new Map<
             string,
-            {junior: number; mid: number; senior: number}
+            {beginner: number; junior: number; mid: number; senior: number}
         >();
         if (resolvedUserJob.jobId) {
             const jobKiviats = await tx.jobKiviat.findMany({
@@ -2253,6 +2253,7 @@ export const saveQuizAnswersAndComplete = async (
                     competenciesFamilyId: {in: familyIds},
                     level: {
                         in: [
+                            JobProgressionLevel.BEGINNER,
                             JobProgressionLevel.JUNIOR,
                             JobProgressionLevel.MIDLEVEL,
                             JobProgressionLevel.SENIOR,
@@ -2269,6 +2270,7 @@ export const saveQuizAnswersAndComplete = async (
                 const getValue = (level: JobProgressionLevel) =>
                     Number(values.find((k: any) => k.level === level)?.radarScore0to5 ?? 0);
                 targetValuesByFamily.set(familyId, {
+                    beginner: getValue(JobProgressionLevel.BEGINNER),
                     junior: getValue(JobProgressionLevel.JUNIOR),
                     mid: getValue(JobProgressionLevel.MIDLEVEL),
                     senior: getValue(JobProgressionLevel.SENIOR),
@@ -2282,6 +2284,7 @@ export const saveQuizAnswersAndComplete = async (
                     competenciesFamilyId: {in: familyIds},
                     level: {
                         in: [
+                            JobProgressionLevel.BEGINNER,
                             JobProgressionLevel.JUNIOR,
                             JobProgressionLevel.MIDLEVEL,
                             JobProgressionLevel.SENIOR,
@@ -2302,6 +2305,7 @@ export const saveQuizAnswersAndComplete = async (
                     return values.length ? values.reduce((sum: number, v: number) => sum + v, 0) / values.length : 0;
                 };
                 targetValuesByFamily.set(familyId, {
+                    beginner: avg(JobProgressionLevel.BEGINNER),
                     junior: avg(JobProgressionLevel.JUNIOR),
                     mid: avg(JobProgressionLevel.MIDLEVEL),
                     senior: avg(JobProgressionLevel.SENIOR),
@@ -2459,13 +2463,15 @@ export const saveQuizAnswersAndComplete = async (
             const targets = targetValuesByFamily.get(family.id);
             let level: JobProgressionLevel | null = null;
             if (targets) {
-                level = radarScore0to5 <= targets.junior
-                    ? JobProgressionLevel.JUNIOR
-                    : radarScore0to5 <= targets.mid
-                        ? JobProgressionLevel.MIDLEVEL
-                        : radarScore0to5 <= targets.senior
-                            ? JobProgressionLevel.SENIOR
-                            : JobProgressionLevel.EXPERT;
+                level = radarScore0to5 <= targets.beginner
+                    ? JobProgressionLevel.BEGINNER
+                    : radarScore0to5 <= targets.junior
+                        ? JobProgressionLevel.JUNIOR
+                        : radarScore0to5 <= targets.mid
+                            ? JobProgressionLevel.MIDLEVEL
+                            : radarScore0to5 <= targets.senior
+                                ? JobProgressionLevel.SENIOR
+                                : JobProgressionLevel.SENIOR;
             }
 
             const userJobKiviat = await tx.userJobKiviat.upsert({

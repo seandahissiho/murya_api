@@ -86,6 +86,7 @@ function mapProgressionLevel(value: string): JobProgressionLevel {
     switch ((value || '').toLowerCase()) {
         case 'debutant':
         case 'débutant':
+            return JobProgressionLevel.BEGINNER;
         case 'junior':
             return JobProgressionLevel.JUNIOR;
         case 'intermédiaire':
@@ -94,7 +95,7 @@ function mapProgressionLevel(value: string): JobProgressionLevel {
         case 'senior':
             return JobProgressionLevel.SENIOR;
         case 'expert':
-            return JobProgressionLevel.EXPERT;
+            return JobProgressionLevel.SENIOR;
         default:
             return JobProgressionLevel.MIDLEVEL;
     }

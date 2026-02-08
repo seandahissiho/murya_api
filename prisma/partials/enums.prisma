@@ -100,10 +100,10 @@ enum LeagueTier {
 }
 
 enum JobProgressionLevel {
+  BEGINNER
   JUNIOR
   MIDLEVEL
   SENIOR
-  EXPERT
 }
 
 enum UserQuizStatus {
