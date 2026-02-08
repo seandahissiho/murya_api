@@ -25,8 +25,8 @@ export const auditLogMiddleware = (req: Request, res: Response, next: NextFuncti
         const route = routePath ? `${baseUrl}${routePath}` : null;
         const path = `${baseUrl}${req.path}`;
 
-        const params = hasKeys(req.params as Record<string, unknown>) ? req.params : null;
-        const query = hasKeys(req.query as Record<string, unknown>) ? req.query : null;
+        const params = hasKeys(req.params as Record<string, unknown>) ? req.params : undefined;
+        const query = hasKeys(req.query as Record<string, unknown>) ? req.query : undefined;
 
         void createAuditLog({
             actorUserId,

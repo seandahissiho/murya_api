@@ -107,7 +107,7 @@ export const likeResource = async (req: Request, res: Response, next: NextFuncti
         }
 
         const lang = await detectLanguage(req);
-        const data = await resourceService.likeResource(resourceId, userId, timezone, lang, like);
+        const data = await resourceService.likeResource(resourceId, userId, like, timezone, lang);
         return sendResponse(res, 200, {data});
     } catch (err) {
         console.error('likeResource error:', err);

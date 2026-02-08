@@ -247,9 +247,9 @@ export const markResourceRead = async (
 export const likeResource = async (
     resourceId: string,
     userId: string,
+    like: boolean,
     timezone?: string,
     lang: string = 'en',
-    like: boolean,
 ) => {
     const resource = await prisma.learningResource.findUnique({
         where: {id: resourceId},
