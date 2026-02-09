@@ -332,8 +332,22 @@ export const getUserJob = async (req: Request, res: Response, next: NextFunction
         return sendResponse(res, 200, {data: userJob});
     } catch (err) {
         console.error('getUserJob error:', err);
-        return sendResponse(res, 500, {
-            code: MURYA_ERROR.INTERNAL_ERROR,
+        const statusCode = typeof (err as any)?.statusCode === 'number' ? (err as any).statusCode : 500;
+        const code =
+            (err as any)?.code ??
+            (statusCode === 401
+                ? MURYA_ERROR.AUTH_REQUIRED
+                : statusCode === 403
+                    ? MURYA_ERROR.FORBIDDEN
+                    : statusCode === 404
+                        ? MURYA_ERROR.NOT_FOUND
+                        : statusCode === 409
+                            ? MURYA_ERROR.CONFLICT
+                            : statusCode >= 500
+                                ? MURYA_ERROR.INTERNAL_ERROR
+                                : MURYA_ERROR.INVALID_REQUEST);
+        return sendResponse(res, statusCode, {
+            code,
         });
     }
 };
