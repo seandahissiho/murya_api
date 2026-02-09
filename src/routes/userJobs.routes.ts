@@ -23,6 +23,8 @@ router.put('/:userJobId/selected-jobs', authenticateToken, jobControllers.update
 
 //getUserJobCompetencyProfileHandler
 router.get('/:userJobId/competenciesProfile', authenticateToken, jobControllers.getUserJobCompetencyProfileHandler);
+// previewCompetencyProfile
+router.get('/:userJobId/previewCompetencyProfile', authenticateToken, jobControllers.previewCompetencyProfile);
 // '/userJobs/$userJobId/competency_families/$cfId/'
 router.get('/:userJobId/competency_families/:cfId/', authenticateToken, jobControllers.getCompetencyFamilyDetailsForUserJob);
 // getUserJob

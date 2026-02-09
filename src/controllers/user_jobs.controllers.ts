@@ -357,6 +357,49 @@ export const getUserJobCompetencyProfileHandler = async (req: Request, res: Resp
     }
 };
 
+export const previewCompetencyProfile = async (req: Request, res: Response, next: NextFunction) => {
+    const userId = (req as any).user?.userId;
+    const userJobId = getSingleParam(req.params.userJobId);
+    const fromParam = typeof req.query.from === 'string' ? req.query.from : undefined;
+    const toParam = typeof req.query.to === 'string' ? req.query.to : undefined;
+    const timezone = typeof req.query.timezone === 'string' ? req.query.timezone : undefined;
+
+    try {
+        if (!userJobId) {
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
+        }
+        if (!userId) {
+            return sendResponse(res, 401, {code: MURYA_ERROR.AUTH_REQUIRED});
+        }
+        if (fromParam && !LOCAL_DATETIME_REGEX.test(fromParam)) {
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
+        }
+        if (toParam && !LOCAL_DATETIME_REGEX.test(toParam)) {
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
+        }
+
+        const profile = await jobService.getPreviewCompetencyProfile(
+            userId,
+            userJobId,
+            {
+                from: fromParam,
+                to: toParam,
+                timezone,
+                lang: await detectLanguage(req),
+            },
+        );
+        if (!profile) {
+            return sendResponse(res, 404, {code: MURYA_ERROR.NOT_FOUND});
+        }
+        return sendResponse(res, 200, {data: profile});
+    } catch (e: any) {
+        console.error('previewCompetencyProfile error:', e);
+        return sendResponse(res, 500, {
+            code: MURYA_ERROR.INTERNAL_ERROR,
+        });
+    }
+};
+
 // generateMarkdownArticleForLastQuiz
 export const generateMarkdownArticleForLastQuiz2 = async (req: Request, res: Response, next: NextFunction) => {
     try {

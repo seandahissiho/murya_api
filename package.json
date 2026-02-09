@@ -9,10 +9,12 @@
     "lint": "eslint \"src/**/*.ts\"",
     "format": "prettier --write \"src/**/*.ts\"",
     "prisma:generate": "sh ./scripts/prisma-generate.sh",
+    "prisma:healthcheck": "ts-node scripts/prisma-healthcheck.ts",
     "prisma:update-kiviats": "ts-node prisma/update_kiviats_from_edlab.ts",
     "translate:entities": "ts-node scripts/translate-entities.ts",
     "translate:coverage": "ts-node scripts/translation-coverage.ts",
-    "translate:quests:log": "ts-node scripts/translation-log-quests.ts"
+    "translate:quests:log": "ts-node scripts/translation-log-quests.ts",
+    "test:preview-competency-profile": "ts-node scripts/previewCompetencyProfile.test.ts"
   },
   "keywords": [],
   "author": "",
