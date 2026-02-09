@@ -12,8 +12,13 @@ export type ArticleGenerationJob = {
     userJobId: string;
 };
 
+export type AuditLogJob = {
+    data: Record<string, unknown>;
+};
+
 const QUIZ_GENERATION_QUEUE = 'queue:quiz_generation';
 const ARTICLE_GENERATION_QUEUE = 'queue:article_generation';
+const AUDIT_LOG_QUEUE = 'queue:audit_log';
 
 let client: RedisClientType | null = null;
 
@@ -69,6 +74,24 @@ export const popArticleGenerationJob = async (timeoutSeconds = 5): Promise<Artic
         return JSON.parse(result.element) as ArticleGenerationJob;
     } catch (err) {
         console.error('Invalid article generation job payload', err);
+        return null;
+    }
+};
+
+export const enqueueAuditLogJob = async (job: AuditLogJob): Promise<boolean> => {
+    if (!client) return false;
+    await client.lPush(AUDIT_LOG_QUEUE, JSON.stringify(job));
+    return true;
+};
+
+export const popAuditLogJob = async (timeoutSeconds = 5): Promise<AuditLogJob | null> => {
+    if (!client) return null;
+    const result = await client.brPop(AUDIT_LOG_QUEUE, timeoutSeconds);
+    if (!result) return null;
+    try {
+        return JSON.parse(result.element) as AuditLogJob;
+    } catch (err) {
+        console.error('Invalid audit log job payload', err);
         return null;
     }
 };

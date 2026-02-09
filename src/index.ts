@@ -9,6 +9,7 @@ import path from "path";
 import {initRedis} from "./config/redis";
 import {startQuizGenerationWorker} from "./services/quiz_generation.worker";
 import {startArticleGenerationWorker} from "./services/article_generation.worker";
+import {startAuditLogWorker} from "./services/audit_log.worker";
 import {auditLogMiddleware} from "./middlewares/auditLog";
 
 dotenv.config();
@@ -56,6 +57,7 @@ const startWorkers = async () => {
         if (client) {
             startQuizGenerationWorker();
             startArticleGenerationWorker();
+            startAuditLogWorker();
         }
     } catch (err) {
         console.error('Failed to initialize Redis', err);

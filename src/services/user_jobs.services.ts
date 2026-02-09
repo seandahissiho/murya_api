@@ -13,6 +13,7 @@ import {
     LearningResourceSource,
     CompetencyRating,
 } from '@prisma/client';
+import {randomUUID} from 'crypto';
 import {DateTime} from 'luxon';
 import {prisma} from "../config/db";
 import {getTranslationsMap, resolveFields} from "../i18n/translate";
@@ -122,7 +123,7 @@ const getMaxStreakBonus = (questionCount: number): number => {
 async function resolveJobOrFamilyId(targetId: string) {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(targetId);
     if (!isUuid) {
-        throw new Error('Invalid job or job family id');
+        throw buildServiceError('Invalid job or job family id', 400);
     }
 
     const job = await prisma.job.findUnique({
@@ -141,7 +142,7 @@ async function resolveJobOrFamilyId(targetId: string) {
         return {scope: UserJobScope.JOB_FAMILY, jobId: null, jobFamilyId: jobFamily.id};
     }
 
-    throw new Error('Job not found');
+    throw buildServiceError('Job not found', 404);
 }
 
 async function ensureUserJobFamilyTrack(userId: string, jobFamilyId: string) {
@@ -402,51 +403,125 @@ export async function getCurrentUserJob(userId: any, lang: string = 'en') {
 
     if (!userJob) return null;
 
-    const kiviats = await Promise.all(
-        userJob.kiviats.map(async (k) => {
-            const localizedFamily = await resolveFields({
-                entity: 'CompetenciesFamily',
-                entityId: k.competenciesFamily.id,
-                fields: ['name', 'description'],
-                lang,
-                base: k.competenciesFamily,
-            });
-            return {...k, competenciesFamily: localizedFamily};
-        })
-    );
+    const applyTranslations = <T extends Record<string, any>>(
+        base: T,
+        entityId: string,
+        fields: string[],
+        translations: Map<string, string>,
+    ): T => {
+        const result = {...base};
+        for (const field of fields) {
+            const value = translations.get(`${entityId}::${field}`);
+            if (value !== undefined) {
+                (result as any)[field] = value;
+            }
+        }
+        return result;
+    };
+
+    const competencyFamilyIds = new Set<string>();
+    const jobIds = new Set<string>();
+    const jobKiviatIds = new Set<string>();
+    let jobFamilyId: string | null = null;
+
+    for (const k of userJob.kiviats) {
+        if (k?.competenciesFamily?.id) {
+            competencyFamilyIds.add(k.competenciesFamily.id);
+        }
+    }
+
+    if (userJob.scope === UserJobScope.JOB) {
+        if (userJob.job?.id) {
+            jobIds.add(userJob.job.id);
+        }
+        for (const k of userJob.job?.kiviats ?? []) {
+            if (k?.competenciesFamily?.id) {
+                competencyFamilyIds.add(k.competenciesFamily.id);
+            }
+            if (k?.id) {
+                jobKiviatIds.add(k.id);
+            }
+        }
+    } else if (userJob.scope === UserJobScope.JOB_FAMILY) {
+        if (userJob.jobFamily?.id) {
+            jobFamilyId = userJob.jobFamily.id;
+        }
+        for (const selection of userJob.selectedJobs ?? []) {
+            if (selection?.job?.id) {
+                jobIds.add(selection.job.id);
+            }
+        }
+    }
+
+    const [
+        competencyFamilyTranslations,
+        jobTranslations,
+        jobKiviatTranslations,
+        jobFamilyTranslations,
+    ] = await Promise.all([
+        getTranslationsMap({
+            entity: 'CompetenciesFamily',
+            entityIds: Array.from(competencyFamilyIds),
+            fields: ['name', 'description'],
+            lang,
+        }),
+        getTranslationsMap({
+            entity: 'Job',
+            entityIds: Array.from(jobIds),
+            fields: ['title', 'description'],
+            lang,
+        }),
+        getTranslationsMap({
+            entity: 'JobKiviat',
+            entityIds: Array.from(jobKiviatIds),
+            fields: ['level'],
+            lang,
+        }),
+        getTranslationsMap({
+            entity: 'JobFamily',
+            entityIds: jobFamilyId ? [jobFamilyId] : [],
+            fields: ['name'],
+            lang,
+        }),
+    ]);
+
+    const kiviats = userJob.kiviats.map((k) => {
+        const localizedFamily = applyTranslations(
+            k.competenciesFamily,
+            k.competenciesFamily.id,
+            ['name', 'description'],
+            competencyFamilyTranslations,
+        );
+        return {...k, competenciesFamily: localizedFamily};
+    });
 
     if (userJob.scope === UserJobScope.JOB) {
         if (!userJob.job) {
             throw new Error('Job manquant pour un UserJob de scope JOB.');
         }
 
-        const localizedJob = await resolveFields({
-            entity: 'Job',
-            entityId: userJob.job.id,
-            fields: ['title', 'description'],
-            lang,
-            base: userJob.job,
-        });
-
-        const localizedJobKiviats = await Promise.all(
-            (userJob.job.kiviats ?? []).map(async (k) => {
-                const localizedFamily = await resolveFields({
-                    entity: 'CompetenciesFamily',
-                    entityId: k.competenciesFamily.id,
-                    fields: ['name', 'description'],
-                    lang,
-                    base: k.competenciesFamily,
-                });
-                const localizedKiviat = await resolveFields({
-                    entity: 'JobKiviat',
-                    entityId: k.id,
-                    fields: ['level'],
-                    lang,
-                    base: k,
-                });
-                return {...k, ...localizedKiviat, competenciesFamily: localizedFamily};
-            })
+        const localizedJob = applyTranslations(
+            userJob.job,
+            userJob.job.id,
+            ['title', 'description'],
+            jobTranslations,
         );
+
+        const localizedJobKiviats = (userJob.job.kiviats ?? []).map((k) => {
+            const localizedFamily = applyTranslations(
+                k.competenciesFamily,
+                k.competenciesFamily.id,
+                ['name', 'description'],
+                competencyFamilyTranslations,
+            );
+            const localizedKiviat = applyTranslations(
+                k,
+                k.id,
+                ['level'],
+                jobKiviatTranslations,
+            );
+            return {...localizedKiviat, competenciesFamily: localizedFamily};
+        });
 
         return {...userJob, job: {...localizedJob, kiviats: localizedJobKiviats}, kiviats};
     }
@@ -456,29 +531,25 @@ export async function getCurrentUserJob(userId: any, lang: string = 'en') {
     }
     const jobFamily = userJob.jobFamily;
 
-    const localizedJobFamily = await resolveFields({
-        entity: 'JobFamily',
-        entityId: jobFamily.id,
-        fields: ['name'],
-        lang,
-        base: jobFamily,
-    }) as typeof jobFamily;
+    const localizedJobFamily = applyTranslations(
+        jobFamily,
+        jobFamily.id,
+        ['name'],
+        jobFamilyTranslations,
+    ) as typeof jobFamily;
 
-    const selectedJobs = await Promise.all(
-        userJob.selectedJobs.map(async (selection) => {
-            const localizedJob = await resolveFields({
-                entity: 'Job',
-                entityId: selection.job.id,
-                fields: ['title', 'description'],
-                lang,
-                base: selection.job,
-            });
-            return {
-                ...selection,
-                job: localizedJob,
-            };
-        })
-    );
+    const selectedJobs = userJob.selectedJobs.map((selection) => {
+        const localizedJob = applyTranslations(
+            selection.job,
+            selection.job.id,
+            ['title', 'description'],
+            jobTranslations,
+        );
+        return {
+            ...selection,
+            job: localizedJob,
+        };
+    });
 
     const activeSelectedJobIds = selectedJobs
         .filter((selection) => selection.isSelected)
@@ -718,10 +789,10 @@ export async function getUserJob(jobId: string, userId: any, lang: string = 'en'
         });
 
         if (!userJob) {
-            throw new Error('UserJob not found');
+            throw buildServiceError('UserJob not found', 404);
         }
         if (!userJob.jobFamily) {
-            throw new Error('JobFamily manquante pour ce UserJob.');
+            throw buildServiceError('JobFamily manquante pour ce UserJob.', 404);
         }
         const jobFamily = userJob.jobFamily;
 
@@ -765,10 +836,10 @@ export async function getUserJob(jobId: string, userId: any, lang: string = 'en'
     });
 
     if (!userJob) {
-        throw new Error('UserJob not found');
+        throw buildServiceError('UserJob not found', 404);
     }
     if (!userJob.job) {
-        throw new Error('Job manquant pour ce UserJob.');
+        throw buildServiceError('Job manquant pour ce UserJob.', 404);
     }
 
     const localizedJob = await resolveFields({
@@ -1700,6 +1771,7 @@ export const saveQuizAnswersAndComplete = async (
     const completedAt = doneAt ? new Date(doneAt) : new Date();
 
     type ResolvedAnswer = {
+        answerId: string;
         questionId: string;
         competencyId: string;
         item: any;
@@ -1940,6 +2012,7 @@ export const saveQuizAnswersAndComplete = async (
                 const question = item.question;
                 const points = getEffectivePoints(item, question);
                 const resolved: ResolvedAnswer = {
+                    answerId: answer.id,
                     questionId: answer.questionId,
                     competencyId: question.competencyId,
                     item,
@@ -1993,6 +2066,7 @@ export const saveQuizAnswersAndComplete = async (
 
                 const score = isCorrect ? points : 0;
                 const resolved: ResolvedAnswer = {
+                    answerId: randomUUID(),
                     questionId: question.id,
                     competencyId: question.competencyId,
                     item,
@@ -2008,26 +2082,25 @@ export const saveQuizAnswersAndComplete = async (
                 resolvedByQuestionId.set(resolved.questionId, resolved);
             }
 
-            for (const resolved of resolvedAnswers) {
-                const createdAnswer = await tx.userQuizAnswer.create({
-                    data: {
-                        userQuizId: userQuiz.id,
-                        questionId: resolved.questionId,
-                        timeToAnswer: resolved.timeToAnswer ?? 0,
-                        freeTextAnswer: resolved.freeTextAnswer,
-                        isCorrect: resolved.isCorrect,
-                        score: resolved.score,
-                    },
-                });
+            const answerRows = resolvedAnswers.map((resolved) => ({
+                id: resolved.answerId,
+                userQuizId: userQuiz.id,
+                questionId: resolved.questionId,
+                timeToAnswer: resolved.timeToAnswer ?? 0,
+                freeTextAnswer: resolved.freeTextAnswer,
+                isCorrect: resolved.isCorrect,
+                score: resolved.score,
+            }));
+            await tx.userQuizAnswer.createMany({data: answerRows});
 
-                if (resolved.responseIds.length > 0) {
-                    await tx.userQuizAnswerOption.createMany({
-                        data: resolved.responseIds.map((responseId) => ({
-                            userQuizAnswerId: createdAnswer.id,
-                            responseId,
-                        })),
-                    });
-                }
+            const optionRows = resolvedAnswers.flatMap((resolved) =>
+                resolved.responseIds.map((responseId) => ({
+                    userQuizAnswerId: resolved.answerId,
+                    responseId,
+                }))
+            );
+            if (optionRows.length > 0) {
+                await tx.userQuizAnswerOption.createMany({data: optionRows});
             }
         }
 
@@ -2632,7 +2705,7 @@ export const saveQuizAnswersAndComplete = async (
             leagueTier: nextTier,
             leaguePoints: nextLeaguePoints,
         };
-    });
+    }, {timeout: 60000});
 
     if (!wasAlreadyCompleted) {
         await trackEvent(
@@ -2668,18 +2741,17 @@ export const saveQuizAnswersAndComplete = async (
         quizResult = await generateNextQuiz(updatedUserQuiz, userJob.id, userId, jobIdForGeneration);
     }
 
-    let generatedArticle = null;
+    const generatedArticle = null;
+    let articleEnqueueStatus: 'enqueued' | 'not_enqueued' | 'error' = 'not_enqueued';
     if (!wasAlreadyCompleted) {
         try {
             const enqueued = await enqueueArticleGenerationJob({userJobId: userJob.id, userId});
-            if (!enqueued && process.env.RUN_WORKERS !== "0") {
-                setImmediate(() => {
-                    import("./generateMarkdownArticleForLastQuiz")
-                        .then(({generateMarkdownArticleForLastQuiz}) => generateMarkdownArticleForLastQuiz(userJob.id, userId))
-                        .catch((err) => console.error('Failed to auto-generate markdown article after quiz completion', err));
-                });
+            articleEnqueueStatus = enqueued ? 'enqueued' : 'not_enqueued';
+            if (!enqueued) {
+                console.warn('Article generation not enqueued (worker-only mode).');
             }
         } catch (err) {
+            articleEnqueueStatus = 'error';
             console.error('Failed to enqueue markdown article generation', err);
         }
     }
@@ -2690,6 +2762,7 @@ export const saveQuizAnswersAndComplete = async (
         leagueTier,
         leaguePoints,
         generatedArticle,
+        articleEnqueueStatus,
     };
 };
 

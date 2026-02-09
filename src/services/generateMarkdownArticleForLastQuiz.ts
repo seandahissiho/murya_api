@@ -1,6 +1,7 @@
 import {prisma} from "../config/db";
 import {CompetencyType, Level, UserQuizStatus} from "@prisma/client";
 import OpenAI from "openai";
+import {GoogleGenAI} from "@google/genai";
 import {realtimeBus} from "../realtime/realtimeBus";
 
 const getOpenAIClient = () => {
@@ -9,6 +10,24 @@ const getOpenAIClient = () => {
         throw new Error("OPENAI_API_KEY is required for article generation");
     }
     return new OpenAI({apiKey});
+};
+
+const getGeminiClient = () => {
+    const apiKey = process.env.GEMINI_API_KEY ?? process.env.GOOGLE_API_KEY;
+    if (!apiKey) {
+        throw new Error("GEMINI_API_KEY (or GOOGLE_API_KEY) is required for article generation");
+    }
+    return new GoogleGenAI({apiKey});
+};
+
+type AiProvider = "openai" | "gemini";
+
+const getAiProvider = (): AiProvider => {
+    const rawProvider = (process.env.AI_PROVIDER ?? "openai").trim().toLowerCase();
+    if (rawProvider === "openai" || rawProvider === "gemini") {
+        return rawProvider;
+    }
+    throw new Error(`AI_PROVIDER must be "openai" or "gemini" (got "${rawProvider}")`);
 };
 
 export interface QuizContext {
@@ -187,7 +206,7 @@ export const generateMarkdownArticleForLastQuiz = async (userJobId: string, user
 
     const {systemPrompt, userPrompt} = getArticlePromptUserSide(quizContext);
 
-    const article = await callOpenAIForArticle(systemPrompt, userPrompt);
+    const article = await callAIForArticle(systemPrompt, userPrompt);
     if (!article) {
         return null;
     }
@@ -217,6 +236,14 @@ export const generateMarkdownArticleForLastQuiz = async (userJobId: string, user
 
 type GeneratedArticle = { title: string; description: string; markdown: string };
 
+async function callAIForArticle(systemPrompt: string, userPrompt: string): Promise<GeneratedArticle | null> {
+    const provider = getAiProvider();
+    if (provider === "gemini") {
+        return callGeminiForArticle(systemPrompt, userPrompt);
+    }
+    return callOpenAIForArticle(systemPrompt, userPrompt);
+}
+
 async function callOpenAIForArticle(systemPrompt: string, userPrompt: string): Promise<GeneratedArticle | null> {
     const baseInstructions = `
 Consignes de sortie :
@@ -229,7 +256,7 @@ ${baseInstructions}`;
 
     const openai = getOpenAIClient();
     const response = await openai.responses.create({
-        model: "gpt-5.2",
+        model: process.env.OPENAI_MODEL ?? "gpt-5.2",
         input: [
             {role: "system", content: systemPrompt},
             {role: "user", content: finalUserPrompt},
@@ -240,6 +267,55 @@ ${baseInstructions}`;
     });
 
     const raw = response.output_text?.trim() ?? "";
+    if (!raw) {
+        return null;
+    }
+
+    const cleaned = raw.trim()
+        .replace(/^```(?:json)?/i, "")
+        .replace(/```$/, "")
+        .trim();
+
+    let parsed: Partial<GeneratedArticle> | null = null;
+    try {
+        parsed = JSON.parse(cleaned) as Partial<GeneratedArticle>;
+    } catch (err) {
+        return null;
+    }
+    if (!parsed.markdown || !parsed.title || !parsed.description) {
+        return null;
+    }
+
+    return {
+        title: parsed.title,
+        description: parsed.description,
+        markdown: parsed.markdown,
+    };
+}
+
+async function callGeminiForArticle(systemPrompt: string, userPrompt: string): Promise<GeneratedArticle | null> {
+    const baseInstructions = `
+Consignes de sortie :
+- Génère un titre (45 caractères max) et une description courte (1-2 phrases) cohérents avec l'article.
+- Réponds UNIQUEMENT avec un objet JSON valide de la forme {"title": "...", "description": "...", "markdown": "..."}.
+- Ne renvoie rien d'autre que cet objet JSON. Le champ "markdown" doit contenir l'article complet.`;
+
+    const finalUserPrompt = `${userPrompt}
+${baseInstructions}`;
+
+    const gemini = getGeminiClient();
+    const response = await gemini.models.generateContent({
+        model: process.env.GEMINI_MODEL ?? "gemini-2.5-flash",
+        contents: [{role: "user", parts: [{text: finalUserPrompt}]}],
+        config: {
+            systemInstruction: systemPrompt,
+            temperature: 0.4,
+            responseMimeType: "application/json",
+            // maxOutputTokens: 1000,
+        },
+    });
+
+    const raw = response.text?.trim() ?? "";
     if (!raw) {
         return null;
     }
