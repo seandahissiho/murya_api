@@ -10,21 +10,24 @@ import {
     QuizQuestionType,
     Level,
     LeagueTier,
-    QuestScope,
     LearningResourceSource,
     CompetencyRating,
 } from '@prisma/client';
+import {DateTime} from 'luxon';
 import {prisma} from "../config/db";
 import {getTranslationsMap, resolveFields} from "../i18n/translate";
 import {MURYA_ERROR} from "../constants/errorCodes";
 import {buildGenerateQuizInput} from "./quiz_gen/build-generate-quiz-input";
 import {enqueueArticleGenerationJob, enqueueQuizGenerationJob, getRedisClient} from "../config/redis";
 import {computeWaveformFromMediaUrl} from "../utils/waveform";
-import {assignPositioningQuestsForUserJob, listUserQuests, trackEvent} from "./quests.services";
+import {assignPositioningQuestsForUserJob, getMainUserJobObjective, trackEvent} from "./quests.services";
 import {realtimeBus} from "../realtime/realtimeBus";
 import {selectRankingNeighbors} from "../utils/ranking";
+import {applyDiamondsLedgerDelta} from "../utils/currencyLedger";
 
 const IRT_LEARNING_RATE = 0.1;
+const PREVIEW_COMPETENCY_CACHE_TTL_SECONDS = 30;
+const PREVIEW_COMPETENCY_CACHE_TIMEOUT_MS = 200;
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -35,6 +38,18 @@ const getEffectivePoints = (item: any, question: any) =>
 
 const getEffectiveTimeLimit = (item: any, question: any) =>
     item.timeLimitOverrideS ?? question.defaultTimeLimitS ?? 0;
+
+const normalizeTimezone = (timezone?: string): string => {
+    if (!timezone || typeof timezone !== 'string') {
+        return 'UTC';
+    }
+    const trimmed = timezone.trim();
+    if (!trimmed) {
+        return 'UTC';
+    }
+    const probe = DateTime.now().setZone(trimmed);
+    return probe.isValid ? trimmed : 'UTC';
+};
 
 const mapQuizItemsToQuestions = (quiz: any) => {
     const items = Array.isArray(quiz?.items) ? [...quiz.items] : [];
@@ -272,18 +287,20 @@ async function buildFamilyKiviatsForJobs(
         orderBy: {slug: 'asc'},
     });
 
-    const localizedFamilies = await Promise.all(
-        families.map(async (family) => {
-            const loc = await resolveFields({
-                entity: 'CompetenciesFamily',
-                entityId: family.id,
-                fields: ['name', 'description'],
-                lang,
-                base: family,
-            });
-            return {id: family.id, name: loc.name, slug: family.slug};
+    const familyTranslations = lang
+        ? await getTranslationsMap({
+            entity: 'CompetenciesFamily',
+            entityIds: families.map((family) => family.id),
+            fields: ['name', 'description'],
+            lang,
         })
-    );
+        : new Map<string, string>();
+
+    const localizedFamilies = families.map((family) => ({
+        id: family.id,
+        name: familyTranslations.get(`${family.id}::name`) ?? family.name,
+        slug: family.slug,
+    }));
 
     const jobKiviats = await prisma.jobKiviat.findMany({
         where: {
@@ -2083,13 +2100,13 @@ export const saveQuizAnswersAndComplete = async (
             data: userQuizUpdateData,
         });
 
-        await tx.user.update({
-            where: {id: userId},
-            data: {
-                diamonds: {
-                    increment: totalScore + bonusPoints,
-                },
-            },
+        await applyDiamondsLedgerDelta(tx, {
+            userId,
+            delta: totalScore + bonusPoints,
+            reason: "QUIZ_COMPLETED",
+            refType: "UserQuiz",
+            refId: userQuiz.id,
+            createdAt: completedAt,
         });
 
         const competencyAgg = new Map<
@@ -2753,6 +2770,11 @@ export type PreviewCompetencyProfile = {
     kiviats: {
         userJob: UserJobKiviatDto[];
         jobDefaults: JobKiviatDto[];
+        families: Array<{
+            id: string;
+            name: string;
+            slug: string;
+        }>;
     };
     ranking: {
         me: UserJobRankingRow | null;
@@ -3019,6 +3041,144 @@ export async function getRankingForJob({jobId, from, to, lang,}: GetRankingForJo
     }));
 }
 
+async function getRankingForJobLight({jobId, from, to, lang,}: GetRankingForJobParams): Promise<UserJobRankingRow[]> {
+    const resolved = await resolveJobOrFamilyId(jobId);
+    const scopeFilter = resolved.scope === UserJobScope.JOB_FAMILY
+        ? Prisma.sql`AND uj.scope = ${UserJobScope.JOB_FAMILY}::"UserJobScope" AND uj."jobFamilyId" = ${resolved.jobFamilyId!}::uuid`
+        : Prisma.sql`AND uj.scope = ${UserJobScope.JOB}::"UserJobScope" AND uj."jobId" = ${resolved.jobId!}::uuid`;
+    const jobIdSelect = resolved.scope === UserJobScope.JOB_FAMILY
+        ? Prisma.sql`jf.id`
+        : Prisma.sql`uj."jobId"`;
+    const jobTitleSelect = resolved.scope === UserJobScope.JOB_FAMILY
+        ? Prisma.sql`jf.name`
+        : Prisma.sql`j.title`;
+
+    const fromFilter =
+        from ? Prisma.sql`AND uq."completedAt" >= ${from}::timestamp` : Prisma.empty;
+    const toFilter =
+        to ? Prisma.sql`AND uq."completedAt" < ${to}::timestamp` : Prisma.empty;
+
+    // language=SQL format=false
+    const rows = await prisma.$queryRaw<UserJobRankingRow[]>`
+        WITH base AS (
+            SELECT
+                uj.id,
+                uj."userId",
+                uj."createdAt" AS "sinceDate"
+            FROM "UserJob" uj
+            WHERE 1=1
+            ${scopeFilter}
+        ),
+        quiz_stats AS (
+            SELECT
+                b.id AS "userJobId",
+                COALESCE(CAST(SUM(uq."totalScore") AS INTEGER), 0) AS "totalScore",
+                COALESCE(CAST(SUM(uq."maxScore") AS INTEGER), 0) AS "maxScoreSum",
+                COALESCE(CAST(SUM(uq."totalScore" + uq."bonusPoints") AS INTEGER), 0) AS "diamonds",
+                COALESCE(CAST(COUNT(uq.id) AS INTEGER), 0) AS "completedQuizzes",
+                MAX(uq."completedAt") AS "lastQuizAt"
+            FROM base b
+            LEFT JOIN "UserQuiz" uq
+                ON uq."userJobId" = b.id
+                AND uq.status = 'COMPLETED'
+                ${fromFilter}
+                ${toFilter}
+            GROUP BY b.id
+        )
+        SELECT
+            b.id AS "userJobId",
+            u.id AS "userId",
+            u.firstname,
+            u.lastname,
+            ${jobIdSelect} AS "jobId",
+            ${jobTitleSelect} AS "jobTitle",
+            COALESCE(qs."totalScore", 0) AS "totalScore",
+            COALESCE(qs."maxScoreSum", 0) AS "maxScoreSum",
+            CASE
+                WHEN COALESCE(qs."maxScoreSum", 0) > 0
+                    THEN
+                    ROUND(
+                            (
+                                100.0
+                                    * COALESCE(qs."totalScore", 0)::double precision
+                                    / NULLIF(qs."maxScoreSum"::double precision, 0)
+                                )::numeric,
+                            2
+                    )::double precision
+                ELSE 0
+            END AS "percentage",
+            COALESCE(qs."completedQuizzes", 0) AS "completedQuizzes",
+            qs."lastQuizAt" AS "lastQuizAt",
+            u.id AS "id",
+            u.firstname AS "firstName",
+            u.lastname AS "lastName",
+            u."avatarUrl" AS "profilePictureUrl",
+            COALESCE(qs."diamonds", 0) AS "diamonds",
+            CAST(
+                RANK() OVER (
+                    ORDER BY
+                        COALESCE(qs."diamonds", 0) DESC,
+                        b."sinceDate" ASC
+                )
+                AS INTEGER
+            ) AS "rank",
+            0 AS "questionsAnswered",
+            0 AS "performance",
+            b."sinceDate"
+        FROM base b
+        JOIN "User" u ON u.id = b."userId"
+        JOIN "UserJob" uj ON uj.id = b.id
+        LEFT JOIN "Job" j ON j.id = uj."jobId"
+        LEFT JOIN "JobFamily" jf ON jf.id = uj."jobFamilyId"
+        LEFT JOIN quiz_stats qs ON qs."userJobId" = b.id
+        ORDER BY "rank" ASC;
+    `;
+
+    if (!rows.length || !lang) {
+        return rows;
+    }
+
+    if (resolved.scope === UserJobScope.JOB_FAMILY) {
+        const jobFamily = await prisma.jobFamily.findUnique({
+            where: {id: resolved.jobFamilyId!},
+            select: {id: true, name: true},
+        });
+        if (!jobFamily) {
+            return rows;
+        }
+        const localizedJobFamily = await resolveFields({
+            entity: 'JobFamily',
+            entityId: jobFamily.id,
+            fields: ['name'],
+            lang,
+            base: jobFamily,
+        }) as typeof jobFamily;
+        return rows.map((row) => ({
+            ...row,
+            jobTitle: localizedJobFamily.name,
+        }));
+    }
+
+    const job = await prisma.job.findUnique({
+        where: {id: resolved.jobId!},
+        select: {id: true, title: true},
+    });
+    if (!job) {
+        return rows;
+    }
+    const localizedJob = await resolveFields({
+        entity: 'Job',
+        entityId: job.id,
+        fields: ['title'],
+        lang,
+        base: job,
+    }) as typeof job;
+    return rows.map((row) => ({
+        ...row,
+        jobTitle: localizedJob.title,
+    }));
+}
+
 export async function getPreviewCompetencyProfile(
     userId: string,
     userJobId: string,
@@ -3029,234 +3189,474 @@ export async function getPreviewCompetencyProfile(
         lang = 'en',
     }: {from?: string; to?: string; timezone?: string; lang?: string},
 ): Promise<PreviewCompetencyProfile | null> {
-    const userJob = await prisma.userJob.findFirst({
-        where: {id: userJobId, userId},
-        include: {
-            user: {
-                select: {
-                    id: true,
-                    firstname: true,
-                    lastname: true,
-                    avatarUrl: true,
-                    diamonds: true,
-                },
-            },
-            job: {
-                select: {
-                    id: true,
-                    title: true,
-                    slug: true,
-                    description: true,
-                    kiviats: {include: {competenciesFamily: true}},
-                },
-            },
-            jobFamily: {
-                select: {
-                    id: true,
-                    name: true,
-                    slug: true,
-                },
-            },
-            selectedJobs: {
-                where: {isSelected: true},
-                select: {
-                    jobId: true,
-                    isSelected: true,
-                    job: {
-                        select: {
-                            id: true,
-                            title: true,
-                            slug: true,
-                            description: true,
-                            kiviats: {include: {competenciesFamily: true}},
-                        },
-                    },
-                },
-            },
-            kiviats: {include: {competenciesFamily: true}},
+    const debugPreview = process.env.DEBUG_PREVIEW === '1';
+    const debugStart = Date.now();
+    const markStart = (label: string) => {
+        if (!debugPreview) return 0;
+        return Date.now();
+    };
+    const markEnd = (label: string, startAt: number) => {
+        if (!debugPreview || !startAt) return;
+        const delta = Date.now() - startAt;
+        console.log(`[previewCompetencyProfile] ${label} ${delta}ms`);
+    };
+
+    const zone = normalizeTimezone(timezone);
+    let effectiveFrom = from;
+    let effectiveTo = to;
+    if (!effectiveFrom && !effectiveTo) {
+        const start = DateTime.now().setZone(zone).startOf('day').toUTC();
+        const end = start.plus({days: 1});
+        effectiveFrom = start.toISO({suppressMilliseconds: false}) ?? undefined;
+        effectiveTo = end.toISO({suppressMilliseconds: false}) ?? undefined;
+    }
+
+    const cacheKey = `previewCompetencyProfile:${userJobId}:${lang || 'en'}:${zone}:${effectiveFrom ?? 'null'}:${effectiveTo ?? 'null'}`;
+    const redis = getRedisClient();
+    const cacheStart = markStart('cache_get');
+    if (redis) {
+        try {
+            const cached = await Promise.race<string | null>([
+                redis.get(cacheKey),
+                new Promise<null>((resolve) => setTimeout(() => resolve(null), PREVIEW_COMPETENCY_CACHE_TIMEOUT_MS)),
+            ]);
+            markEnd('cache_get', cacheStart);
+            if (cached) {
+                try {
+                    if (debugPreview) {
+                        console.log(`[previewCompetencyProfile] cache_hit ${Date.now() - debugStart}ms`);
+                    }
+                    return JSON.parse(cached) as PreviewCompetencyProfile;
+                } catch (err) {
+                    console.error('Failed to parse previewCompetencyProfile cache', err);
+                }
+            }
+        } catch (err) {
+            markEnd('cache_get', cacheStart);
+            console.error('Failed to fetch previewCompetencyProfile cache', err);
+        }
+    }
+
+    const userJobStart = markStart('user_job_query');
+    const userJob = await prisma.userJob.findUnique({
+        where: {id: userJobId},
+        select: {
+            id: true,
+            userId: true,
+            scope: true,
+            jobId: true,
+            jobFamilyId: true,
         },
     });
+    markEnd('user_job_query', userJobStart);
 
     if (!userJob) {
         return null;
     }
 
-    const localizeFamily = async (family: {id: string; name: string; slug: string; description?: string | null}) => {
-        if (!lang) {
-            return {id: family.id, name: family.name, slug: family.slug};
-        }
-        const loc = await resolveFields({
-            entity: 'CompetenciesFamily',
-            entityId: family.id,
-            fields: ['name', 'description'],
-            lang,
-            base: {id: family.id, name: family.name, description: family.description ?? null, slug: family.slug},
-        });
-        return {id: family.id, name: loc.name, slug: family.slug};
-    };
-
-    const localizeJob = async (job: {id: string; title: string; slug: string; description: string | null}) => {
-        if (!lang) {
-            return job;
-        }
-        const loc = await resolveFields({
-            entity: 'Job',
-            entityId: job.id,
-            fields: ['title', 'description'],
-            lang,
-            base: job,
-        });
-        return {...job, title: loc.title, description: loc.description};
-    };
-
-    const localizeJobFamily = async (jobFamily: {id: string; name: string; slug: string}) => {
-        if (!lang) {
-            return jobFamily;
-        }
-        const loc = await resolveFields({
-            entity: 'JobFamily',
-            entityId: jobFamily.id,
-            fields: ['name'],
-            lang,
-            base: jobFamily,
-        });
-        return {...jobFamily, name: loc.name};
-    };
-
-    const localizeJobKiviat = async (kiviat: any) => {
-        const localizedFamily = await localizeFamily(kiviat.competenciesFamily);
-        if (!lang) {
-            return {...kiviat, competenciesFamily: localizedFamily};
-        }
-        const localizedKiviat = await resolveFields({
-            entity: 'JobKiviat',
-            entityId: kiviat.id,
-            fields: ['level'],
-            lang,
-            base: kiviat,
-        });
-        return {...kiviat, ...localizedKiviat, competenciesFamily: localizedFamily};
-    };
-
-    const userKiviats = await Promise.all(
-        userJob.kiviats.map(async (k) => {
-            const localizedFamily = await localizeFamily(k.competenciesFamily);
-            return {
-                id: k.id,
-                userJobId: k.userJobId,
-                competenciesFamilyId: k.competenciesFamilyId,
-                level: k.level,
-                rawScore0to10: k.rawScore0to10,
-                radarScore0to5: k.radarScore0to5,
-                continuous0to10: k.continuous0to10,
-                masteryAvg0to1: k.masteryAvg0to1,
-                competenciesFamily: localizedFamily,
-            };
-        })
-    );
-
-    let jobDefaults: JobKiviatDto[] = [];
-    let jobInfo: PreviewCompetencyProfile['job'] = null;
-
-    if (userJob.job) {
-        const localizedJob = await localizeJob(userJob.job);
-        jobInfo = {
-            id: localizedJob.id,
-            title: localizedJob.title,
-            slug: localizedJob.slug,
-            description: localizedJob.description,
-            scope: UserJobScope.JOB,
-        };
-        jobDefaults = await Promise.all(userJob.job.kiviats.map(localizeJobKiviat));
-    } else if (userJob.scope === UserJobScope.JOB_FAMILY && userJob.jobFamily) {
-        const localizedJobFamily = await localizeJobFamily(userJob.jobFamily);
-        jobInfo = {
-            id: localizedJobFamily.id,
-            title: localizedJobFamily.name,
-            slug: localizedJobFamily.slug,
-            description: null,
-            scope: UserJobScope.JOB_FAMILY,
-        };
-
-        const selectedJobIds = userJob.selectedJobs.map((selection) => selection.jobId);
-        if (selectedJobIds.length) {
-            const topFamilyIds = await getTopCompetencyFamilyIdsForJobs(selectedJobIds, 5);
-            jobDefaults = await buildFamilyKiviatsForJobs(
-                selectedJobIds,
-                topFamilyIds,
-                lang,
-                localizedJobFamily,
-            ) as JobKiviatDto[];
-        }
-    } else if (userJob.selectedJobs.length) {
-        const selectedJob = userJob.selectedJobs[0].job;
-        if (selectedJob) {
-            const localizedJob = await localizeJob(selectedJob);
-            jobInfo = {
-                id: localizedJob.id,
-                title: localizedJob.title,
-                slug: localizedJob.slug,
-                description: localizedJob.description,
-                scope: UserJobScope.JOB,
-            };
-            jobDefaults = await Promise.all(selectedJob.kiviats.map(localizeJobKiviat));
-        }
-    }
-
-    const questData = await listUserQuests(
-        userId,
-        timezone,
+    const objectiveStart = markStart('objective');
+    const objectivePromise = getMainUserJobObjective(
+        userJob.userId,
         userJob.id,
-        QuestScope.USER_JOB,
+        timezone,
         lang,
-    );
-    const mainObjective = questData.main ?? (questData.mains.length ? questData.mains[0] : null);
-    const objective = mainObjective
-        ? (() => {
-            const targetCount = Number(mainObjective.definition.targetCount ?? 0);
-            const progressCount = Number(mainObjective.instance.progressCount ?? 0);
-            const completionPercentage = targetCount > 0
-                ? Math.min(100, (progressCount / targetCount) * 100)
-                : 0;
-            return {
-                id: mainObjective.definition.id,
-                code: mainObjective.definition.code,
-                title: mainObjective.definition.title,
-                description: mainObjective.definition.description ?? null,
-                progressCount,
-                targetCount,
-                completionPercentage,
-                status: mainObjective.instance.status,
-                claimable: mainObjective.claimable,
-            };
-        })()
-        : null;
+        {syncWeekly: false, readOnly: true},
+    ).then((mainObjective) => {
+        const objective = mainObjective
+            ? (() => {
+                const targetCount = Number(mainObjective.definition.targetCount ?? 0);
+                const progressCount = Number(mainObjective.instance.progressCount ?? 0);
+                const completionPercentage = targetCount > 0
+                    ? Math.min(100, (progressCount / targetCount) * 100)
+                    : 0;
+                return {
+                    id: mainObjective.definition.id,
+                    code: mainObjective.definition.code,
+                    title: mainObjective.definition.title,
+                    description: mainObjective.definition.description ?? null,
+                    progressCount,
+                    targetCount,
+                    completionPercentage,
+                    status: mainObjective.instance.status,
+                    claimable: mainObjective.claimable,
+                };
+            })()
+            : null;
+        markEnd('objective', objectiveStart);
+        return objective;
+    }).catch((err) => {
+        markEnd('objective', objectiveStart);
+        throw err;
+    });
 
     const rankingTargetId = userJob.scope === UserJobScope.JOB
         ? userJob.jobId
         : userJob.jobFamilyId;
-    const rankingRows = rankingTargetId
-        ? await getRankingForJob({jobId: rankingTargetId, from, to, lang})
-        : [];
-    const ranking = selectRankingNeighbors(rankingRows, userJob.id);
+    const rankingStart = markStart('ranking');
+    const rankingPromise = (async () => {
+        const rankingRows = rankingTargetId
+            ? await getRankingForJobLight({jobId: rankingTargetId, from: effectiveFrom, to: effectiveTo, lang})
+            : [];
+        return selectRankingNeighbors(rankingRows, userJob.id);
+    })().finally(() => {
+        markEnd('ranking', rankingStart);
+    });
 
-    return {
+    const userPromise = prisma.user.findUnique({
+        where: {id: userJob.userId},
+        select: {
+            id: true,
+            firstname: true,
+            lastname: true,
+            avatarUrl: true,
+            diamonds: true,
+        },
+    });
+
+    const userKiviatsRawPromise = prisma.userJobKiviat.findMany({
+        where: {userJobId: userJob.id},
+        select: {
+            id: true,
+            userJobId: true,
+            competenciesFamilyId: true,
+            rawScore0to10: true,
+            radarScore0to5: true,
+            continuous0to10: true,
+            masteryAvg0to1: true,
+            level: true,
+            competenciesFamily: {select: {id: true, name: true, slug: true}},
+        },
+    });
+
+    const selectedJobsPromise = prisma.userJobSelectedJob.findMany({
+        where: {userJobId: userJob.id, isSelected: true},
+        select: {jobId: true},
+    });
+
+    const jobPromise = userJob.jobId
+        ? prisma.job.findUnique({
+            where: {id: userJob.jobId},
+            select: {id: true, title: true, slug: true, description: true},
+        })
+        : Promise.resolve(null);
+
+    const jobFamilyPromise = userJob.jobFamilyId
+        ? prisma.jobFamily.findUnique({
+            where: {id: userJob.jobFamilyId},
+            select: {id: true, name: true, slug: true},
+        })
+        : Promise.resolve(null);
+
+    const jobKiviatsPromise = userJob.scope === UserJobScope.JOB && userJob.jobId
+        ? prisma.jobKiviat.findMany({
+            where: {jobId: userJob.jobId},
+            select: {
+                id: true,
+                jobId: true,
+                competenciesFamilyId: true,
+                level: true,
+                rawScore0to10: true,
+                radarScore0to5: true,
+                continuous0to10: true,
+                masteryAvg0to1: true,
+                competenciesFamily: {select: {id: true, name: true, slug: true}},
+            },
+        })
+        : Promise.resolve([]);
+
+    const [
+        user,
+        userKiviatsRaw,
+        selectedJobs,
+        job,
+        jobFamily,
+        jobKiviatsRaw,
+    ] = await Promise.all([
+        userPromise,
+        userKiviatsRawPromise,
+        selectedJobsPromise,
+        jobPromise,
+        jobFamilyPromise,
+        jobKiviatsPromise,
+    ]);
+
+    if (!user) {
+        return null;
+    }
+
+    const selectedJobIds = selectedJobs.map((selection) => selection.jobId);
+
+    const translationsStart = markStart('translations');
+    const familyIds = new Set<string>();
+    userKiviatsRaw.forEach((k) => familyIds.add(k.competenciesFamilyId));
+    jobKiviatsRaw.forEach((k) => familyIds.add(k.competenciesFamilyId));
+
+    const familyTranslationsPromise = lang && familyIds.size
+        ? getTranslationsMap({
+            entity: 'CompetenciesFamily',
+            entityIds: Array.from(familyIds),
+            fields: ['name', 'description'],
+            lang,
+        })
+        : Promise.resolve(new Map<string, string>());
+
+    const jobTranslationsPromise = lang && job
+        ? getTranslationsMap({
+            entity: 'Job',
+            entityIds: [job.id],
+            fields: ['title', 'description'],
+            lang,
+        })
+        : Promise.resolve(new Map<string, string>());
+
+    const jobFamilyTranslationsPromise = lang && jobFamily
+        ? getTranslationsMap({
+            entity: 'JobFamily',
+            entityIds: [jobFamily.id],
+            fields: ['name'],
+            lang,
+        })
+        : Promise.resolve(new Map<string, string>());
+
+    const jobKiviatTranslationsPromise = lang && jobKiviatsRaw.length
+        ? getTranslationsMap({
+            entity: 'JobKiviat',
+            entityIds: jobKiviatsRaw.map((k) => k.id),
+            fields: ['level'],
+            lang,
+        })
+        : Promise.resolve(new Map<string, string>());
+
+    const [
+        familyTranslations,
+        jobTranslations,
+        jobFamilyTranslations,
+        jobKiviatTranslations,
+    ] = await Promise.all([
+        familyTranslationsPromise,
+        jobTranslationsPromise,
+        jobFamilyTranslationsPromise,
+        jobKiviatTranslationsPromise,
+    ]);
+    markEnd('translations', translationsStart);
+
+    const localizeFamily = (family: {id: string; name: string; slug: string}) => ({
+        id: family.id,
+        name: familyTranslations.get(`${family.id}::name`) ?? family.name,
+        slug: family.slug,
+    });
+
+    let jobDefaults: JobKiviatDto[] = [];
+    let jobInfo: PreviewCompetencyProfile['job'] = null;
+
+    const userKiviatsStart = markStart('user_kiviats');
+    const userKiviatsPromise = Promise.resolve(userKiviatsRaw.map((k) => ({
+        id: k.id,
+        userJobId: k.userJobId,
+        competenciesFamilyId: k.competenciesFamilyId,
+        level: k.level,
+        rawScore0to10: k.rawScore0to10,
+        radarScore0to5: k.radarScore0to5,
+        continuous0to10: k.continuous0to10,
+        masteryAvg0to1: k.masteryAvg0to1,
+        competenciesFamily: localizeFamily(k.competenciesFamily),
+    }))).then((result) => {
+        markEnd('user_kiviats', userKiviatsStart);
+        return result;
+    });
+
+    const jobDefaultsStart = markStart('job_defaults');
+    const jobDefaultsPromise = (async () => {
+        if (userJob.scope === UserJobScope.JOB && job) {
+            jobInfo = {
+                id: job.id,
+                title: jobTranslations.get(`${job.id}::title`) ?? job.title,
+                slug: job.slug,
+                description: jobTranslations.get(`${job.id}::description`) ?? job.description,
+                scope: UserJobScope.JOB,
+            };
+            jobDefaults = jobKiviatsRaw.map((k) => ({
+                id: k.id,
+                jobId: k.jobId ?? null,
+                userJobId: null,
+                competenciesFamilyId: k.competenciesFamilyId,
+                level: jobKiviatTranslations.get(`${k.id}::level`) ?? k.level,
+                rawScore0to10: k.rawScore0to10,
+                radarScore0to5: k.radarScore0to5,
+                continuous0to10: k.continuous0to10,
+                masteryAvg0to1: k.masteryAvg0to1,
+                competenciesFamily: localizeFamily(k.competenciesFamily),
+            }));
+            return;
+        }
+
+        if (userJob.scope === UserJobScope.JOB_FAMILY && jobFamily) {
+            const localizedJobFamily = {
+                id: jobFamily.id,
+                name: jobFamilyTranslations.get(`${jobFamily.id}::name`) ?? jobFamily.name,
+                slug: jobFamily.slug,
+            };
+            jobInfo = {
+                id: localizedJobFamily.id,
+                title: localizedJobFamily.name,
+                slug: localizedJobFamily.slug,
+                description: null,
+                scope: UserJobScope.JOB_FAMILY,
+            };
+
+            if (selectedJobIds.length) {
+                const topFamilyIds = await getTopCompetencyFamilyIdsForJobs(selectedJobIds, 5);
+                jobDefaults = await buildFamilyKiviatsForJobs(
+                    selectedJobIds,
+                    topFamilyIds,
+                    lang,
+                    localizedJobFamily,
+                ) as JobKiviatDto[];
+            }
+            return;
+        }
+
+        if (!job && selectedJobIds.length) {
+            const fallbackJob = await prisma.job.findUnique({
+                where: {id: selectedJobIds[0]},
+                select: {id: true, title: true, slug: true, description: true},
+            });
+            if (!fallbackJob) {
+                return;
+            }
+
+            const fallbackJobTranslations = lang
+                ? await getTranslationsMap({
+                    entity: 'Job',
+                    entityIds: [fallbackJob.id],
+                    fields: ['title', 'description'],
+                    lang,
+                })
+                : new Map<string, string>();
+
+            const fallbackKiviats = await prisma.jobKiviat.findMany({
+                where: {jobId: fallbackJob.id},
+                select: {
+                    id: true,
+                    jobId: true,
+                    competenciesFamilyId: true,
+                    level: true,
+                    rawScore0to10: true,
+                    radarScore0to5: true,
+                    continuous0to10: true,
+                    masteryAvg0to1: true,
+                    competenciesFamily: {select: {id: true, name: true, slug: true}},
+                },
+            });
+
+            const fallbackFamilyIds = new Set(fallbackKiviats.map((k) => k.competenciesFamilyId));
+            const fallbackFamilyTranslations = lang && fallbackFamilyIds.size
+                ? await getTranslationsMap({
+                    entity: 'CompetenciesFamily',
+                    entityIds: Array.from(fallbackFamilyIds),
+                    fields: ['name', 'description'],
+                    lang,
+                })
+                : new Map<string, string>();
+            const fallbackJobKiviatTranslations = lang && fallbackKiviats.length
+                ? await getTranslationsMap({
+                    entity: 'JobKiviat',
+                    entityIds: fallbackKiviats.map((k) => k.id),
+                    fields: ['level'],
+                    lang,
+                })
+                : new Map<string, string>();
+
+            const localizeFallbackFamily = (family: {id: string; name: string; slug: string}) => ({
+                id: family.id,
+                name: fallbackFamilyTranslations.get(`${family.id}::name`) ?? family.name,
+                slug: family.slug,
+            });
+
+            jobInfo = {
+                id: fallbackJob.id,
+                title: fallbackJobTranslations.get(`${fallbackJob.id}::title`) ?? fallbackJob.title,
+                slug: fallbackJob.slug,
+                description: fallbackJobTranslations.get(`${fallbackJob.id}::description`) ?? fallbackJob.description,
+                scope: UserJobScope.JOB,
+            };
+            jobDefaults = fallbackKiviats.map((k) => ({
+                id: k.id,
+                jobId: k.jobId ?? null,
+                userJobId: null,
+                competenciesFamilyId: k.competenciesFamilyId,
+                level: fallbackJobKiviatTranslations.get(`${k.id}::level`) ?? k.level,
+                rawScore0to10: k.rawScore0to10,
+                radarScore0to5: k.radarScore0to5,
+                continuous0to10: k.continuous0to10,
+                masteryAvg0to1: k.masteryAvg0to1,
+                competenciesFamily: localizeFallbackFamily(k.competenciesFamily),
+            }));
+        }
+    })().finally(() => {
+        markEnd('job_defaults', jobDefaultsStart);
+    });
+
+    const [userKiviats, objective, ranking] = await Promise.all([
+        userKiviatsPromise,
+        objectivePromise,
+        rankingPromise,
+        jobDefaultsPromise,
+    ]) as [
+        UserJobKiviatDto[],
+        PreviewCompetencyProfile['objective'],
+        PreviewCompetencyProfile['ranking'],
+        void,
+    ];
+
+    const profile: PreviewCompetencyProfile = {
         userJobId: userJob.id,
         job: jobInfo,
         user: {
-            id: userJob.user.id,
-            firstname: userJob.user.firstname,
-            lastname: userJob.user.lastname,
-            profilePictureUrl: userJob.user.avatarUrl ?? null,
-            diamonds: userJob.user.diamonds,
+            id: user.id,
+            firstname: user.firstname,
+            lastname: user.lastname,
+            profilePictureUrl: user.avatarUrl ?? null,
+            diamonds: user.diamonds,
         },
         objective,
         kiviats: {
             userJob: userKiviats,
             jobDefaults,
+            families: (() => {
+                const map = new Map<string, {id: string; name: string; slug: string}>();
+                userKiviats.forEach((k) => {
+                    const fam = k.competenciesFamily;
+                    if (fam?.id) {
+                        map.set(fam.id, {id: fam.id, name: fam.name, slug: fam.slug});
+                    }
+                });
+                jobDefaults.forEach((k: any) => {
+                    const fam = k?.competenciesFamily;
+                    if (fam?.id) {
+                        map.set(fam.id, {id: fam.id, name: fam.name, slug: fam.slug});
+                    }
+                });
+                return Array.from(map.values());
+            })(),
         },
         ranking,
     };
+
+    if (redis) {
+        const cacheSetStart = markStart('cache_set');
+        Promise.race([
+            redis.set(cacheKey, JSON.stringify(profile), {EX: PREVIEW_COMPETENCY_CACHE_TTL_SECONDS}),
+            new Promise<void>((resolve) => setTimeout(resolve, PREVIEW_COMPETENCY_CACHE_TIMEOUT_MS)),
+        ])
+            .catch((err) => console.error('Failed to set previewCompetencyProfile cache', err))
+            .finally(() => markEnd('cache_set', cacheSetStart));
+    }
+
+    if (debugPreview) {
+        console.log(`[previewCompetencyProfile] total ${Date.now() - debugStart}ms`);
+    }
+    return profile;
 }
 
 type UserJobCompetencyProfile = {

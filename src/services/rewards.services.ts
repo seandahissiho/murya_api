@@ -12,6 +12,7 @@ import {buildGoogleMapsUrl} from "../utils/address";
 import {generateVoucherCode} from "../utils/rewards";
 import {getTranslationsMap} from "../i18n/translate";
 import {MURYA_ERROR} from "../constants/errorCodes";
+import {applyDiamondsLedgerDelta, getDiamondsBalance, syncUserDiamondsCache} from "../utils/currencyLedger";
 
 const buildVisibilityFilter = (now: Date): Prisma.RewardWhereInput => ({
     AND: [
@@ -147,7 +148,8 @@ export const listRewards = async (
         lang?: string;
     },
 ) => {
-    const user = await ensureUser(userId);
+    await ensureUser(userId);
+    const diamonds = await getDiamondsBalance(prisma, userId);
     const now = new Date();
     const skip = (page - 1) * limit;
     const where: Prisma.RewardWhereInput = buildVisibilityFilter(now);
@@ -193,7 +195,7 @@ export const listRewards = async (
             reason = "INACTIVE";
         } else if (reward.remainingStock <= 0) {
             reason = "OUT_OF_STOCK";
-        } else if (user.diamonds < reward.costDiamonds) {
+        } else if (diamonds < reward.costDiamonds) {
             reason = "NOT_ENOUGH_DIAMONDS";
         }
 
@@ -282,13 +284,10 @@ export const purchaseReward = async (
             });
 
             if (existing) {
-                const user = await tx.user.findUnique({
-                    where: {id: userId},
-                    select: {diamonds: true},
-                });
+                const diamonds = await getDiamondsBalance(tx, userId);
                 return {
                     purchase: formatPurchaseResponse(existing),
-                    wallet: {diamonds: user?.diamonds ?? 0},
+                    wallet: {diamonds},
                     idempotent: true,
                     external: false,
                 };
@@ -320,14 +319,15 @@ export const purchaseReward = async (
 
             const user = await tx.user.findUnique({
                 where: {id: userId},
-                select: {id: true, diamonds: true},
+                select: {id: true},
             });
             if (!user) {
                 throw new ServiceError("Utilisateur introuvable.", 404, MURYA_ERROR.USER_NOT_FOUND);
             }
 
             const totalCost = reward.costDiamonds * quantity;
-            if (user.diamonds < totalCost) {
+            const balance = await getDiamondsBalance(tx, userId);
+            if (balance < totalCost) {
                 throw new ServiceError("Diamants insuffisants.", 409, MURYA_ERROR.NOT_ENOUGH_DIAMONDS);
             }
 
@@ -373,26 +373,17 @@ export const purchaseReward = async (
                 },
             });
 
-            await tx.currencyLedger.create({
-                data: {
-                    userId,
-                    currency: CurrencyType.DIAMONDS,
-                    delta: -totalCost,
-                    reason: "REWARD_PURCHASE",
-                    refType: "RewardPurchase",
-                    refId: purchase.id,
-                },
-            });
-
-            const updatedUser = await tx.user.update({
-                where: {id: userId},
-                data: {diamonds: {decrement: totalCost}},
-                select: {diamonds: true},
+            const updatedBalance = await applyDiamondsLedgerDelta(tx, {
+                userId,
+                delta: -totalCost,
+                reason: "REWARD_PURCHASE",
+                refType: "RewardPurchase",
+                refId: purchase.id,
             });
 
             return {
                 purchase,
-                wallet: {diamonds: updatedUser.diamonds},
+                wallet: {diamonds: updatedBalance},
                 idempotent: false,
                 external: purchase.reward?.fulfillmentMode === RewardFulfillmentMode.EXTERNAL,
             };
@@ -428,10 +419,7 @@ export const purchaseReward = async (
                 include: {reward: {select: {id: true, title: true}}},
             });
             if (existing) {
-                const user = await prisma.user.findUnique({
-                    where: {id: userId},
-                    select: {diamonds: true},
-                });
+                const diamonds = await getDiamondsBalance(prisma, userId);
                 const purchaseResponse = formatPurchaseResponse(existing);
                 if (purchaseResponse.reward?.id) {
                     const rewardTranslations = await loadRewardTranslations(
@@ -447,7 +435,7 @@ export const purchaseReward = async (
                 }
                 return {
                     purchase: purchaseResponse,
-                    wallet: {diamonds: user?.diamonds ?? 0},
+                    wallet: {diamonds},
                     idempotent: true,
                 };
             }
@@ -579,15 +567,18 @@ export const getUserPurchaseDetails = async (
 };
 
 export const getWallet = async (userId: string, limit = 20) => {
-    const user = await ensureUser(userId);
-    const ledger = await prisma.currencyLedger.findMany({
-        where: {userId, currency: CurrencyType.DIAMONDS},
-        orderBy: {createdAt: "desc"},
-        take: limit,
-    });
+    await ensureUser(userId);
+    const [diamonds, ledger] = await Promise.all([
+        syncUserDiamondsCache(prisma, userId),
+        prisma.currencyLedger.findMany({
+            where: {userId, currency: CurrencyType.DIAMONDS},
+            orderBy: {createdAt: "desc"},
+            take: limit,
+        }),
+    ]);
 
     return {
-        diamonds: user.diamonds,
+        diamonds,
         ledger,
     };
 };
@@ -689,23 +680,17 @@ export const refundPurchase = async (purchaseId: string) => {
             },
         });
 
-        await tx.currencyLedger.create({
-            data: {
-                userId: purchase.userId,
-                currency: CurrencyType.DIAMONDS,
-                delta: purchase.totalCostDiamonds,
-                reason: "REWARD_REFUND",
-                refType: "RewardPurchase",
-                refId: purchase.id,
-            },
+        const updatedBalance = await applyDiamondsLedgerDelta(tx, {
+            userId: purchase.userId,
+            delta: purchase.totalCostDiamonds,
+            reason: "REWARD_REFUND",
+            refType: "RewardPurchase",
+            refId: purchase.id,
         });
 
-        const wallet = await tx.user.update({
-            where: {id: purchase.userId},
-            data: {diamonds: {increment: purchase.totalCostDiamonds}},
-            select: {diamonds: true},
-        });
-
-        return {purchase: updated, wallet};
+        return {
+            purchase: updated,
+            wallet: {diamonds: updatedBalance},
+        };
     });
 };

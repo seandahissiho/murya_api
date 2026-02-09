@@ -14,6 +14,7 @@ import {
 import {DateTime} from 'luxon';
 import {prisma} from '../config/db';
 import {getTranslationsMap} from '../i18n/translate';
+import {applyDiamondsLedgerDelta} from '../utils/currencyLedger';
 
 const DEFAULT_TIMEZONE = 'UTC';
 const WEEKLY_MAIN_CODE = 'WEEKLY_MAIN_5_DAILY_QUIZZES';
@@ -1304,6 +1305,136 @@ export const listUserQuests = async (
     };
 };
 
+export const getMainUserJobObjective = async (
+    userId: string,
+    userJobId: string,
+    timezone?: string,
+    lang: string = 'en',
+    options?: {syncWeekly?: boolean; readOnly?: boolean},
+) => {
+    const user = await prisma.user.findUnique({
+        where: {id: userId},
+        select: {id: true, createdAt: true},
+    });
+    if (!user) {
+        throw new Error('Utilisateur introuvable.');
+    }
+
+    const userJob = await prisma.userJob.findFirst({
+        where: {id: userJobId, userId},
+        select: {id: true, createdAt: true},
+    });
+    if (!userJob) {
+        throw new Error('Job utilisateur actuel introuvable.');
+    }
+
+    const definitions = await prisma.questDefinition.findMany({
+        where: {
+            isActive: true,
+            scope: QuestScope.USER_JOB,
+            category: QuestCategory.MAIN,
+        },
+        include: {rewards: true},
+        orderBy: {uiOrder: 'asc'},
+    });
+
+    const zone = normalizeTimezone(timezone);
+    const now = new Date();
+    const activeDefinitions = definitions.filter((definition) =>
+        isQuestActiveForDate(toMetaObject(definition.meta), zone, now),
+    );
+
+    if (!activeDefinitions.length) {
+        return null;
+    }
+
+    const definition = activeDefinitions[0];
+    const meta = toMetaObject(definition.meta);
+    const referenceDate = isOneShotQuest(meta) ? userJob.createdAt : undefined;
+    const {periodStartAt, periodEndAt} = getQuestWindow(
+        definition.period,
+        zone,
+        referenceDate,
+    );
+    const targetCount = await resolveQuestTargetCount(definition, userJob.id);
+    const readOnly = options?.readOnly === true;
+    let instance = readOnly
+        ? await prisma.userJobQuest.findUnique({
+            where: {
+                userJobId_questDefinitionId_periodStartAt: {
+                    userJobId: userJob.id,
+                    questDefinitionId: definition.id,
+                    periodStartAt,
+                },
+            },
+        })
+        : await ensureQuestInstance(
+            userJob.id,
+            {...definition, targetCount},
+            periodStartAt,
+            periodEndAt,
+        );
+
+    if (!instance) {
+        instance = {
+            id: `virtual-${userJob.id}-${definition.id}-${periodStartAt.toISOString()}`,
+            userJobId: userJob.id,
+            questDefinitionId: definition.id,
+            periodStartAt,
+            periodEndAt,
+            progressCount: 0,
+            status: QuestStatus.ACTIVE,
+            claimedAt: null,
+            completedAt: null,
+            createdAt: periodStartAt,
+            updatedAt: periodStartAt,
+            meta: null,
+        } as any;
+    }
+
+    const shouldSyncWeekly = options?.syncWeekly !== false;
+    if (!readOnly && shouldSyncWeekly && definition.code === WEEKLY_MAIN_CODE) {
+        const synced = await syncWeeklyMainQuest(userJob.id, zone);
+        if (synced) {
+            instance = synced;
+        }
+    }
+
+    const resolvedInstance = instance as NonNullable<typeof instance>;
+
+    if (lang) {
+        const translations = await getTranslationsMap({
+            entity: 'QuestDefinition',
+            entityIds: [definition.id],
+            fields: ['title', 'description'],
+            lang,
+        });
+        definition.title = translations.get(`${definition.id}::title`) ?? definition.title;
+        definition.description = translations.get(`${definition.id}::description`) ?? definition.description;
+    }
+
+    const lockState = await isQuestLocked(
+        userJob.id,
+        definition,
+        resolvedInstance.periodStartAt,
+        zone,
+        user.id,
+    );
+    const claimable = !lockState.locked
+        && resolvedInstance.status === QuestStatus.COMPLETED
+        && !resolvedInstance.claimedAt;
+
+    return {
+        definition,
+        instance: resolvedInstance,
+        rewards: definition.rewards,
+        scope: definition.scope,
+        locked: lockState.locked,
+        lockedReason: lockState.locked ? lockState.reason ?? null : null,
+        claimable,
+    };
+};
+
 export const listUserQuestGroups = async (
     userId: string,
     timezone?: string,
@@ -1582,21 +1713,24 @@ export const claimUserJobQuest = async (
                 continue;
             }
 
-            await tx.currencyLedger.create({
-                data: {
+            if (currency === CurrencyType.DIAMONDS) {
+                await applyDiamondsLedgerDelta(tx, {
                     userId: quest.userJob.userId,
-                    currency,
                     delta: amount,
                     reason: 'QUEST_REWARD',
                     refType: 'UserJobQuest',
                     refId: quest.id,
-                },
-            });
-
-            if (currency === CurrencyType.DIAMONDS) {
-                await tx.user.update({
-                    where: {id: quest.userJob.userId},
-                    data: {diamonds: {increment: amount}},
+                });
+            } else {
+                await tx.currencyLedger.create({
+                    data: {
+                        userId: quest.userJob.userId,
+                        currency,
+                        delta: amount,
+                        reason: 'QUEST_REWARD',
+                        refType: 'UserJobQuest',
+                        refId: quest.id,
+                    },
                 });
             }
 
@@ -1665,21 +1799,24 @@ export const claimUserQuest = async (
                 continue;
             }
 
-            await tx.currencyLedger.create({
-                data: {
+            if (currency === CurrencyType.DIAMONDS) {
+                await applyDiamondsLedgerDelta(tx, {
                     userId,
-                    currency,
                     delta: amount,
                     reason: 'QUEST_REWARD',
                     refType: 'UserQuest',
                     refId: quest.id,
-                },
-            });
-
-            if (currency === CurrencyType.DIAMONDS) {
-                await tx.user.update({
-                    where: {id: userId},
-                    data: {diamonds: {increment: amount}},
+                });
+            } else {
+                await tx.currencyLedger.create({
+                    data: {
+                        userId,
+                        currency,
+                        delta: amount,
+                        reason: 'QUEST_REWARD',
+                        refType: 'UserQuest',
+                        refId: quest.id,
+                    },
                 });
             }
         }

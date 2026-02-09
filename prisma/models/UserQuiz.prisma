@@ -28,4 +28,5 @@ model UserQuiz {
   @@unique([userJobId, quizId], map: "unique_user_quiz_user_job_quiz")
   @@index([quizId], map: "idx_user_quiz_quiz")
   @@index([userJobId, status, type, assignedAt], map: "idx_user_quiz_core")
+  @@index([userJobId, status, completedAt], map: "idx_user_quiz_completed_at")
 }
