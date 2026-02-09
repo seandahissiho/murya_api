@@ -1435,6 +1435,193 @@ export const getMainUserJobObjective = async (
     };
 };
 
+export type ActiveQuestGroupPreview = {
+    group: {
+        id: string;
+        code: string;
+        title: string;
+        description: string | null;
+        uiOrder: number;
+        scope: QuestScope;
+        period: QuestPeriod;
+    };
+    instance: {
+        id: string;
+        status: QuestStatus;
+        requiredTotal: number;
+        requiredCompleted: number;
+        optionalTotal: number;
+        optionalCompleted: number;
+        periodStartAt: Date;
+        periodEndAt: Date;
+        completedAt: Date | null;
+        claimedAt: Date | null;
+    };
+    completed: boolean;
+    completionPercentage: number;
+};
+
+export const getActiveUserJobQuestGroup = async (
+    userJobId: string,
+    timezone?: string,
+    lang: string = 'en',
+    options?: {readOnly?: boolean},
+): Promise<ActiveQuestGroupPreview | null> => {
+    const userJob = await prisma.userJob.findUnique({
+        where: {id: userJobId},
+        select: {id: true, userId: true, createdAt: true},
+    });
+    if (!userJob) {
+        throw new Error('Job utilisateur introuvable.');
+    }
+
+    const user = await prisma.user.findUnique({
+        where: {id: userJob.userId},
+        select: {id: true, createdAt: true},
+    });
+    if (!user) {
+        throw new Error('Utilisateur introuvable.');
+    }
+
+    const zone = normalizeTimezone(timezone);
+    const now = new Date();
+
+    const questGroups = await prisma.questGroup.findMany({
+        where: {isActive: true, scope: QuestScope.USER_JOB},
+        orderBy: {uiOrder: 'asc'},
+        select: {
+            id: true,
+            code: true,
+            title: true,
+            description: true,
+            uiOrder: true,
+            scope: true,
+            period: true,
+            meta: true,
+            items: {
+                select: {isRequired: true},
+                orderBy: {uiOrder: 'asc'},
+            },
+        },
+    });
+
+    const activeGroup = questGroups.find((group) =>
+        isQuestActiveForDate(toMetaObject(group.meta), zone, now),
+    );
+    if (!activeGroup) {
+        return null;
+    }
+
+    const {periodStartAt, periodEndAt} = resolveQuestGroupWindow(
+        activeGroup,
+        zone,
+        user.createdAt,
+        userJob.createdAt,
+    );
+
+    const existingInstance = await prisma.userQuestGroup.findFirst({
+        where: {
+            userId: user.id,
+            userJobId: userJob.id,
+            questGroupId: activeGroup.id,
+            periodStartAt,
+        },
+    });
+
+    const requiredTotal = activeGroup.items.filter((item) => item.isRequired).length;
+    const optionalTotal = activeGroup.items.length - requiredTotal;
+
+    let instance = existingInstance;
+    if (!instance && options?.readOnly === false) {
+        instance = await upsertUserQuestGroup(
+            user.id,
+            userJob.id,
+            activeGroup.id,
+            periodStartAt,
+            periodEndAt,
+            requiredTotal,
+            0,
+            optionalTotal,
+            0,
+        );
+    }
+
+    const resolvedInstance = instance ?? ({
+        id: `virtual-${userJob.id}-${activeGroup.id}-${periodStartAt.toISOString()}`,
+        status: QuestStatus.ACTIVE,
+        requiredTotal,
+        requiredCompleted: 0,
+        optionalTotal,
+        optionalCompleted: 0,
+        periodStartAt,
+        periodEndAt,
+        completedAt: null,
+        claimedAt: null,
+    } as const);
+
+    let groupTitle = activeGroup.title;
+    let groupDescription = activeGroup.description ?? null;
+    if (lang) {
+        const translations = await getTranslationsMap({
+            entity: 'QuestGroup',
+            entityIds: [activeGroup.id],
+            fields: ['title', 'description'],
+            lang,
+        });
+        groupTitle = translations.get(`${activeGroup.id}::title`) ?? groupTitle;
+        groupDescription = translations.get(`${activeGroup.id}::description`) ?? groupDescription;
+    }
+
+    const completed = isQuestGroupCompleted(
+        resolvedInstance.requiredTotal,
+        resolvedInstance.requiredCompleted,
+        resolvedInstance.optionalTotal,
+        resolvedInstance.optionalCompleted,
+    );
+
+    const completionPercentage = (() => {
+        if (resolvedInstance.requiredTotal > 0) {
+            return Math.min(
+                100,
+                (resolvedInstance.requiredCompleted / resolvedInstance.requiredTotal) * 100,
+            );
+        }
+        if (resolvedInstance.optionalTotal > 0) {
+            return Math.min(
+                100,
+                (resolvedInstance.optionalCompleted / resolvedInstance.optionalTotal) * 100,
+            );
+        }
+        return 0;
+    })();
+
+    return {
+        group: {
+            id: activeGroup.id,
+            code: activeGroup.code,
+            title: groupTitle,
+            description: groupDescription,
+            uiOrder: activeGroup.uiOrder,
+            scope: activeGroup.scope,
+            period: activeGroup.period,
+        },
+        instance: {
+            id: resolvedInstance.id,
+            status: resolvedInstance.status,
+            requiredTotal: resolvedInstance.requiredTotal,
+            requiredCompleted: resolvedInstance.requiredCompleted,
+            optionalTotal: resolvedInstance.optionalTotal,
+            optionalCompleted: resolvedInstance.optionalCompleted,
+            periodStartAt: resolvedInstance.periodStartAt,
+            periodEndAt: resolvedInstance.periodEndAt,
+            completedAt: resolvedInstance.completedAt ?? null,
+            claimedAt: resolvedInstance.claimedAt ?? null,
+        },
+        completed,
+        completionPercentage,
+    };
+};
+
 export const listUserQuestGroups = async (
     userId: string,
     timezone?: string,

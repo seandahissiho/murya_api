@@ -1,7 +1,15 @@
-import {CurrencyType, Prisma, PrismaClient} from "@prisma/client";
+import {CurrencyType} from "@prisma/client";
 import {prisma} from "../config/db";
 
-export type LedgerTx = Prisma.TransactionClient | PrismaClient;
+export type LedgerTx = {
+    currencyLedger: {
+        aggregate: (args: any) => Promise<any>;
+        create: (args: any) => Promise<any>;
+    };
+    user: {
+        update: (args: any) => Promise<any>;
+    };
+};
 
 export type DiamondsLedgerEntry = {
     userId: string;

@@ -20,7 +20,7 @@ import {MURYA_ERROR} from "../constants/errorCodes";
 import {buildGenerateQuizInput} from "./quiz_gen/build-generate-quiz-input";
 import {enqueueArticleGenerationJob, enqueueQuizGenerationJob, getRedisClient} from "../config/redis";
 import {computeWaveformFromMediaUrl} from "../utils/waveform";
-import {assignPositioningQuestsForUserJob, getMainUserJobObjective, trackEvent} from "./quests.services";
+import {assignPositioningQuestsForUserJob, getActiveUserJobQuestGroup, trackEvent} from "./quests.services";
 import {realtimeBus} from "../realtime/realtimeBus";
 import {selectRankingNeighbors} from "../utils/ranking";
 import {applyDiamondsLedgerDelta} from "../utils/currencyLedger";
@@ -2761,11 +2761,15 @@ export type PreviewCompetencyProfile = {
         code: string;
         title: string;
         description: string | null;
-        progressCount: number;
-        targetCount: number;
         completionPercentage: number;
         status: string;
-        claimable: boolean;
+        periodStartAt: Date;
+        periodEndAt: Date;
+        requiredTotal: number;
+        requiredCompleted: number;
+        optionalTotal: number;
+        optionalCompleted: number;
+        completed: boolean;
     } | null;
     kiviats: {
         userJob: UserJobKiviatDto[];
@@ -3255,32 +3259,28 @@ export async function getPreviewCompetencyProfile(
     }
 
     const objectiveStart = markStart('objective');
-    const objectivePromise = getMainUserJobObjective(
-        userJob.userId,
+    const objectivePromise = getActiveUserJobQuestGroup(
         userJob.id,
         timezone,
         lang,
-        {syncWeekly: false, readOnly: true},
-    ).then((mainObjective) => {
-        const objective = mainObjective
-            ? (() => {
-                const targetCount = Number(mainObjective.definition.targetCount ?? 0);
-                const progressCount = Number(mainObjective.instance.progressCount ?? 0);
-                const completionPercentage = targetCount > 0
-                    ? Math.min(100, (progressCount / targetCount) * 100)
-                    : 0;
-                return {
-                    id: mainObjective.definition.id,
-                    code: mainObjective.definition.code,
-                    title: mainObjective.definition.title,
-                    description: mainObjective.definition.description ?? null,
-                    progressCount,
-                    targetCount,
-                    completionPercentage,
-                    status: mainObjective.instance.status,
-                    claimable: mainObjective.claimable,
-                };
-            })()
+        {readOnly: true},
+    ).then((activeGroup) => {
+        const objective = activeGroup
+            ? {
+                id: activeGroup.group.id,
+                code: activeGroup.group.code,
+                title: activeGroup.group.title,
+                description: activeGroup.group.description ?? null,
+                completionPercentage: activeGroup.completionPercentage,
+                status: activeGroup.instance.status,
+                periodStartAt: activeGroup.instance.periodStartAt,
+                periodEndAt: activeGroup.instance.periodEndAt,
+                requiredTotal: activeGroup.instance.requiredTotal,
+                requiredCompleted: activeGroup.instance.requiredCompleted,
+                optionalTotal: activeGroup.instance.optionalTotal,
+                optionalCompleted: activeGroup.instance.optionalCompleted,
+                completed: activeGroup.completed,
+            }
             : null;
         markEnd('objective', objectiveStart);
         return objective;

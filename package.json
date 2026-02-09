@@ -16,7 +16,8 @@
     "translate:quests:log": "ts-node scripts/translation-log-quests.ts",
     "test:preview-competency-profile": "ts-node scripts/previewCompetencyProfile.test.ts",
     "reconcile:seed-users": "ts-node scripts/reconcile_seed_users.ts",
-    "backfill:diamond-ledger": "ts-node scripts/backfill_diamond_ledger.ts"
+    "backfill:diamond-ledger": "ts-node scripts/backfill_diamond_ledger.ts",
+    "check:user-diamonds": "ts-node scripts/check_user_diamond_mismatch.ts"
   },
   "keywords": [],
   "author": "",
