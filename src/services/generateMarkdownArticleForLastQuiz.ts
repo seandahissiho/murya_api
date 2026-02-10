@@ -64,6 +64,10 @@ interface QuestionSummary {
 
 const MAX_CONTEXT_QUESTION_LENGTH = 160;
 const MAX_CONTEXT_ANSWERS_LENGTH = 160;
+const TARGET_ARTICLE_WORDS = 650;
+const MIN_ARTICLE_WORDS = 600;
+const MAX_ARTICLE_WORDS = 700;
+const MAX_ARTICLE_OUTPUT_TOKENS = 1200;
 
 function normalizeLangCode(value?: string | null): string | null {
     const trimmed = (value ?? '').trim();
@@ -143,6 +147,8 @@ ${quizContext.strongPoints.slice(0, 2).map(q =>
 
 Contraintes pour l'article :
 - Format : Markdown uniquement.
+- Ne répète pas le titre de l'article dans le Markdown.
+- Longueur : environ ${TARGET_ARTICLE_WORDS} mots (entre ${MIN_ARTICLE_WORDS} et ${MAX_ARTICLE_WORDS} mots).
 - Ton clair, concret, motivant.
 - Analyse 2 erreurs probables à partir des questions difficiles (sans parler de quiz).
 - Explique la bonne logique ou méthode attendue pour chaque erreur.
@@ -188,6 +194,8 @@ ${quizContext.strongPoints.slice(0, 2).map(q =>
 
 Article constraints:
 - Format: Markdown only.
+- Do not repeat the article title in the Markdown body.
+- Length: about ${TARGET_ARTICLE_WORDS} words (between ${MIN_ARTICLE_WORDS} and ${MAX_ARTICLE_WORDS} words).
 - Tone: clear, concrete, encouraging.${targetLang && getBaseLang(targetLang) !== 'en' ? `\n- Write the article in the following language: ${targetLang}.` : ''}
 - Analyze 2 likely errors based on the difficult questions (do not mention a quiz).
 - Explain the correct logic or expected method for each error.
@@ -353,7 +361,7 @@ ${baseInstructions}`;
         ],
         temperature: 0.4,
         text: {format: {type: "json_object"}},
-        // max_output_tokens: 1000,
+        max_output_tokens: MAX_ARTICLE_OUTPUT_TOKENS,
     });
 
     const raw = response.output_text?.trim() ?? "";
@@ -401,7 +409,7 @@ ${baseInstructions}`;
             systemInstruction: systemPrompt,
             temperature: 0.4,
             responseMimeType: "application/json",
-            // maxOutputTokens: 1000,
+            maxOutputTokens: MAX_ARTICLE_OUTPUT_TOKENS,
         },
     });
 
