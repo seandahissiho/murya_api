@@ -5,6 +5,13 @@ import * as authService from '../services/auth.services';
 import {sendResponse} from "../utils/helpers";
 import {MURYA_ERROR} from "../constants/errorCodes";
 import {detectLanguage} from "../middlewares/i18n";
+import {prisma} from "../config/db";
+
+type UpdateLanguageDto = {
+    lang?: string | null;
+    preferredLangCode?: string | null;
+    languageCode?: string | null;
+};
 
 // POST /auth/register
 export const register = async (req: Request<any, any, RegisterDto>, res: Response, next: NextFunction) => {
@@ -174,6 +181,64 @@ export const update = async (req: Request<any, any, UpdateMeDto>, res: Response,
                 code: MURYA_ERROR.INTERNAL_ERROR,
             }
         );
+    }
+};
+
+// PUT /auth/me/language
+export const updateLanguage = async (req: Request<any, any, UpdateLanguageDto>, res: Response, next: NextFunction) => {
+    try {
+        await detectLanguage(req);
+        const userId = (req as any).user?.userId;
+
+        if (!userId) {
+            return sendResponse(res, 401, {code: MURYA_ERROR.AUTH_REQUIRED});
+        }
+
+        const rawLang = req.body?.lang ?? req.body?.preferredLangCode ?? req.body?.languageCode;
+        if (rawLang === undefined) {
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
+        }
+
+        if (rawLang === null) {
+            const user = await authService.updateMe(userId, {preferredLangCode: null});
+            return sendResponse(res, 200, {
+                message: "Langue utilisateur mise à jour avec succès",
+                data: {preferredLangCode: user.preferredLangCode},
+            });
+        }
+
+        if (typeof rawLang !== 'string') {
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
+        }
+
+        const trimmed = rawLang.trim();
+        if (!trimmed) {
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
+        }
+
+        const baseLang = trimmed.split('-')[0]?.toLowerCase();
+        if (!baseLang) {
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
+        }
+
+        const language = await prisma.language.findUnique({
+            where: {code: baseLang},
+            select: {code: true},
+        });
+
+        if (!language) {
+            return sendResponse(res, 400, {code: MURYA_ERROR.INVALID_REQUEST});
+        }
+
+        const user = await authService.updateMe(userId, {preferredLangCode: language.code});
+        return sendResponse(res, 200, {
+            message: "Langue utilisateur mise à jour avec succès",
+            data: {preferredLangCode: user.preferredLangCode},
+        });
+    } catch (err) {
+        return sendResponse(res, 500, {
+            code: MURYA_ERROR.INTERNAL_ERROR,
+        });
     }
 };
 

@@ -37,6 +37,11 @@ router.put('/me',
     authenticateToken,
     authControllers.update
 );
+
+router.put('/me/language',
+    authenticateToken,
+    authControllers.updateLanguage
+);
 //
 // router.delete('/me',
 //     authenticateToken,

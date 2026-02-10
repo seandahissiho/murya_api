@@ -427,7 +427,8 @@ export const generateMarkdownArticleForLastQuiz2 = async (req: Request, res: Res
             return sendResponse(res, 401, {code: MURYA_ERROR.AUTH_REQUIRED});
         }
 
-        const article = await generateMarkdownArticleForLastQuiz(userJobId, userId);
+        const lang = await detectLanguage(req);
+        const article = await generateMarkdownArticleForLastQuiz(userJobId, userId, lang);
         return sendResponse(res, 200, {data: article});
     } catch (err) {
         console.error('generateMarkdownArticleForLastQuiz error:', err);

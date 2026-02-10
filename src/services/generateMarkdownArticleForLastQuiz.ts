@@ -65,6 +65,36 @@ interface QuestionSummary {
 const MAX_CONTEXT_QUESTION_LENGTH = 160;
 const MAX_CONTEXT_ANSWERS_LENGTH = 160;
 
+function normalizeLangCode(value?: string | null): string | null {
+    const trimmed = (value ?? '').trim();
+    if (!trimmed) {
+        return null;
+    }
+    return trimmed.toLowerCase();
+}
+
+function getBaseLang(value?: string | null): string | null {
+    const normalized = normalizeLangCode(value);
+    if (!normalized) {
+        return null;
+    }
+    return normalized.split('-')[0];
+}
+
+async function resolveArticleLanguage(userId: string, requestLang?: string | null): Promise<string> {
+    const normalizedRequest = normalizeLangCode(requestLang);
+    if (normalizedRequest) {
+        return normalizedRequest;
+    }
+
+    const user = await prisma.user.findUnique({
+        where: {id: userId},
+        select: {preferredLangCode: true},
+    });
+    const normalizedUser = normalizeLangCode(user?.preferredLangCode);
+    return normalizedUser || 'fr';
+}
+
 function truncateText(value: string | null | undefined, maxLength: number): string {
     const text = (value ?? '').trim();
     if (!text || text.length <= maxLength) {
@@ -78,14 +108,18 @@ function formatAnswerList(values?: string[], fallback = 'non renseignée') {
     return text || fallback;
 }
 
-const getArticlePromptUserSide = (quizContext: QuizContext) => {
-    const systemPrompt = `
+const getArticlePromptUserSide = (quizContext: QuizContext, lang: string) => {
+    const resolvedLang = normalizeLangCode(lang) || 'fr';
+    const baseLang = getBaseLang(resolvedLang) || 'fr';
+
+    const frenchPrompt = () => {
+        const systemPrompt = `
 Tu es un expert pédagogique.
 Tu écris des articles d'apprentissage clairs, précis et progressifs pour aider un utilisateur à progresser sur un métier.
 Tu t'appuies sur le contexte fourni pour expliquer les points faibles avec des exemples concrets.
 Tu dois produire un article COMPLET en Markdown, sans intro de type "En tant que modèle de langage", etc.
 `;
-    const userPrompt = `
+        const userPrompt = `
 Génère un article pédagogique court en **Markdown** pour aider l'utilisateur à progresser sur le métier : "${quizContext?.globalSummary?.jobTitle}".
 
 Contexte du quiz:
@@ -117,7 +151,61 @@ Contraintes pour l'article :
 - Ne mentionne pas le quiz ni la base de données.
 `;
 
-    return {systemPrompt, userPrompt};
+        return {systemPrompt, userPrompt};
+    };
+
+    const englishPrompt = (targetLang?: string) => {
+        const languageLine = targetLang && getBaseLang(targetLang) !== 'en'
+            ? `\nWrite the full article in the following language: ${targetLang}.`
+            : '';
+        const systemPrompt = `
+You are an expert educator.
+You write clear, precise, progressive learning articles to help a user improve at a job.
+You use the provided context to explain weak points with concrete examples.
+You must produce a COMPLETE Markdown article, without intros like "As a language model", etc.${languageLine}
+`;
+        const userPrompt = `
+Generate a short pedagogical article in **Markdown** to help the user improve at the job: "${quizContext?.globalSummary?.jobTitle}".
+
+Quiz context:
+- Quiz title: ${quizContext.globalSummary.quizTitle}
+- Score: ${quizContext.globalSummary.totalScore} / ${quizContext.globalSummary.maxScore} (${quizContext.globalSummary.percentage}%)
+
+Weak competencies (top 3):
+${quizContext.competencies.slice(0, 3).map(c =>
+            `- ${c.competencyName} (${c.type}, level ${c.level}): ${c.quizPercentage}%`
+        ).join("\n")}
+
+Difficult questions (max 3):
+${quizContext.weakPoints.slice(0, 3).map(q =>
+            `- [${q.competencyName}] ${truncateText(q.questionText, MAX_CONTEXT_QUESTION_LENGTH)} (answer: ${truncateText(q.freeTextAnswer || formatAnswerList(q.userAnswer, 'not provided'), MAX_CONTEXT_ANSWERS_LENGTH)}${(q.correctAnswer ?? []).length > 0 ? ` | expected: ${truncateText(formatAnswerList(q.correctAnswer, 'not provided'), MAX_CONTEXT_ANSWERS_LENGTH)}` : ""})`
+        ).join("\n")}
+
+Well-answered questions (max 2):
+${quizContext.strongPoints.slice(0, 2).map(q =>
+            `- [${q.competencyName}] ${truncateText(q.questionText, MAX_CONTEXT_QUESTION_LENGTH)}`
+        ).join("\n")}
+
+Article constraints:
+- Format: Markdown only.
+- Tone: clear, concrete, encouraging.${targetLang && getBaseLang(targetLang) !== 'en' ? `\n- Write the article in the following language: ${targetLang}.` : ''}
+- Analyze 2 likely errors based on the difficult questions (do not mention a quiz).
+- Explain the correct logic or expected method for each error.
+- Propose a mini training plan in 3 very concrete actions.
+- Avoid vague generalities, prioritize actionable advice.
+- Do not mention the quiz nor the database.
+`;
+
+        return {systemPrompt, userPrompt};
+    };
+
+    if (baseLang === 'fr') {
+        return frenchPrompt();
+    }
+    if (baseLang === 'en') {
+        return englishPrompt();
+    }
+    return englishPrompt(resolvedLang);
 }
 
 const getLastQuizForUserJob = async (userJobId: string) => {
@@ -143,7 +231,7 @@ const getLastQuizForUserJob = async (userJobId: string) => {
     return lastUserQuiz;
 };
 
-export const generateMarkdownArticleForLastQuiz = async (userJobId: string, userId: string): Promise<any> => {
+export const generateMarkdownArticleForLastQuiz = async (userJobId: string, userId: string, lang?: string): Promise<any> => {
     const lastUserQuiz = await getLastQuizForUserJob(userJobId);
 
     if (!lastUserQuiz) {
@@ -204,7 +292,8 @@ export const generateMarkdownArticleForLastQuiz = async (userJobId: string, user
         strongPoints: strongQuestions,
     };
 
-    const {systemPrompt, userPrompt} = getArticlePromptUserSide(quizContext);
+    const resolvedLang = await resolveArticleLanguage(userId, lang);
+    const {systemPrompt, userPrompt} = getArticlePromptUserSide(quizContext, resolvedLang);
 
     const article = await callAIForArticle(systemPrompt, userPrompt);
     if (!article) {
@@ -216,6 +305,7 @@ export const generateMarkdownArticleForLastQuiz = async (userJobId: string, user
         userId,
         article,
         quizContext,
+        resolvedLang,
     );
 
 
@@ -347,6 +437,7 @@ async function saveLearningResourceFromArticle(
     userId: string,
     article: GeneratedArticle,
     quizContext: any,
+    lang: string,
 ) {
     // Titre simple basé sur le job + date ou score
     const fallbackTitle = `Plan d'apprentissage personnalisé - ${quizContext.globalSummary.jobTitle}`;
@@ -372,6 +463,7 @@ async function saveLearningResourceFromArticle(
             title,
             description,
             content: article.markdown,
+            languageCode: lang,
             // userJobId,
             // jobId: userJob.jobId,
             userJob: {
